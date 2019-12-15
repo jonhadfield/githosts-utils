@@ -23,22 +23,29 @@ func (provider gitlabHost) getAuthenticatedGitlabUserID(client http.Client) int 
 	// get user id
 	getUserIDURL := provider.APIURL + "/user"
 	req, newReqErr := http.NewRequest(http.MethodGet, getUserIDURL, nil)
+
 	if newReqErr != nil {
 		logger.Fatal(newReqErr)
 	}
+
 	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
+
 	resp, reqErr := client.Do(req)
 	if reqErr != nil {
 		logger.Fatal(reqErr)
 	}
+
 	bodyB, _ := ioutil.ReadAll(resp.Body)
 	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+
 	var respObj gitLabNameResponse
+
 	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		logger.Fatal(err)
 	}
+
 	return respObj.ID
 }
 
@@ -67,7 +74,9 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 	resp, _ := client.Do(req)
 	bodyB, _ := ioutil.ReadAll(resp.Body)
 	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+
 	var respObj gitLabGetProjectsResponse
+
 	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
@@ -76,6 +85,7 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 	for _, project := range respObj {
 		// gitlab replaces hyphens with spaces in owner names, so fix
 		owner := strings.Replace(project.Owner.Name, " ", "-", -1)
+
 		var repo = repository{
 			Name:          project.Path,
 			Owner:         owner,
@@ -84,24 +94,29 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 			SSHUrl:        project.SSHURL,
 			Domain:        "gitlab.com",
 		}
+
 		repos = append(repos, repo)
 	}
+
 	return repos
 }
 
 func (provider gitlabHost) describeRepos() describeReposOutput {
 	logger.Println("listing GitLab repositories")
+
 	tr := &http.Transport{
 		MaxIdleConns:       10,
 		IdleConnTimeout:    30 * time.Second,
 		DisableCompression: true,
 	}
+
 	client := &http.Client{Transport: tr}
 	userID := provider.getAuthenticatedGitlabUserID(*client)
 
 	result := describeReposOutput{
 		Repos: provider.getProjectsByUserID(*client, userID),
 	}
+
 	return result
 }
 
@@ -132,6 +147,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 		repo := repoDesc.Repos[x]
 		jobs <- repo
 	}
+
 	close(jobs)
 
 	for a := 1; a <= len(repoDesc.Repos); a++ {
