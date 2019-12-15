@@ -19,6 +19,7 @@ func init() {
 // Backup accepts a Git hosting provider and executes the backup task for it
 func Backup(providerName, backupDIR string) (err error) {
 	var provider gitProvider
+
 	switch providerName {
 	case "bitbucket":
 		input := newHostInput{
@@ -26,6 +27,7 @@ func Backup(providerName, backupDIR string) (err error) {
 			APIURL:       "https://api.bitbucket.org/1.0",
 		}
 		provider, err = createHost(input)
+
 		if err != nil {
 			return
 		}
@@ -35,6 +37,7 @@ func Backup(providerName, backupDIR string) (err error) {
 			APIURL:       "https://api.github.com/graphql",
 		}
 		provider, err = createHost(input)
+
 		if err != nil {
 			return
 		}
@@ -44,10 +47,13 @@ func Backup(providerName, backupDIR string) (err error) {
 			APIURL:       "https://gitlab.com/api/v4",
 		}
 		provider, err = createHost(input)
+
 		if err != nil {
 			return
 		}
 	}
+
 	provider.Backup(backupDIR)
+
 	return
 }

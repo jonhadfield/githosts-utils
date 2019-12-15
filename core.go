@@ -45,6 +45,7 @@ type newHostInput struct {
 
 func createHost(input newHostInput) (gitProvider, error) {
 	var hostErr error
+
 	switch strings.ToLower(input.ProviderName) {
 	case "bitbucket":
 		return bitbucketHost{
@@ -79,18 +80,22 @@ func processBackup(repo repository, backupDIR string) error {
 	}
 	// CLONE REPO
 	logger.Printf("cloning: %s", repo.HTTPSUrl)
+
 	var cloneURL string
 	if repo.URLWithToken != "" {
 		cloneURL = repo.URLWithToken
 	} else if repo.URLWithBasicAuth != "" {
 		cloneURL = repo.URLWithBasicAuth
 	}
+
 	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	cloneCmd.Dir = backupDIR
+
 	var cloneStdErr bytes.Buffer
 	cloneCmd.Stderr = &cloneStdErr
 	cloneErr := cloneCmd.Run()
 	stderr := cloneStdErr.String()
+
 	var errOutString string
 
 	if cloneErr != nil {
@@ -102,13 +107,14 @@ func processBackup(repo repository, backupDIR string) error {
 	objectsPath := workingPath + pathSep + "objects"
 	dirs, _ := ioutil.ReadDir(objectsPath)
 	emptyPack, checkEmptyErr := isEmpty(objectsPath + pathSep + "pack")
+
 	if checkEmptyErr != nil {
 		logger.Printf("failed to check if: '%s' is empty", objectsPath+pathSep+"pack")
 	}
+
 	if len(dirs) == 2 && emptyPack {
 		logger.Printf("%s is empty, so not creating bundle", repo.Name)
 	} else {
-
 		backupFile := repo.Name + "." + getTimestamp() + bundleExtension
 		backupFilePath := backupPath + pathSep + backupFile
 		createErr := createDirIfAbsent(backupPath)
@@ -126,8 +132,8 @@ func processBackup(repo repository, backupDIR string) error {
 			logger.Fatal(bundleErr)
 		}
 		removeBundleIfDuplicate(backupPath)
-
 	}
+
 	return nil
 }
 
@@ -137,26 +143,30 @@ func removeBundleIfDuplicate(dir string) {
 		logger.Println(err)
 		return
 	}
+
 	if len(files) == 1 {
 		return
 	}
 	// get timestamps in filenames for sorting
 	fNameTimes := map[string]int{}
+
 	for _, f := range files {
 		if strings.Count(f.Name(), ".") >= 2 {
 			parts := strings.Split(f.Name(), ".")
 			strTimestamp := parts[len(parts)-2]
 			intTimestamp, convErr := strconv.Atoi(strTimestamp)
+
 			if convErr == nil {
 				fNameTimes[f.Name()] = intTimestamp
 			}
 		}
-
 	}
+
 	type kv struct {
 		Key   string
 		Value int
 	}
+
 	var ss []kv
 	for k, v := range fNameTimes {
 		ss = append(ss, kv{k, v})
@@ -169,19 +179,24 @@ func removeBundleIfDuplicate(dir string) {
 	// check if file sizes are same
 	latestBundleSize := getFileSize(dir + pathSep + ss[0].Key)
 	previousBundleSize := getFileSize(dir + pathSep + ss[1].Key)
+
 	if latestBundleSize == previousBundleSize {
 		// check if hashes match
 		latestBundleHash, latestHashErr := getMD5Hash(dir + pathSep + ss[0].Key)
 		if latestHashErr != nil {
 			logger.Printf("failed to get md5 hash for: %s", dir+pathSep+ss[0].Key)
 		}
+
 		previousBundleHash, previousHashErr := getMD5Hash(dir + pathSep + ss[1].Key)
+
 		if previousHashErr != nil {
 			logger.Printf("failed to get md5 hash for: %s", dir+pathSep+ss[1].Key)
 		}
+
 		if reflect.DeepEqual(latestBundleHash, previousBundleHash) {
 			logger.Printf("no change since previous bundle: %s", ss[1].Key)
 			logger.Printf("deleting duplicate bundle: %s", ss[0].Key)
+
 			if deleteFile(dir+pathSep+ss[0].Key) != nil {
 				logger.Println("failed to remove duplicate bundle")
 			}
@@ -196,10 +211,13 @@ func deleteFile(path string) (err error) {
 
 func getMD5Hash(filePath string) ([]byte, error) {
 	var result []byte
+
 	file, err := os.Open(filePath)
+
 	if err != nil {
 		return result, err
 	}
+
 	defer func() {
 		if cErr := file.Close(); cErr != nil {
 			logger.Printf("warn: failed to close: %s", filePath)
@@ -220,5 +238,6 @@ func getFileSize(path string) int64 {
 		logger.Println(err)
 		return 0
 	}
+
 	return fi.Size()
 }
