@@ -60,7 +60,6 @@ func (provider bitbucketHost) describeRepos() describeReposOutput {
 
 	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		logger.Fatal(err)
-		os.Exit(1)
 	}
 
 	for _, project := range respObj {
