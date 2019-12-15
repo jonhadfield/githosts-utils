@@ -22,11 +22,13 @@ func stripTrailing(input string, toStrip string) string {
 	if strings.HasSuffix(input, toStrip) {
 		return input[:len(input)-len(toStrip)]
 	}
+
 	return input
 }
 
 func isEmpty(name string) (bool, error) {
 	f, err := os.Open(name)
+
 	defer func() {
 		if cErr := f.Close(); cErr != nil {
 			logger.Printf("warn: failed to close: %s", name)
@@ -41,5 +43,6 @@ func isEmpty(name string) (bool, error) {
 	if err == io.EOF {
 		return true, nil
 	}
+
 	return false, err
 }
