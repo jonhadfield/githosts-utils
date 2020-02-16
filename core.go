@@ -91,18 +91,12 @@ func processBackup(repo repository, backupDIR string) error {
 	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	cloneCmd.Dir = backupDIR
 
-	var cloneStdErr bytes.Buffer
-	cloneCmd.Stderr = &cloneStdErr
-	cloneErr := cloneCmd.Run()
-	stderr := cloneStdErr.String()
-
-	var errOutString string
+	_, cloneErr := cloneCmd.CombinedOutput()
 
 	if cloneErr != nil {
-		errOutString = cloneErr.Error() + "\n" + stderr
-		cloneErr = errors.WithStack(fmt.Errorf(errOutString))
-		logger.Fatal(cloneErr)
+		return (errors.WithStack(fmt.Errorf(cloneErr.Error())))
 	}
+
 	// CREATE BUNDLE
 	objectsPath := workingPath + pathSep + "objects"
 	dirs, _ := ioutil.ReadDir(objectsPath)
@@ -167,7 +161,9 @@ func removeBundleIfDuplicate(dir string) {
 		Value int
 	}
 
-	var ss []kv
+	//var ss []kv
+	ss := make([]kv, len(fNameTimes))
+
 	for k, v := range fNameTimes {
 		ss = append(ss, kv{k, v})
 	}
