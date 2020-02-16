@@ -49,8 +49,8 @@ func (provider githubHost) describeRepos() describeReposOutput {
 	logger.Println("listing GitHub repositories")
 
 	tr := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
+		MaxIdleConns:       maxIdleConns,
+		IdleConnTimeout:    idleConnTimeout * time.Second,
 		DisableCompression: true,
 	}
 	client := &http.Client{Transport: tr}
@@ -80,6 +80,7 @@ func (provider githubHost) describeRepos() describeReposOutput {
 
 		bodyB, _ := ioutil.ReadAll(resp.Body)
 		bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+		_ = resp.Body.Close()
 
 		var respObj githubQueryNamesResponse
 		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
