@@ -8,6 +8,8 @@ import (
 const (
 	workingDIRName  = ".working"
 	bundleExtension = ".bundle"
+	maxIdleConns    = 10
+	idleConnTimeout = 30
 )
 
 var logger *log.Logger
@@ -24,7 +26,7 @@ func Backup(providerName, backupDIR string) (err error) {
 	case "bitbucket":
 		input := newHostInput{
 			ProviderName: "BitBucket",
-			APIURL:       "https://api.bitbucket.org/1.0",
+			APIURL:       "https://api.bitbucket.org/2.0",
 		}
 		provider, err = createHost(input)
 
@@ -55,5 +57,5 @@ func Backup(providerName, backupDIR string) (err error) {
 
 	provider.Backup(backupDIR)
 
-	return
+	return err
 }

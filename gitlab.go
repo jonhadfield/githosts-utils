@@ -17,28 +17,36 @@ type gitlabHost struct {
 }
 
 func (provider gitlabHost) getAuthenticatedGitlabUserID(client http.Client) int {
+	var err error
+
 	type gitLabNameResponse struct {
 		ID int
 	}
 	// get user id
 	getUserIDURL := provider.APIURL + "/user"
-	req, newReqErr := http.NewRequest(http.MethodGet, getUserIDURL, nil)
 
-	if newReqErr != nil {
-		logger.Fatal(newReqErr)
+	var req *http.Request
+	req, err = http.NewRequest(http.MethodGet, getUserIDURL, nil)
+
+	if err != nil {
+		logger.Fatal(err)
 	}
 
 	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
-	resp, reqErr := client.Do(req)
-	if reqErr != nil {
-		logger.Fatal(reqErr)
+	var resp *http.Response
+
+	resp, err = client.Do(req)
+	if err != nil {
+		logger.Fatal(err)
 	}
 
 	bodyB, _ := ioutil.ReadAll(resp.Body)
 	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+
+	_ = resp.Body.Close()
 
 	var respObj gitLabNameResponse
 
@@ -66,14 +74,27 @@ type gitLabGetProjectsResponse []gitLabProject
 
 func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (repos []repository) {
 	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(userID) + "/projects"
-	req, _ := http.NewRequest(http.MethodGet, getUserIDURL, nil)
+
+	req, err := http.NewRequest(http.MethodGet, getUserIDURL, nil)
+	if err != nil {
+		logger.Fatal(err)
+	}
 
 	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
-	resp, _ := client.Do(req)
+
+	var resp *http.Response
+
+	resp, err = client.Do(req)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
 	bodyB, _ := ioutil.ReadAll(resp.Body)
 	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+
+	_ = resp.Body.Close()
 
 	var respObj gitLabGetProjectsResponse
 
@@ -105,8 +126,8 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 	logger.Println("listing GitLab repositories")
 
 	tr := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    30 * time.Second,
+		MaxIdleConns:       maxIdleConns,
+		IdleConnTimeout:    idleConnTimeout * time.Second,
 		DisableCompression: true,
 	}
 
