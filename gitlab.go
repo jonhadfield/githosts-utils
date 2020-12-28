@@ -2,6 +2,7 @@ package githosts
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -25,8 +26,11 @@ func (provider gitlabHost) getAuthenticatedGitlabUserID(client http.Client) int 
 	// get user id
 	getUserIDURL := provider.APIURL + "/user"
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
 	var req *http.Request
-	req, err = http.NewRequest(http.MethodGet, getUserIDURL, nil)
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 
 	if err != nil {
 		logger.Fatal(err)
@@ -44,7 +48,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUserID(client http.Client) int 
 	}
 
 	bodyB, _ := ioutil.ReadAll(resp.Body)
-	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
 
@@ -75,7 +79,10 @@ type gitLabGetProjectsResponse []gitLabProject
 func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (repos []repository) {
 	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(userID) + "/projects"
 
-	req, err := http.NewRequest(http.MethodGet, getUserIDURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -92,7 +99,7 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 	}
 
 	bodyB, _ := ioutil.ReadAll(resp.Body)
-	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
 
@@ -100,14 +107,13 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 
 	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		logger.Fatal(err)
-		os.Exit(1)
 	}
 
 	for _, project := range respObj {
 		// gitlab replaces hyphens with spaces in owner names, so fix
-		owner := strings.Replace(project.Owner.Name, " ", "-", -1)
+		owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
 
-		var repo = repository{
+		repo := repository{
 			Name:          project.Path,
 			Owner:         owner,
 			NameWithOwner: project.PathWithNameSpace,
@@ -159,6 +165,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
+
 	backupsToKeep, err := strconv.Atoi(os.Getenv("GITLAB_BACKUPS"))
 	if err != nil {
 		backupsToKeep = 0

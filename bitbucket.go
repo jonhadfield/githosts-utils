@@ -2,6 +2,7 @@ package githosts
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,13 +11,18 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 func (provider bitbucketHost) auth(c *http.Client, key, secret string) (token string, err error) {
 	reqBody := "grant_type=client_credentials"
 	contentReader := bytes.NewReader([]byte(reqBody))
-	req, newReqErr := http.NewRequest(http.MethodPost, "https://bitbucket.org/site/oauth2/access_token", contentReader)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
+	req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://bitbucket.org/site/oauth2/access_token", contentReader)
 	if newReqErr != nil {
 		logger.Fatal(newReqErr)
 	}
@@ -32,14 +38,14 @@ func (provider bitbucketHost) auth(c *http.Client, key, secret string) (token st
 	}
 
 	bodyB, _ := ioutil.ReadAll(resp.Body)
-	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
 
 	var respObj bitbucketAuthResponse
 
 	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		return "", err
+		return "", errors.Wrap(err, "failed to unmarshall bitbucket json response")
 	}
 
 	return respObj.AccessToken, err
@@ -80,7 +86,10 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	rawRequestURL := provider.APIURL + "/repositories?role=member"
 
-	req, errNewReq := http.NewRequest(http.MethodGet, rawRequestURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
+	req, errNewReq := http.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
 	if errNewReq != nil {
 		logger.Fatal(errNewReq)
 	}
@@ -98,7 +107,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	bodyB, _ := ioutil.ReadAll(resp.Body)
 
-	bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
 
@@ -110,7 +119,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	for _, r := range respObj.Values {
 		if r.Scm == "git" {
-			var repo = repository{
+			repo := repository{
 				Name:          r.Name,
 				HTTPSUrl:      "https://bitbucket.org/" + r.FullName + ".git",
 				NameWithOwner: r.FullName,
@@ -154,6 +163,7 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 	user := os.Getenv("BITBUCKET_USER")
 	key := os.Getenv("BITBUCKET_KEY")
 	secret := os.Getenv("BITBUCKET_SECRET")
+
 	backupsToKeep, err := strconv.Atoi(os.Getenv("BITBUCKET_BACKUPS"))
 	if err != nil {
 		backupsToKeep = 0
