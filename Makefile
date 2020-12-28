@@ -3,9 +3,10 @@ TEST_PATTERN?=.
 TEST_OPTIONS?=-race -v
 
 setup:
-	go get -u github.com/alecthomas/gometalinter
 	go get -u golang.org/x/tools/cmd/cover
 	go get -u github.com/dave/courtney
+	GO111MODULE=on go get mvdan.cc/gofumpt
+	GO111MODULE=on go get mvdan.cc/gofumpt/gofumports
 	gometalinter --install --update
 
 test:
@@ -16,10 +17,10 @@ cover: test
 # don't open browser...	go tool cover -html=coverage.txt -o coverage.html
 
 fmt:
-	goimports -w .
+	find . -name '*.go' -not -wholename './vendor/*' | while read -r file; do gofumpt -w -s "$$file"; gofumports -w "$$file"; done
 
 lint:
-	golangci-lint run --tests=false --enable-all --disable lll --disable interfacer --disable gochecknoglobals
+	golangci-lint run --tests=false --enable-all --disable lll --disable interfacer --disable gochecknoglobals --disable exhaustivestruct
 
 ci: lint test
 

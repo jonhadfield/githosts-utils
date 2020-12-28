@@ -1,7 +1,7 @@
 package githosts
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -11,19 +11,21 @@ import (
 const pathSep = string(os.PathSeparator)
 
 func createDirIfAbsent(path string) error {
-	return os.MkdirAll(path, 0755)
+	return os.MkdirAll(path, 0o755)
 }
 
 func getTimestamp() string {
 	t := time.Now()
-	return t.Format("20060102150405")
+
+	return t.Format(timeStampFormat)
 }
 
 func timeStampToTime(s string) (t time.Time, err error) {
-	if len(s) != 14 {
-		return time.Time{}, fmt.Errorf("invalid timestamp")
+	if len(s) != bundleTimestampChars {
+		return time.Time{}, errors.New("invalid timestamp")
 	}
-	return time.Parse("20060102150405", s)
+
+	return time.Parse(timeStampFormat, s)
 }
 
 func stripTrailing(input string, toStrip string) string {
@@ -48,7 +50,7 @@ func isEmpty(name string) (bool, error) {
 	}
 
 	_, err = f.Readdirnames(1)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	}
 

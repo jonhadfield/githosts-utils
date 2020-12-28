@@ -2,6 +2,7 @@ package githosts
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -62,7 +63,11 @@ func (provider githubHost) describeRepos() describeReposOutput {
 	for {
 		mJSON := reqBody
 		contentReader := bytes.NewReader([]byte(mJSON))
-		req, newReqErr := http.NewRequest(http.MethodPost, "https://api.github.com/graphql", contentReader)
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+		defer cancel()
+
+		req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
 
 		if newReqErr != nil {
 			logger.Fatal(newReqErr)
@@ -79,7 +84,7 @@ func (provider githubHost) describeRepos() describeReposOutput {
 		}
 
 		bodyB, _ := ioutil.ReadAll(resp.Body)
-		bodyStr := string(bytes.Replace(bodyB, []byte("\r"), []byte("\r\n"), -1))
+		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 		_ = resp.Body.Close()
 
 		var respObj githubQueryNamesResponse
@@ -127,6 +132,7 @@ func (provider githubHost) Backup(backupDIR string) {
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
+
 	backupsToKeep, err := strconv.Atoi(os.Getenv("GITHUB_BACKUPS"))
 	if err != nil {
 		backupsToKeep = 0
@@ -149,7 +155,4 @@ func (provider githubHost) Backup(backupDIR string) {
 			logger.Fatal(res)
 		}
 	}
-
-	// prune
-
 }

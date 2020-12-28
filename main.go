@@ -6,10 +6,14 @@ import (
 )
 
 const (
-	workingDIRName  = ".working"
-	bundleExtension = ".bundle"
-	maxIdleConns    = 10
-	idleConnTimeout = 30
+	workingDIRName          = ".working"
+	bundleExtension         = ".bundle"
+	maxIdleConns            = 10
+	idleConnTimeout         = 30
+	maxRequestTime          = 10
+	bundleTimestampChars    = 14
+	numBundleFileNameTokens = 3
+	timeStampFormat         = "20060102150405"
 )
 
 var logger *log.Logger
@@ -18,7 +22,7 @@ func init() {
 	logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
 }
 
-// Backup accepts a Git hosting provider and executes the backup task for it
+// Backup accepts a Git hosting provider and executes the backup task for it.
 func Backup(providerName, backupDIR string) (err error) {
 	var provider gitProvider
 
