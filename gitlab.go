@@ -145,11 +145,11 @@ func (provider gitlabHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func gitlabWorker(backupDIR string, jobs <-chan repository, results chan<- error) {
+func gitlabWorker(backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + repo.Owner + ":" + stripTrailing(os.Getenv("GITLAB_TOKEN"), "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
-		results <- processBackup(repo, backupDIR)
+		results <- processBackup(repo, backupDIR, backupsToKeep)
 	}
 }
 
@@ -159,9 +159,13 @@ func (provider gitlabHost) Backup(backupDIR string) {
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
+	backupsToKeep, err := strconv.Atoi(os.Getenv("GITLAB_BACKUPS"))
+	if err != nil {
+		backupsToKeep = 0
+	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(backupDIR, jobs, results)
+		go gitlabWorker(backupDIR, backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {

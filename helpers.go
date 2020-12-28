@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -16,6 +17,13 @@ func createDirIfAbsent(path string) error {
 func getTimestamp() string {
 	t := time.Now()
 	return t.Format("20060102150405")
+}
+
+func timeStampToTime(s string) (t time.Time, err error) {
+	if len(s) != 14 {
+		return time.Time{}, fmt.Errorf("invalid timestamp")
+	}
+	return time.Parse("20060102150405", s)
 }
 
 func stripTrailing(input string, toStrip string) string {

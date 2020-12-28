@@ -113,11 +113,11 @@ func (provider githubHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func gitHubWorker(backupDIR string, jobs <-chan repository, results chan<- error) {
+func gitHubWorker(backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv("GITHUB_TOKEN"), "\n"), repo.HTTPSUrl[firstPos+2:])
-		results <- processBackup(repo, backupDIR)
+		results <- processBackup(repo, backupDIR, backupsToKeep)
 	}
 }
 
@@ -127,9 +127,13 @@ func (provider githubHost) Backup(backupDIR string) {
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
+	backupsToKeep, err := strconv.Atoi(os.Getenv("GITHUB_BACKUPS"))
+	if err != nil {
+		backupsToKeep = 0
+	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(backupDIR, jobs, results)
+		go gitHubWorker(backupDIR, backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -145,4 +149,7 @@ func (provider githubHost) Backup(backupDIR string) {
 			logger.Fatal(res)
 		}
 	}
+
+	// prune
+
 }

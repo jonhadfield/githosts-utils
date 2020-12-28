@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -129,11 +130,11 @@ func (provider bitbucketHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func bitBucketWorker(user, token, backupDIR string, jobs <-chan repository, results chan<- error) {
+func bitBucketWorker(user, token, backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		parts := strings.Split(repo.HTTPSUrl, "//")
 		repo.URLWithBasicAuth = parts[0] + "//" + user + ":" + token + "@" + parts[1]
-		results <- processBackup(repo, backupDIR)
+		results <- processBackup(repo, backupDIR, backupsToKeep)
 	}
 }
 
@@ -153,6 +154,10 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 	user := os.Getenv("BITBUCKET_USER")
 	key := os.Getenv("BITBUCKET_KEY")
 	secret := os.Getenv("BITBUCKET_SECRET")
+	backupsToKeep, err := strconv.Atoi(os.Getenv("BITBUCKET_BACKUPS"))
+	if err != nil {
+		backupsToKeep = 0
+	}
 
 	var token string
 	token, err = provider.auth(client, key, secret)
@@ -168,7 +173,7 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 	results := make(chan error, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(user, token, backupDIR, jobs, results)
+		go bitBucketWorker(user, token, backupDIR, backupsToKeep, jobs, results)
 	}
 
 	for x := range drO.Repos {

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
@@ -69,11 +70,11 @@ func createHost(input newHostInput) (gitProvider, error) {
 	return nil, hostErr
 }
 
-func processBackup(repo repository, backupDIR string) error {
+func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	// CREATE BACKUP PATH
 	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.NameWithOwner
 	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.NameWithOwner
-	// DELETE EXISTING CLONE
+	// CLEAN EXISTING WORKING DIRECTORY
 	delErr := os.RemoveAll(workingPath + pathSep)
 	if delErr != nil {
 		logger.Fatal(delErr)
@@ -94,7 +95,7 @@ func processBackup(repo repository, backupDIR string) error {
 	_, cloneErr := cloneCmd.CombinedOutput()
 
 	if cloneErr != nil {
-		return (errors.WithStack(fmt.Errorf(cloneErr.Error())))
+		return errors.WithStack(fmt.Errorf(cloneErr.Error()))
 	}
 
 	// CREATE BUNDLE
@@ -108,27 +109,98 @@ func processBackup(repo repository, backupDIR string) error {
 
 	if len(dirs) == 2 && emptyPack {
 		logger.Printf("%s is empty, so not creating bundle", repo.Name)
-	} else {
-		backupFile := repo.Name + "." + getTimestamp() + bundleExtension
-		backupFilePath := backupPath + pathSep + backupFile
-		createErr := createDirIfAbsent(backupPath)
-		if createErr != nil {
-			logger.Fatal(createErr)
+		return nil
+	}
+	backupFile := repo.Name + "." + getTimestamp() + bundleExtension
+	backupFilePath := backupPath + pathSep + backupFile
+	createErr := createDirIfAbsent(backupPath)
+	if createErr != nil {
+		logger.Fatal(createErr)
+	}
+	logger.Printf("creating bundle for: %s", repo.Name)
+	bundleCmd := exec.Command("git", "bundle", "create", backupFilePath, "--all")
+	bundleCmd.Dir = workingPath
+	var bundleOut bytes.Buffer
+	bundleCmd.Stdout = &bundleOut
+	bundleCmd.Stderr = &bundleOut
+	bundleErr := bundleCmd.Run()
+	if bundleErr != nil {
+		logger.Fatal(bundleErr)
+	}
+	removeBundleIfDuplicate(backupPath)
+
+	if backupsToKeep > 0 {
+		err := pruneBackups(backupPath, backupsToKeep)
+		if err != nil {
+			return err
 		}
-		logger.Printf("creating bundle for: %s", repo.Name)
-		bundleCmd := exec.Command("git", "bundle", "create", backupFilePath, "--all")
-		bundleCmd.Dir = workingPath
-		var bundleOut bytes.Buffer
-		bundleCmd.Stdout = &bundleOut
-		bundleCmd.Stderr = &bundleOut
-		bundleErr := bundleCmd.Run()
-		if bundleErr != nil {
-			logger.Fatal(bundleErr)
-		}
-		removeBundleIfDuplicate(backupPath)
 	}
 
 	return nil
+}
+
+func pruneBackups(backupPath string, keep int) error {
+	logger.Printf("pruning %s to keep %d newest only", backupPath, keep)
+	files, err := ioutil.ReadDir(backupPath)
+	if err != nil {
+		return err
+	}
+
+	var bfs bundleFiles
+	for _, f := range files {
+		ts, err := timeStampFromBundleName(f.Name())
+		if err != nil {
+			return err
+		}
+		bfs = append(bfs, bundleFile{
+			info:    f,
+			created: ts,
+		})
+	}
+	sort.Sort(bfs)
+
+	firstFilesToDelete := len(bfs) - keep
+	for x, f := range files {
+		if x < firstFilesToDelete {
+			if err := os.Remove(backupPath + pathSep + f.Name()) ; err != nil {
+				return err
+			}
+			continue
+		}
+		break
+	}
+	return err
+}
+
+type bundleFile struct {
+	info    os.FileInfo
+	created time.Time
+}
+
+type bundleFiles []bundleFile
+
+func (b bundleFiles) Len() int {
+	return len(b)
+}
+
+func (b bundleFiles) Less(i, j int) bool {
+	return b[i].created.Before(b[j].created)
+}
+
+func (b bundleFiles) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func timeStampFromBundleName(i string) (t time.Time, err error) {
+	tokens := strings.Split(i, ".")
+	if len(tokens) != 3 {
+		return time.Time{}, fmt.Errorf("invalid bundle name")
+	}
+	sTime := tokens[1]
+	if len(sTime) != 14 {
+		return time.Time{}, fmt.Errorf("invalid bundle timestamp")
+	}
+	return timeStampToTime(sTime)
 }
 
 func removeBundleIfDuplicate(dir string) {
