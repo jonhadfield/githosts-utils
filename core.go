@@ -230,7 +230,7 @@ func removeBundleIfDuplicate(dir string) {
 	fNameTimes := map[string]int{}
 
 	for _, f := range files {
-		if strings.Count(f.Name(), ".") < minBundleFileNameTokens-1 {
+		if strings.Count(f.Name(), ".") >= minBundleFileNameTokens-1 {
 			parts := strings.Split(f.Name(), ".")
 			strTimestamp := parts[len(parts)-2]
 			intTimestamp, convErr := strconv.Atoi(strTimestamp)
