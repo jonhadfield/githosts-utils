@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -43,4 +44,18 @@ func TestPruneBackups(t *testing.T) {
 	if found != 2 {
 		t.Errorf("three backup files were expected")
 	}
+}
+
+func TestTimeStampFromBundleName(t *testing.T) {
+	timestamp, err := timeStampFromBundleName("reponame.20200401111111.bundle")
+	assert.NoError(t, err)
+	expected, err := time.Parse(timeStampFormat, "20200401111111")
+	assert.Equal(t, expected, timestamp)
+}
+
+func TestTimeStampFromBundleNameWithPeriods(t *testing.T) {
+	timestamp, err := timeStampFromBundleName("repo.name.20200401111111.bundle")
+	assert.NoError(t, err)
+	expected, err := time.Parse(timeStampFormat, "20200401111111")
+	assert.Equal(t, expected, timestamp)
 }
