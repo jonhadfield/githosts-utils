@@ -12,7 +12,7 @@ const (
 	idleConnTimeout         = 30
 	maxRequestTime          = 10
 	bundleTimestampChars    = 14
-	numBundleFileNameTokens = 3
+	minBundleFileNameTokens = 3
 	timeStampFormat         = "20060102150405"
 )
 
