@@ -203,11 +203,11 @@ func (b bundleFiles) Swap(i, j int) {
 
 func timeStampFromBundleName(i string) (t time.Time, err error) {
 	tokens := strings.Split(i, ".")
-	if len(tokens) != numBundleFileNameTokens {
+	if len(tokens) < minBundleFileNameTokens {
 		return time.Time{}, errors.New("invalid bundle name")
 	}
 
-	sTime := tokens[1]
+	sTime := tokens[len(tokens)-2]
 	if len(sTime) != bundleTimestampChars {
 		return time.Time{}, errors.New("invalid bundle timestamp")
 	}
@@ -230,7 +230,7 @@ func removeBundleIfDuplicate(dir string) {
 	fNameTimes := map[string]int{}
 
 	for _, f := range files {
-		if strings.Count(f.Name(), ".") >= numBundleFileNameTokens-1 {
+		if strings.Count(f.Name(), ".") < minBundleFileNameTokens-1 {
 			parts := strings.Split(f.Name(), ".")
 			strTimestamp := parts[len(parts)-2]
 			intTimestamp, convErr := strconv.Atoi(strTimestamp)
