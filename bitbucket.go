@@ -89,45 +89,53 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
-	req, errNewReq := http.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
-	if errNewReq != nil {
-		logger.Fatal(errNewReq)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
-
-	var resp *http.Response
-
-	resp, err = client.Do(req)
-	if err != nil {
-		logger.Fatal(err)
-	}
-
-	bodyB, _ := ioutil.ReadAll(resp.Body)
-
-	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-	_ = resp.Body.Close()
-
-	var respObj bitbucketGetProjectsResponse
-
-	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		logger.Fatal(err)
-	}
-
-	for _, r := range respObj.Values {
-		if r.Scm == "git" {
-			repo := repository{
-				Name:          r.Name,
-				HTTPSUrl:      "https://bitbucket.org/" + r.FullName + ".git",
-				NameWithOwner: r.FullName,
-				Domain:        "bitbucket.com",
-			}
-
-			repos = append(repos, repo)
+	for {
+		req, errNewReq := http.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
+		if errNewReq != nil {
+			logger.Fatal(errNewReq)
 		}
+
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		req.Header.Set("Accept", "application/json; charset=utf-8")
+
+		var resp *http.Response
+
+		resp, err = client.Do(req)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		bodyB, _ := ioutil.ReadAll(resp.Body)
+
+		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+		_ = resp.Body.Close()
+
+		var respObj bitbucketGetProjectsResponse
+		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+			logger.Fatal(err)
+		}
+
+		for _, r := range respObj.Values {
+			if r.Scm == "git" {
+				repo := repository{
+					Name:          r.Name,
+					HTTPSUrl:      "https://bitbucket.org/" + r.FullName + ".git",
+					NameWithOwner: r.FullName,
+					Domain:        "bitbucket.com",
+				}
+
+				repos = append(repos, repo)
+			}
+		}
+
+		if respObj.Next != "" {
+			rawRequestURL = respObj.Next
+
+			continue
+		}
+
+		break
 	}
 
 	return describeReposOutput{
@@ -231,4 +239,5 @@ type bitbucketRepoLink struct {
 type bitbucketGetProjectsResponse struct {
 	Pagelen int                `json:"pagelen"`
 	Values  []bitbucketProject `json:"values"`
+	Next    string             `json:"next"`
 }
