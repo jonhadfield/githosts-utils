@@ -125,8 +125,7 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	bundleCmd.Stdout = &bundleOut
 	bundleCmd.Stderr = &bundleOut
 
-	bundleErr := bundleCmd.Run()
-	if bundleErr != nil {
+	if bundleErr := bundleCmd.Run(); bundleErr != nil {
 		logger.Fatal(bundleErr)
 	}
 
