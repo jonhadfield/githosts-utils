@@ -3,6 +3,7 @@ package githosts
 import (
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -208,7 +209,7 @@ func timeStampFromBundleName(i string) (t time.Time, err error) {
 
 	sTime := tokens[len(tokens)-2]
 	if len(sTime) != bundleTimestampChars {
-		return time.Time{}, errors.New("invalid bundle timestamp")
+		return time.Time{}, fmt.Errorf("bundle '%s' has an invalid timestamp", i)
 	}
 
 	return timeStampToTime(sTime)
