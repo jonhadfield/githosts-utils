@@ -59,3 +59,9 @@ func TestTimeStampFromBundleNameWithPeriods(t *testing.T) {
 	expected, err := time.Parse(timeStampFormat, "20200401111111")
 	assert.Equal(t, expected, timestamp)
 }
+
+func TestTimeStampFromBundleNameReturnsErrorWithInvalidTimestamp(t *testing.T) {
+	_, err := timeStampFromBundleName("reponame.2020.0401111111.bundle")
+	assert.Error(t, err)
+	assert.Equal(t, "bundle 'reponame.2020.0401111111.bundle' has an invalid timestamp", err.Error())
+}
