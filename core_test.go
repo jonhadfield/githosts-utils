@@ -46,6 +46,24 @@ func TestPruneBackups(t *testing.T) {
 	}
 }
 
+func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
+	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
+	defer deleteBackupsDir(backupDir)
+
+	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
+	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
+
+	dummyFiles := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200501010111.bundle", "repo0.20200401011111.bundle", "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
+	var err error
+	for _, df := range dummyFiles {
+		dfPath := path.Join(dfDir, df)
+		_, err = os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
+		assert.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
+	}
+
+	assert.NoError(t, pruneBackups(dfDir, 2))
+}
+
 func TestTimeStampFromBundleName(t *testing.T) {
 	timestamp, err := timeStampFromBundleName("reponame.20200401111111.bundle")
 	assert.NoError(t, err)
