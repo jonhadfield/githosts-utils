@@ -153,6 +153,11 @@ func pruneBackups(backupPath string, keep int) error {
 	var bfs bundleFiles
 
 	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".bundle") {
+			logger.Printf("skipping non bundle file '%s'", f.Name())
+			continue
+		}
+
 		ts, err := timeStampFromBundleName(f.Name())
 		if err != nil {
 			return err
