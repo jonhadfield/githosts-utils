@@ -204,7 +204,7 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 	for a := 1; a <= len(drO.Repos); a++ {
 		res := <-results
 		if res != nil {
-			logger.Fatal(res)
+			logger.Printf("backup failed: %+v\n", res)
 		}
 	}
 }
