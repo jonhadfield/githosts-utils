@@ -185,7 +185,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
 		if res != nil {
-			logger.Fatal(res)
+			logger.Printf("backup failed: %+v\n", res)
 		}
 	}
 }
