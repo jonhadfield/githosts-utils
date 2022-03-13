@@ -46,46 +46,63 @@ type githubQueryNamesResponse struct {
 	}
 }
 
-func (provider githubHost) describeRepos() describeReposOutput {
-	logger.Println("listing GitHub repositories")
-
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout * time.Second,
-		DisableCompression: true,
+type githubQueryOrgResponse struct {
+	Data struct {
+		Organization struct {
+			Repositories struct {
+				Edges    []edge
+				PageInfo struct {
+					EndCursor   string
+					HasNextPage bool
+				}
+			}
+		}
 	}
-	client := &http.Client{Transport: tr}
+}
+
+type graphQLRequest struct {
+	Query     string `json:"query"`
+	Variables string `json:"variables"`
+}
+
+func makeGithubRequest(c *http.Client, payload string) string {
+	contentReader := bytes.NewReader([]byte(payload))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
+	req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
+
+	if newReqErr != nil {
+		logger.Fatal(newReqErr)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("bearer %s",
+		stripTrailing(os.Getenv("GITHUB_TOKEN"), "\n")))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Accept", "application/json; charset=utf-8")
+
+	resp, reqErr := c.Do(req)
+	if reqErr != nil {
+		logger.Fatal(reqErr)
+	}
+
+	bodyB, _ := ioutil.ReadAll(resp.Body)
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+	_ = resp.Body.Close()
+
+	return bodyStr
+}
+
+func describeGithubUserRepos(c *http.Client) []repository {
+	logger.Println("listing GitHub user's repositories")
 
 	var repos []repository
 
 	reqBody := "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gitHubCallSize) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
 
 	for {
-		mJSON := reqBody
-		contentReader := bytes.NewReader([]byte(mJSON))
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
-		defer cancel()
-
-		req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
-
-		if newReqErr != nil {
-			logger.Fatal(newReqErr)
-		}
-
-		req.Header.Set("Authorization", fmt.Sprintf("bearer %s",
-			stripTrailing(os.Getenv("GITHUB_TOKEN"), "\n")))
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("Accept", "application/json; charset=utf-8")
-
-		resp, reqErr := client.Do(req)
-		if reqErr != nil {
-			logger.Fatal(reqErr)
-		}
-
-		bodyB, _ := ioutil.ReadAll(resp.Body)
-		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-		_ = resp.Body.Close()
+		bodyStr := makeGithubRequest(c, reqBody)
 
 		var respObj githubQueryNamesResponse
 		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
@@ -107,6 +124,67 @@ func (provider githubHost) describeRepos() describeReposOutput {
 		} else {
 			reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gitHubCallSize) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
 		}
+	}
+
+	return repos
+}
+
+func createGithubRequestPayload(body string) string {
+	gqlMarshalled, err := json.Marshal(graphQLRequest{Query: body})
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	return string(gqlMarshalled)
+}
+
+func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
+	logger.Printf("listing GitHub organisation %s's repositories", orgName)
+
+	var repos []repository
+
+	reqBody := "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gitHubCallSize) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
+
+	for {
+		bodyStr := makeGithubRequest(c, createGithubRequestPayload(reqBody))
+
+		var respObj githubQueryOrgResponse
+		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+			logger.Fatal(err)
+		}
+
+		for _, repo := range respObj.Data.Organization.Repositories.Edges {
+			repos = append(repos, repository{
+				Name:          repo.Node.Name,
+				SSHUrl:        repo.Node.SSHURL,
+				HTTPSUrl:      repo.Node.URL,
+				NameWithOwner: repo.Node.NameWithOwner,
+				Domain:        "github.com",
+			})
+		}
+
+		if !respObj.Data.Organization.Repositories.PageInfo.HasNextPage {
+			break
+		} else {
+			reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gitHubCallSize) + ",\"after\":\"" + respObj.Data.Organization.Repositories.PageInfo.EndCursor + "\"} }"
+		}
+	}
+
+	return repos
+}
+
+func (provider githubHost) describeRepos() describeReposOutput {
+	tr := &http.Transport{
+		MaxIdleConns:       maxIdleConns,
+		IdleConnTimeout:    idleConnTimeout * time.Second,
+		DisableCompression: true,
+	}
+	client := &http.Client{Transport: tr}
+
+	repos := describeGithubUserRepos(client)
+
+	for _, org := range strings.Split(os.Getenv("GITHUB_ORGS"), ",") {
+		repos = append(repos, describeGithubOrgRepos(client, org)...)
 	}
 
 	return describeReposOutput{

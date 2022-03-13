@@ -155,6 +155,7 @@ func pruneBackups(backupPath string, keep int) error {
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".bundle") {
 			logger.Printf("skipping non bundle file '%s'", f.Name())
+
 			continue
 		}
 
