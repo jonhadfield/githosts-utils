@@ -23,7 +23,7 @@ fmt:
 	find . -name '*.go' -not -wholename './vendor/*' | while read -r file; do gofumpt -w -s "$$file"; gofumports -w "$$file"; done
 
 lint:
-	golangci-lint run --tests=false --enable-all --disable lll --disable interfacer --disable gochecknoglobals --disable exhaustivestruct
+	golangci-lint run --tests=false --enable-all --disable lll --disable interfacer --disable gochecknoglobals --disable exhaustivestruct --disable tagliatelle
 
 ci: lint test
 
