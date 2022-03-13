@@ -183,8 +183,11 @@ func (provider githubHost) describeRepos() describeReposOutput {
 
 	repos := describeGithubUserRepos(client)
 
-	for _, org := range strings.Split(os.Getenv("GITHUB_ORGS"), ",") {
-		repos = append(repos, describeGithubOrgRepos(client, org)...)
+	if len(strings.TrimSpace(os.Getenv("GITHUB_ORGS"))) > 0 {
+		orgs := strings.Split(os.Getenv("GITHUB_ORGS"), ",")
+		for _, org := range orgs {
+			repos = append(repos, describeGithubOrgRepos(client, org)...)
+		}
 	}
 
 	return describeReposOutput{
