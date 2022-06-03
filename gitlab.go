@@ -13,25 +13,27 @@ import (
 )
 
 type gitlabHost struct {
+	User     gitlabUser
 	Provider string
 	APIURL   string
 }
 
-func (provider gitlabHost) getAuthenticatedGitlabUserID(client http.Client) int {
+type gitlabUser struct {
+	ID       int    `json:"id"`
+	UserName string `json:"username"`
+}
+
+func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user gitlabUser) {
 	var err error
 
-	type gitLabNameResponse struct {
-		ID int
-	}
-	// get user id
 	getUserIDURL := provider.APIURL + "/user"
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
 	var req *http.Request
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -52,13 +54,11 @@ func (provider gitlabHost) getAuthenticatedGitlabUserID(client http.Client) int 
 
 	_ = resp.Body.Close()
 
-	var respObj gitLabNameResponse
-
-	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+	if err = json.Unmarshal([]byte(bodyStr), &user); err != nil {
 		logger.Fatal(err)
 	}
 
-	return respObj.ID
+	return user
 }
 
 type gitLabOwner struct {
@@ -77,8 +77,7 @@ type gitLabProject struct {
 type gitLabGetProjectsResponse []gitLabProject
 
 func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (repos []repository) {
-	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(userID) + "/projects"
-
+	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(provider.User.ID) + "/projects"
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
@@ -105,7 +104,7 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 
 	var respObj gitLabGetProjectsResponse
 
-	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		logger.Fatal(err)
 	}
 
@@ -114,18 +113,113 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (
 		owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
 
 		repo := repository{
-			Name:          project.Path,
-			Owner:         owner,
-			NameWithOwner: project.PathWithNameSpace,
-			HTTPSUrl:      project.HTTPSURL,
-			SSHUrl:        project.SSHURL,
-			Domain:        "gitlab.com",
+			Name:              project.Path,
+			Owner:             owner,
+			PathWithNameSpace: project.PathWithNameSpace,
+			HTTPSUrl:          project.HTTPSURL,
+			SSHUrl:            project.SSHURL,
+			Domain:            "gitlab.com",
 		}
 
 		repos = append(repos, repo)
 	}
 
 	return repos
+}
+
+type gitLabGroup struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+type gitLabGetGroupsResponse []gitLabGroup
+
+func (provider gitlabHost) getProjectsByGroupID(client http.Client, groupID int) (repos []repository) {
+	getProjectsByGroupIDURL := provider.APIURL + "/groups/" + strconv.Itoa(groupID) + "/projects"
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getProjectsByGroupIDURL, nil)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Accept", "application/json; charset=utf-8")
+
+	var resp *http.Response
+
+	resp, err = client.Do(req)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	bodyB, _ := ioutil.ReadAll(resp.Body)
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+
+	_ = resp.Body.Close()
+
+	var respObj gitLabGetProjectsResponse
+
+	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		logger.Fatal(err)
+	}
+
+	for _, project := range respObj {
+		// gitlab replaces hyphens with spaces in owner names, so fix
+		owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
+
+		repo := repository{
+			Name:              project.Path,
+			Owner:             owner,
+			PathWithNameSpace: project.PathWithNameSpace,
+			HTTPSUrl:          project.HTTPSURL,
+			SSHUrl:            project.SSHURL,
+			Domain:            "gitlab.com",
+		}
+
+		repos = append(repos, repo)
+	}
+
+	return repos
+}
+
+func (provider gitlabHost) getGroups(client http.Client) (groups []gitLabGroup) {
+	getGroups := provider.APIURL + "/groups?all_available=true&owned=true"
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getGroups, nil)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Accept", "application/json; charset=utf-8")
+
+	var resp *http.Response
+
+	resp, err = client.Do(req)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	bodyB, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return
+	}
+	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+
+	_ = resp.Body.Close()
+
+	var respObj gitLabGetGroupsResponse
+	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		logger.Fatal(err)
+	}
+
+	return append(groups, respObj...)
 }
 
 func (provider gitlabHost) describeRepos() describeReposOutput {
@@ -138,29 +232,43 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 	}
 
 	client := &http.Client{Transport: tr}
-	userID := provider.getAuthenticatedGitlabUserID(*client)
 
-	result := describeReposOutput{
-		Repos: provider.getProjectsByUserID(*client, userID),
+	userRepos := provider.getProjectsByUserID(*client, provider.User.ID)
+
+	groups := provider.getGroups(*client)
+	var groupRepos []repository
+	for _, g := range groups {
+		groupRepos = append(groupRepos, provider.getProjectsByGroupID(*client, g.Id)...)
 	}
 
-	return result
+	return describeReposOutput{
+		Repos: append(userRepos, groupRepos...),
+	}
 }
 
 func (provider gitlabHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func gitlabWorker(backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func gitlabWorker(userName string, backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
-		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + repo.Owner + ":" + stripTrailing(os.Getenv("GITLAB_TOKEN"), "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
+		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + userName + ":" + stripTrailing(os.Getenv("GITLAB_TOKEN"), "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
 		results <- processBackup(repo, backupDIR, backupsToKeep)
 	}
 }
 
 func (provider gitlabHost) Backup(backupDIR string) {
 	maxConcurrent := 5
+
+	tr := &http.Transport{
+		MaxIdleConns:       maxIdleConns,
+		IdleConnTimeout:    idleConnTimeout * time.Second,
+		DisableCompression: true,
+	}
+
+	client := &http.Client{Transport: tr}
+	provider.User = provider.getAuthenticatedGitlabUser(*client)
 	repoDesc := provider.describeRepos()
 
 	jobs := make(chan repository, len(repoDesc.Repos))
@@ -172,7 +280,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(backupDIR, backupsToKeep, jobs, results)
+		go gitlabWorker(provider.User.UserName, backupDIR, backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
