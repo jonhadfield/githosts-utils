@@ -17,7 +17,7 @@ find-updates:
 
 cover: test
 	go tool cover -html=coverage.txt
-# don't open browser...	go tool cover -html=coverage.txt -o coverage.html
+    # don't open browser...	go tool cover -html=coverage.txt -o coverage.html
 
 fmt:
 	find . -name '*.go' -not -wholename './vendor/*' | while read -r file; do gofumpt -w -s "$$file"; gofumports -w "$$file"; done
@@ -33,9 +33,6 @@ BUILD_DATE := $(shell date -u '+%Y/%m/%d:%H:%M:%S')
 
 critic:
 	gocritic check-project .
-
-find-updates:
-	go list -u -m -json all | go-mod-outdated -update -direct
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
