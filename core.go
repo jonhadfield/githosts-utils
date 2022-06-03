@@ -18,14 +18,14 @@ import (
 )
 
 type repository struct {
-	Name             string
-	Owner            string
-	NameWithOwner    string
-	Domain           string
-	HTTPSUrl         string
-	SSHUrl           string
-	URLWithToken     string
-	URLWithBasicAuth string
+	Name              string
+	Owner             string
+	PathWithNameSpace string
+	Domain            string
+	HTTPSUrl          string
+	SSHUrl            string
+	URLWithToken      string
+	URLWithBasicAuth  string
 }
 
 type describeReposOutput struct {
@@ -67,8 +67,8 @@ func createHost(input newHostInput) (gitProvider, error) {
 
 func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	// CREATE BACKUP PATH
-	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.NameWithOwner
-	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.NameWithOwner
+	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
+	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
 	// CLEAN EXISTING WORKING DIRECTORY
 	delErr := os.RemoveAll(workingPath + pathSep)
 	if delErr != nil {
@@ -95,9 +95,12 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 
 	// CREATE BUNDLE
 	objectsPath := workingPath + pathSep + "objects"
-	dirs, _ := ioutil.ReadDir(objectsPath)
-	emptyPack, checkEmptyErr := isEmpty(objectsPath + pathSep + "pack")
+	dirs, err := ioutil.ReadDir(objectsPath)
+	if err != nil {
+		return errors.Wrapf(cloneErr, "failed to read objectsPath: %s", objectsPath)
+	}
 
+	emptyPack, checkEmptyErr := isEmpty(objectsPath + pathSep + "pack")
 	if checkEmptyErr != nil {
 		logger.Printf("failed to check if: '%s' is empty", objectsPath+pathSep+"pack")
 	}
@@ -133,8 +136,7 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	removeBundleIfDuplicate(backupPath)
 
 	if backupsToKeep > 0 {
-		err := pruneBackups(backupPath, backupsToKeep)
-		if err != nil {
+		if err = pruneBackups(backupPath, backupsToKeep); err != nil {
 			return err
 		}
 	}

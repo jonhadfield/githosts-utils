@@ -111,11 +111,11 @@ func describeGithubUserRepos(c *http.Client) []repository {
 
 		for _, repo := range respObj.Data.Viewer.Repositories.Edges {
 			repos = append(repos, repository{
-				Name:          repo.Node.Name,
-				SSHUrl:        repo.Node.SSHURL,
-				HTTPSUrl:      repo.Node.URL,
-				NameWithOwner: repo.Node.NameWithOwner,
-				Domain:        "github.com",
+				Name:              repo.Node.Name,
+				SSHUrl:            repo.Node.SSHURL,
+				HTTPSUrl:          repo.Node.URL,
+				PathWithNameSpace: repo.Node.NameWithOwner,
+				Domain:            "github.com",
 			})
 		}
 
@@ -155,11 +155,11 @@ func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 
 		for _, repo := range respObj.Data.Organization.Repositories.Edges {
 			repos = append(repos, repository{
-				Name:          repo.Node.Name,
-				SSHUrl:        repo.Node.SSHURL,
-				HTTPSUrl:      repo.Node.URL,
-				NameWithOwner: repo.Node.NameWithOwner,
-				Domain:        "github.com",
+				Name:              repo.Node.Name,
+				SSHUrl:            repo.Node.SSHURL,
+				HTTPSUrl:          repo.Node.URL,
+				PathWithNameSpace: repo.Node.NameWithOwner,
+				Domain:            "github.com",
 			})
 		}
 

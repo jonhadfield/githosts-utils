@@ -119,10 +119,10 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 		for _, r := range respObj.Values {
 			if r.Scm == "git" {
 				repo := repository{
-					Name:          r.Name,
-					HTTPSUrl:      "https://bitbucket.org/" + r.FullName + ".git",
-					NameWithOwner: r.FullName,
-					Domain:        "bitbucket.com",
+					Name:              r.Name,
+					HTTPSUrl:          "https://bitbucket.org/" + r.FullName + ".git",
+					PathWithNameSpace: r.FullName,
+					Domain:            "bitbucket.com",
 				}
 
 				repos = append(repos, repo)
