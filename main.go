@@ -14,6 +14,9 @@ const (
 	bundleTimestampChars    = 14
 	minBundleFileNameTokens = 3
 	timeStampFormat         = "20060102150405"
+	bitbucketAPIURL         = "https://api.bitbucket.org/2.0"
+	githubAPIURL            = "https://api.github.com/graphql"
+	gitlabAPIURL            = "https://gitlab.com/api/v4"
 )
 
 var logger *log.Logger
@@ -23,14 +26,18 @@ func init() {
 }
 
 // Backup accepts a Git hosting provider and executes the backup task for it.
-func Backup(providerName, backupDIR string) (err error) {
+func Backup(providerName, backupDIR, APIURL string) (err error) {
 	var provider gitProvider
 
 	switch providerName {
 	case "bitbucket":
+		u := bitbucketAPIURL
+		if APIURL != "" {
+			u = APIURL
+		}
 		input := newHostInput{
 			ProviderName: "BitBucket",
-			APIURL:       "https://api.bitbucket.org/2.0",
+			APIURL:       u,
 		}
 		provider, err = createHost(input)
 
@@ -38,9 +45,13 @@ func Backup(providerName, backupDIR string) (err error) {
 			return
 		}
 	case "github":
+		u := githubAPIURL
+		if APIURL != "" {
+			u = APIURL
+		}
 		input := newHostInput{
 			ProviderName: "Github",
-			APIURL:       "https://api.github.com/graphql",
+			APIURL:       u,
 		}
 		provider, err = createHost(input)
 
@@ -48,9 +59,13 @@ func Backup(providerName, backupDIR string) (err error) {
 			return
 		}
 	case "gitlab":
+		u := gitlabAPIURL
+		if APIURL != "" {
+			u = APIURL
+		}
 		input := newHostInput{
 			ProviderName: "Gitlab",
-			APIURL:       "https://gitlab.com/api/v4",
+			APIURL:       u,
 		}
 		provider, err = createHost(input)
 
