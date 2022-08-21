@@ -6,17 +6,18 @@ import (
 )
 
 const (
-	workingDIRName          = ".working"
-	bundleExtension         = ".bundle"
-	maxIdleConns            = 10
-	idleConnTimeout         = 30
-	maxRequestTime          = 10
-	bundleTimestampChars    = 14
-	minBundleFileNameTokens = 3
-	timeStampFormat         = "20060102150405"
-	bitbucketAPIURL         = "https://api.bitbucket.org/2.0"
-	githubAPIURL            = "https://api.github.com/graphql"
-	gitlabAPIURL            = "https://gitlab.com/api/v4"
+	workingDIRName               = ".working"
+	bundleExtension              = ".bundle"
+	maxIdleConns                 = 10
+	idleConnTimeout              = 30
+	maxRequestTime               = 10
+	bundleTimestampChars         = 14
+	minBundleFileNameTokens      = 3
+	timeStampFormat              = "20060102150405"
+	bitbucketAPIURL              = "https://api.bitbucket.org/2.0"
+	githubAPIURL                 = "https://api.github.com/graphql"
+	gitlabAPIURL                 = "https://gitlab.com/api/v4"
+	gitlabProjectsPerPageDefault = 20
 )
 
 var logger *log.Logger

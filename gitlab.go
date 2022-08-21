@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -136,50 +137,77 @@ type gitLabGetGroupsResponse []gitLabGroup
 func (provider gitlabHost) getProjectsByGroupID(client http.Client, groupID int) (repos []repository) {
 	getProjectsByGroupIDURL := provider.APIURL + "/groups/" + strconv.Itoa(groupID) + "/projects"
 
+	u, err := url.Parse(getProjectsByGroupIDURL)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	q := u.Query()
+	// set initial max per page
+	q.Set("per_page", strconv.Itoa(gitlabProjectsPerPageDefault))
+	u.RawQuery = q.Encode()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getProjectsByGroupIDURL, nil)
-	if err != nil {
-		logger.Fatal(err)
-	}
+	var nextPage string
 
-	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
+	for {
+		var req *http.Request
 
-	var resp *http.Response
-
-	resp, err = client.Do(req)
-	if err != nil {
-		logger.Fatal(err)
-	}
-
-	bodyB, _ := ioutil.ReadAll(resp.Body)
-	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-	_ = resp.Body.Close()
-
-	var respObj gitLabGetProjectsResponse
-
-	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		logger.Fatal(err)
-	}
-
-	for _, project := range respObj {
-		// gitlab replaces hyphens with spaces in owner names, so fix
-		owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
-
-		repo := repository{
-			Name:              project.Path,
-			Owner:             owner,
-			PathWithNameSpace: project.PathWithNameSpace,
-			HTTPSUrl:          project.HTTPSURL,
-			SSHUrl:            project.SSHURL,
-			Domain:            "gitlab.com",
+		if nextPage != "" {
+			q.Set("page", nextPage)
+			u.RawQuery = q.Encode()
 		}
 
-		repos = append(repos, repo)
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		req.Header.Set("Accept", "application/json; charset=utf-8")
+
+		var resp *http.Response
+
+		resp, err = client.Do(req)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		bodyB, _ := ioutil.ReadAll(resp.Body)
+		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+
+		_ = resp.Body.Close()
+
+		var respObj gitLabGetProjectsResponse
+
+		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+			logger.Fatal(err)
+		}
+
+		for _, project := range respObj {
+			// gitlab replaces hyphens with spaces in owner names, so fix
+			owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
+
+			repo := repository{
+				Name:              project.Path,
+				Owner:             owner,
+				PathWithNameSpace: project.PathWithNameSpace,
+				HTTPSUrl:          project.HTTPSURL,
+				SSHUrl:            project.SSHURL,
+				Domain:            "gitlab.com",
+			}
+
+			repos = append(repos, repo)
+		}
+
+		nextPage = resp.Header.Get("x-next-page")
+		// if we don't have a next page, then break
+		if nextPage == "" {
+			break
+		}
 	}
 
 	return repos
