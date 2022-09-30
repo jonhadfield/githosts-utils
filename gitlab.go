@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -11,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	gitlabMinAccessLevel = 10
 )
 
 type gitlabHost struct {
@@ -214,40 +219,77 @@ func (provider gitlabHost) getProjectsByGroupID(client http.Client, groupID int)
 }
 
 func (provider gitlabHost) getGroups(client http.Client) (groups []gitLabGroup) {
-	getGroups := provider.APIURL + "/groups?all_available=true&owned=true"
+	minAccessLevel, err := strconv.Atoi(os.Getenv("GITLAB_GROUP_ACCESS_LEVEL_FILTER"))
+	if err != nil {
+		logger.Println("using default group access level filter")
+		minAccessLevel = gitlabMinAccessLevel
+	}
+
+	getGroupsByAccessLevelURL := fmt.Sprintf("%s/groups?min_access_level=%d", provider.APIURL, minAccessLevel)
+
+	u, err := url.Parse(getGroupsByAccessLevelURL)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	q := u.Query()
+	// set initial max per page
+	q.Set("per_page", strconv.Itoa(gitlabGroupsPerPageDefault))
+	u.RawQuery = q.Encode()
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getGroups, nil)
-	if err != nil {
-		logger.Fatal(err)
+	var nextPage string
+
+	for {
+		var req *http.Request
+
+		if nextPage != "" {
+			q.Set("page", nextPage)
+			u.RawQuery = q.Encode()
+		}
+
+		req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		req.Header.Set("Accept", "application/json; charset=utf-8")
+
+		var resp *http.Response
+
+		resp, err = client.Do(req)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		bodyB, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
+		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+
+		_ = resp.Body.Close()
+
+		var respObj gitLabGetGroupsResponse
+		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+			logger.Fatal(err)
+		}
+
+		groups = append(groups, respObj...)
+
+		nextPage = resp.Header.Get("x-next-page")
+
+		// if we don't have a next page, then break
+		if nextPage == "" {
+			break
+		}
 	}
 
-	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
-
-	var resp *http.Response
-
-	resp, err = client.Do(req)
-	if err != nil {
-		logger.Fatal(err)
-	}
-
-	bodyB, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return
-	}
-	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-	_ = resp.Body.Close()
-
-	var respObj gitLabGetGroupsResponse
-	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		logger.Fatal(err)
-	}
-
-	return append(groups, respObj...)
+	return groups
 }
 
 func (provider gitlabHost) describeRepos() describeReposOutput {
