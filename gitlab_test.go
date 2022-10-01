@@ -1,12 +1,13 @@
 package githosts
 
 import (
-	"github.com/stretchr/testify/require"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {

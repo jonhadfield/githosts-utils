@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -55,7 +55,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 		logger.Fatal(err)
 	}
 
-	bodyB, _ := ioutil.ReadAll(resp.Body)
+	bodyB, _ := io.ReadAll(resp.Body)
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
@@ -84,6 +84,7 @@ type gitLabGetProjectsResponse []gitLabProject
 
 func (provider gitlabHost) getProjectsByUserID(client http.Client) (repos []repository) {
 	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(provider.User.ID) + "/projects"
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
@@ -103,7 +104,7 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client) (repos []repo
 		logger.Fatal(err)
 	}
 
-	bodyB, _ := ioutil.ReadAll(resp.Body)
+	bodyB, _ := io.ReadAll(resp.Body)
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
@@ -181,7 +182,7 @@ func (provider gitlabHost) getProjectsByGroupID(client http.Client, groupID int)
 			logger.Fatal(err)
 		}
 
-		bodyB, _ := ioutil.ReadAll(resp.Body)
+		bodyB, _ := io.ReadAll(resp.Body)
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 		_ = resp.Body.Close()
@@ -222,6 +223,7 @@ func (provider gitlabHost) getGroups(client http.Client) (groups []gitLabGroup) 
 	minAccessLevel, err := strconv.Atoi(os.Getenv("GITLAB_GROUP_ACCESS_LEVEL_FILTER"))
 	if err != nil {
 		logger.Println("using default group access level filter")
+
 		minAccessLevel = gitlabMinAccessLevel
 	}
 
@@ -266,10 +268,13 @@ func (provider gitlabHost) getGroups(client http.Client) (groups []gitLabGroup) 
 			logger.Fatal(err)
 		}
 
-		bodyB, err := ioutil.ReadAll(resp.Body)
+		var bodyB []byte
+
+		bodyB, err = io.ReadAll(resp.Body)
 		if err != nil {
 			return
 		}
+
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 		_ = resp.Body.Close()
@@ -306,7 +311,9 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 	userRepos := provider.getProjectsByUserID(*client)
 
 	groups := provider.getGroups(*client)
+
 	var groupRepos []repository
+
 	for _, g := range groups {
 		groupRepos = append(groupRepos, provider.getProjectsByGroupID(*client, g.Id)...)
 	}

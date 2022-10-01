@@ -19,7 +19,7 @@ cover: test
     # don't open browser...	go tool cover -html=coverage.txt -o coverage.html
 
 fmt:
-	find . -name '*.go' -not -wholename './vendor/*' | while read -r file; do gofumpt -w -s "$$file"; gofumports -w "$$file"; done
+	goimports -w . && gofumpt -l -w .
 
 lint:
 	golangci-lint run --tests=false --enable-all --disable lll --disable interfacer --disable gochecknoglobals --disable exhaustivestruct --disable tagliatelle
