@@ -82,7 +82,7 @@ type gitLabProject struct {
 }
 type gitLabGetProjectsResponse []gitLabProject
 
-func (provider gitlabHost) getProjectsByUserID(client http.Client, userID int) (repos []repository) {
+func (provider gitlabHost) getProjectsByUserID(client http.Client) (repos []repository) {
 	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(provider.User.ID) + "/projects"
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
@@ -303,7 +303,7 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 
 	client := &http.Client{Transport: tr}
 
-	userRepos := provider.getProjectsByUserID(*client, provider.User.ID)
+	userRepos := provider.getProjectsByUserID(*client)
 
 	groups := provider.getGroups(*client)
 	var groupRepos []repository
