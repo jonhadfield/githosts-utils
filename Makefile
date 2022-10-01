@@ -3,11 +3,10 @@ TEST_PATTERN?=.
 TEST_OPTIONS?=-race -v
 
 setup:
-	go get -u golang.org/x/tools/cmd/cover
-	go get -u github.com/dave/courtney
 	GO111MODULE=on go get mvdan.cc/gofumpt
-	GO111MODULE=on go get mvdan.cc/gofumpt/gofumports
-	gometalinter --install --update
+	go install -v golang.org/x/tools/cmd/goimports@latest
+	go install -v mvdan.cc/gofumpt@latest
+	go get -u golang.org/x/tools/cmd/cover
 
 test:
 	echo 'mode: atomic' > coverage.txt && go list ./... | grep -v testing.go | xargs -n1 -I{} sh -c 'go test -v -failfast -p 1 -parallel 1 -timeout=600s -covermode=atomic -coverprofile=coverage.tmp {} && tail -n +2 coverage.tmp >> coverage.txt' && rm coverage.tmp
