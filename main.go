@@ -37,10 +37,12 @@ func Backup(providerName, backupDIR, APIURL string) (err error) {
 		if APIURL != "" {
 			u = APIURL
 		}
+
 		input := newHostInput{
 			ProviderName: "BitBucket",
 			APIURL:       u,
 		}
+
 		provider, err = createHost(input)
 
 		if err != nil {
@@ -51,6 +53,7 @@ func Backup(providerName, backupDIR, APIURL string) (err error) {
 		if APIURL != "" {
 			u = APIURL
 		}
+
 		input := newHostInput{
 			ProviderName: "Github",
 			APIURL:       u,
@@ -65,6 +68,7 @@ func Backup(providerName, backupDIR, APIURL string) (err error) {
 		if APIURL != "" {
 			u = APIURL
 		}
+
 		input := newHostInput{
 			ProviderName: "Gitlab",
 			APIURL:       u,

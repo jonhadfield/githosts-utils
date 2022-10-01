@@ -8,10 +8,13 @@ import (
 	"time"
 )
 
-const pathSep = string(os.PathSeparator)
+const (
+	pathSep       = string(os.PathSeparator)
+	backupDirMode = 0o755
+)
 
 func createDirIfAbsent(path string) error {
-	return os.MkdirAll(path, 0o755)
+	return os.MkdirAll(path, backupDirMode)
 }
 
 func getTimestamp() string {

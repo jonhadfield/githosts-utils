@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"reflect"
@@ -95,7 +94,8 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 
 	// CREATE BUNDLE
 	objectsPath := workingPath + pathSep + "objects"
-	dirs, err := ioutil.ReadDir(objectsPath)
+
+	dirs, err := os.ReadDir(objectsPath)
 	if err != nil {
 		return errors.Wrapf(cloneErr, "failed to read objectsPath: %s", objectsPath)
 	}
@@ -147,7 +147,7 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 func pruneBackups(backupPath string, keep int) error {
 	logger.Printf("pruning %s to keep %d newest only", backupPath, keep)
 
-	files, err := ioutil.ReadDir(backupPath)
+	files, err := os.ReadDir(backupPath)
 	if err != nil {
 		return errors.Wrap(err, "backup path read failed")
 	}
@@ -161,13 +161,22 @@ func pruneBackups(backupPath string, keep int) error {
 			continue
 		}
 
-		ts, err := timeStampFromBundleName(f.Name())
+		var ts time.Time
+
+		ts, err = timeStampFromBundleName(f.Name())
+		if err != nil {
+			return err
+		}
+
+		var info os.FileInfo
+
+		info, err = f.Info()
 		if err != nil {
 			return err
 		}
 
 		bfs = append(bfs, bundleFile{
-			info:    f,
+			info:    info,
 			created: ts,
 		})
 	}
@@ -224,7 +233,7 @@ func timeStampFromBundleName(i string) (t time.Time, err error) {
 }
 
 func removeBundleIfDuplicate(dir string) {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		logger.Println(err)
 
@@ -254,7 +263,7 @@ func removeBundleIfDuplicate(dir string) {
 		Value int
 	}
 
-	ss := make([]kv, len(fNameTimes))
+	ss := make([]kv, 0, len(fNameTimes))
 
 	for k, v := range fNameTimes {
 		ss = append(ss, kv{k, v})
@@ -266,6 +275,7 @@ func removeBundleIfDuplicate(dir string) {
 
 	// check if file sizes are same
 	latestBundleSize := getFileSize(dir + pathSep + ss[0].Key)
+
 	previousBundleSize := getFileSize(dir + pathSep + ss[1].Key)
 
 	if latestBundleSize == previousBundleSize {
