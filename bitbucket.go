@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -37,7 +37,7 @@ func (provider bitbucketHost) auth(c *http.Client, key, secret string) (token st
 		logger.Fatal(reqErr)
 	}
 
-	bodyB, _ := ioutil.ReadAll(resp.Body)
+	bodyB, _ := io.ReadAll(resp.Body)
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
@@ -106,7 +106,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 			logger.Fatal(err)
 		}
 
-		bodyB, _ := ioutil.ReadAll(resp.Body)
+		bodyB, _ := io.ReadAll(resp.Body)
 
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 		_ = resp.Body.Close()
