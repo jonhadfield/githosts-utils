@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -87,7 +87,7 @@ func makeGithubRequest(c *http.Client, payload string) string {
 		logger.Fatal(reqErr)
 	}
 
-	bodyB, _ := ioutil.ReadAll(resp.Body)
+	bodyB, _ := io.ReadAll(resp.Body)
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 	_ = resp.Body.Close()
 
