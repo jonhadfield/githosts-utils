@@ -5,17 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	gitlabMinAccessLevel = 10
+	defaultMinimumProjectAccessLevel = 20
 )
 
 type gitlabHost struct {
@@ -82,13 +84,73 @@ type gitLabProject struct {
 }
 type gitLabGetProjectsResponse []gitLabProject
 
-func (provider gitlabHost) getProjectsByUserID(client http.Client) (repos []repository) {
-	getUserIDURL := provider.APIURL + "/users/" + strconv.Itoa(provider.User.ID) + "/projects"
+var validAccessLevels = map[int]string{
+	20: "Reporter",
+	30: "Developer",
+	40: "Maintainer",
+	50: "Owner",
+}
+
+func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos []repository) {
+	var sortedLevels []int
+	for k := range validAccessLevels {
+		sortedLevels = append(sortedLevels, k)
+	}
+
+	sort.Ints(sortedLevels)
+
+	var validMinimumProjectAccessLevels []string
+
+	for _, level := range sortedLevels {
+		validMinimumProjectAccessLevels = append(validMinimumProjectAccessLevels, fmt.Sprintf("%s (%d)", validAccessLevels[level], level))
+	}
+
+	logger.Println("retrieving all GitLab projects for user:", provider.User.UserName)
+
+	getProjectsURL := provider.APIURL + "/projects"
+
+	var minAccessLevel int
+	var err error
+
+	minAccessLevelEnvVar := os.Getenv("GITLAB_PROJECT_MIN_ACCESS_LEVEL")
+	if minAccessLevelEnvVar != "" {
+		minAccessLevel, err = strconv.Atoi(minAccessLevelEnvVar)
+		if err != nil {
+			logger.Printf("GITLAB_PROJECT_MIN_ACCESS_LEVEL '%s' is not a number so using default",
+				minAccessLevelEnvVar)
+
+			minAccessLevel = defaultMinimumProjectAccessLevel
+		}
+	}
+
+	if !slices.Contains(sortedLevels, minAccessLevel) {
+		if minAccessLevelEnvVar != "" {
+			logger.Printf("GitLab project minimum access level must be one of %s so using default",
+				strings.Join(validMinimumProjectAccessLevels, ", "))
+		}
+
+		minAccessLevel = defaultMinimumProjectAccessLevel
+	}
+
+	logger.Printf("GitLab project minimum access level set to %s (%d)",
+		validAccessLevels[minAccessLevel],
+		minAccessLevel)
+
+	u, err := url.Parse(getProjectsURL)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	q := u.Query()
+	// set initial max per page
+	q.Set("per_page", strconv.Itoa(gitlabProjectsPerPageDefault))
+	q.Set("min_access_level", strconv.Itoa(minAccessLevel))
+	u.RawQuery = q.Encode()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -118,7 +180,6 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client) (repos []repo
 	for _, project := range respObj {
 		// gitlab replaces hyphens with spaces in owner names, so fix
 		owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
-
 		repo := repository{
 			Name:              project.Path,
 			Owner:             owner,
@@ -134,169 +195,6 @@ func (provider gitlabHost) getProjectsByUserID(client http.Client) (repos []repo
 	return repos
 }
 
-type gitLabGroup struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
-}
-type gitLabGetGroupsResponse []gitLabGroup
-
-func (provider gitlabHost) getProjectsByGroupID(client http.Client, groupID int) (repos []repository) {
-	getProjectsByGroupIDURL := provider.APIURL + "/groups/" + strconv.Itoa(groupID) + "/projects"
-
-	u, err := url.Parse(getProjectsByGroupIDURL)
-	if err != nil {
-		logger.Fatal(err)
-	}
-
-	q := u.Query()
-	// set initial max per page
-	q.Set("per_page", strconv.Itoa(gitlabProjectsPerPageDefault))
-	u.RawQuery = q.Encode()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
-	defer cancel()
-
-	var nextPage string
-
-	for {
-		var req *http.Request
-
-		if nextPage != "" {
-			q.Set("page", nextPage)
-			u.RawQuery = q.Encode()
-		}
-
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		if err != nil {
-			logger.Fatal(err)
-		}
-
-		req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("Accept", "application/json; charset=utf-8")
-
-		var resp *http.Response
-
-		resp, err = client.Do(req)
-		if err != nil {
-			logger.Fatal(err)
-		}
-
-		bodyB, _ := io.ReadAll(resp.Body)
-		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-		_ = resp.Body.Close()
-
-		var respObj gitLabGetProjectsResponse
-
-		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-			logger.Fatal(err)
-		}
-
-		for _, project := range respObj {
-			// gitlab replaces hyphens with spaces in owner names, so fix
-			owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
-
-			repo := repository{
-				Name:              project.Path,
-				Owner:             owner,
-				PathWithNameSpace: project.PathWithNameSpace,
-				HTTPSUrl:          project.HTTPSURL,
-				SSHUrl:            project.SSHURL,
-				Domain:            "gitlab.com",
-			}
-
-			repos = append(repos, repo)
-		}
-
-		nextPage = resp.Header.Get("x-next-page")
-		// if we don't have a next page, then break
-		if nextPage == "" {
-			break
-		}
-	}
-
-	return repos
-}
-
-func (provider gitlabHost) getGroups(client http.Client) (groups []gitLabGroup) {
-	minAccessLevel, err := strconv.Atoi(os.Getenv("GITLAB_GROUP_ACCESS_LEVEL_FILTER"))
-	if err != nil {
-		logger.Println("using default group access level filter")
-
-		minAccessLevel = gitlabMinAccessLevel
-	}
-
-	getGroupsByAccessLevelURL := fmt.Sprintf("%s/groups?min_access_level=%d", provider.APIURL, minAccessLevel)
-
-	u, err := url.Parse(getGroupsByAccessLevelURL)
-	if err != nil {
-		logger.Fatal(err)
-	}
-
-	q := u.Query()
-	// set initial max per page
-	q.Set("per_page", strconv.Itoa(gitlabGroupsPerPageDefault))
-	u.RawQuery = q.Encode()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
-	defer cancel()
-
-	var nextPage string
-
-	for {
-		var req *http.Request
-
-		if nextPage != "" {
-			q.Set("page", nextPage)
-			u.RawQuery = q.Encode()
-		}
-
-		req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		if err != nil {
-			logger.Fatal(err)
-		}
-
-		req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("Accept", "application/json; charset=utf-8")
-
-		var resp *http.Response
-
-		resp, err = client.Do(req)
-		if err != nil {
-			logger.Fatal(err)
-		}
-
-		var bodyB []byte
-
-		bodyB, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return
-		}
-
-		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-		_ = resp.Body.Close()
-
-		var respObj gitLabGetGroupsResponse
-		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-			logger.Fatal(err)
-		}
-
-		groups = append(groups, respObj...)
-
-		nextPage = resp.Header.Get("x-next-page")
-
-		// if we don't have a next page, then break
-		if nextPage == "" {
-			break
-		}
-	}
-
-	return groups
-}
-
 func (provider gitlabHost) describeRepos() describeReposOutput {
 	logger.Println("listing GitLab repositories")
 
@@ -308,19 +206,12 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 
 	client := &http.Client{Transport: tr}
 
-	userRepos := provider.getProjectsByUserID(*client)
-
-	groups := provider.getGroups(*client)
-
-	var groupRepos []repository
-
-	for _, g := range groups {
-		groupRepos = append(groupRepos, provider.getProjectsByGroupID(*client, g.Id)...)
-	}
+	userRepos := provider.getAllProjectRepositories(*client)
 
 	return describeReposOutput{
-		Repos: append(userRepos, groupRepos...),
+		Repos: userRepos,
 	}
+
 }
 
 func (provider gitlabHost) getAPIURL() string {
