@@ -22,7 +22,7 @@ fmt:
 	goimports -w . && gofumpt -l -w .
 
 lint:
-	golangci-lint run --tests=false --enable-all --disable lll --disable interfacer --disable gochecknoglobals --disable exhaustivestruct --disable tagliatelle
+	golangci-lint run --disable lll --disable interfacer --disable gochecknoglobals --disable exhaustivestruct --disable tagliatelle
 
 ci: lint test
 

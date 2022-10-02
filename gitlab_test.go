@@ -26,14 +26,6 @@ func stringInStrings(single string, group []string) bool {
 	return false
 }
 
-func stripTrailingLineBreak(input string) string {
-	if strings.HasSuffix(input, "\n") {
-		return input[:len(input)-2]
-	}
-
-	return input
-}
-
 var sobaEnvVarKeys = []string{
 	"GIT_BACKUP_DIR", "GITHUB_TOKEN", "GITHUB_BACKUPS", "GITLAB_TOKEN", "GITLAB_BACKUPS", "GITLAB_APIURL",
 	"BITBUCKET_USER", "BITBUCKET_KEY", "BITBUCKET_SECRET", "BITBUCKET_BACKUPS",
@@ -86,17 +78,6 @@ func unsetEnvVars(exceptionList []string) {
 			_ = os.Unsetenv(sobaVar)
 		}
 	}
-}
-
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
 }
 
 func dirContents(path string) (contents []os.DirEntry, err error) {

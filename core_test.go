@@ -2,7 +2,6 @@ package githosts
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -17,7 +16,12 @@ func deleteBackupsDir(path string) error {
 
 func TestPruneBackups(t *testing.T) {
 	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
-	defer deleteBackupsDir(backupDir)
+	defer func() {
+		if err := deleteBackupsDir(backupDir); err != nil {
+			fmt.Printf("err: failed to delete backup directory '%s'", backupDir)
+			return
+		}
+	}()
 
 	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
 	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
@@ -30,7 +34,7 @@ func TestPruneBackups(t *testing.T) {
 		assert.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
 	}
 	assert.NoError(t, pruneBackups(dfDir, 2))
-	files, err := ioutil.ReadDir(dfDir)
+	files, err := os.ReadDir(dfDir)
 	assert.NoError(t, err)
 	var found int
 	notExpectedPostPrune := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200401011111.bundle"}
@@ -48,7 +52,12 @@ func TestPruneBackups(t *testing.T) {
 
 func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
-	defer deleteBackupsDir(backupDir)
+	defer func() {
+		if err := deleteBackupsDir(backupDir); err != nil {
+			fmt.Printf("err: failed to delete backup directory '%s'", backupDir)
+			return
+		}
+	}()
 
 	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
 	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
@@ -68,6 +77,7 @@ func TestTimeStampFromBundleName(t *testing.T) {
 	timestamp, err := timeStampFromBundleName("reponame.20200401111111.bundle")
 	assert.NoError(t, err)
 	expected, err := time.Parse(timeStampFormat, "20200401111111")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, timestamp)
 }
 
@@ -75,6 +85,7 @@ func TestTimeStampFromBundleNameWithPeriods(t *testing.T) {
 	timestamp, err := timeStampFromBundleName("repo.name.20200401111111.bundle")
 	assert.NoError(t, err)
 	expected, err := time.Parse(timeStampFormat, "20200401111111")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, timestamp)
 }
 
