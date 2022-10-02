@@ -62,6 +62,21 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 
 	_ = resp.Body.Close()
 
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+			logger.Println("authentication successful")
+		}
+	case http.StatusForbidden:
+		logger.Fatal("failed to authenticate (HTTP 403)")
+	case http.StatusUnauthorized:
+		logger.Fatal("failed to authenticate due to invalid credentials (HTTP 401)")
+	default:
+		logger.Printf("failed to authenticate due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
+
+		return
+	}
+
 	if err = json.Unmarshal([]byte(bodyStr), &user); err != nil {
 		logger.Fatal(err)
 	}
@@ -105,11 +120,12 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 		validMinimumProjectAccessLevels = append(validMinimumProjectAccessLevels, fmt.Sprintf("%s (%d)", validAccessLevels[level], level))
 	}
 
-	logger.Println("retrieving all GitLab projects for user:", provider.User.UserName)
+	logger.Printf("retrieving all projects for user %s (%d):", provider.User.UserName, provider.User.ID)
 
 	getProjectsURL := provider.APIURL + "/projects"
 
 	var minAccessLevel int
+
 	var err error
 
 	minAccessLevelEnvVar := os.Getenv("GITLAB_PROJECT_MIN_ACCESS_LEVEL")
@@ -125,14 +141,14 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 
 	if !slices.Contains(sortedLevels, minAccessLevel) {
 		if minAccessLevelEnvVar != "" {
-			logger.Printf("GitLab project minimum access level must be one of %s so using default",
+			logger.Printf("project minimum access level must be one of %s so using default",
 				strings.Join(validMinimumProjectAccessLevels, ", "))
 		}
 
 		minAccessLevel = defaultMinimumProjectAccessLevel
 	}
 
-	logger.Printf("GitLab project minimum access level set to %s (%d)",
+	logger.Printf("project minimum access level set to %s (%d)",
 		validAccessLevels[minAccessLevel],
 		minAccessLevel)
 
@@ -168,11 +184,27 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 
 	bodyB, _ := io.ReadAll(resp.Body)
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+
 	if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
 		logger.Println(bodyStr)
 	}
 
 	_ = resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+			logger.Println("projects retrieved successfully")
+		}
+	case http.StatusForbidden:
+		logger.Println("failed to get projects due to invalid missing permissions (HTTP 403)")
+
+		return repos
+	default:
+		logger.Printf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
+
+		return repos
+	}
 
 	var respObj gitLabGetProjectsResponse
 
@@ -199,7 +231,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 }
 
 func (provider gitlabHost) describeRepos() describeReposOutput {
-	logger.Println("listing GitLab repositories")
+	logger.Println("listing repositories")
 
 	tr := &http.Transport{
 		MaxIdleConns:       maxIdleConns,
@@ -214,7 +246,6 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 	return describeReposOutput{
 		Repos: userRepos,
 	}
-
 }
 
 func (provider gitlabHost) getAPIURL() string {
@@ -240,6 +271,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 
 	client := &http.Client{Transport: tr}
 	provider.User = provider.getAuthenticatedGitlabUser(*client)
+
 	repoDesc := provider.describeRepos()
 
 	jobs := make(chan repository, len(repoDesc.Repos))
