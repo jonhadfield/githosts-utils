@@ -168,6 +168,9 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 
 	bodyB, _ := io.ReadAll(resp.Body)
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+	if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+		logger.Println(bodyStr)
+	}
 
 	_ = resp.Body.Close()
 
