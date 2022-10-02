@@ -87,7 +87,6 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	cloneCmd.Dir = backupDIR
 
 	_, cloneErr := cloneCmd.CombinedOutput()
-
 	if cloneErr != nil {
 		return errors.Wrap(cloneErr, "cloning failed")
 	}
