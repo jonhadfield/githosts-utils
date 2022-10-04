@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/peterhellberg/link"
 	"golang.org/x/exp/slices"
+
 	"io"
 	"net/http"
 	"net/url"
@@ -152,9 +154,10 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 		validAccessLevels[minAccessLevel],
 		minAccessLevel)
 
+	// Initial request
 	u, err := url.Parse(getProjectsURL)
 	if err != nil {
-		logger.Fatal(err)
+		return
 	}
 
 	q := u.Query()
@@ -162,72 +165,103 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 	q.Set("per_page", strconv.Itoa(gitlabProjectsPerPageDefault))
 	q.Set("min_access_level", strconv.Itoa(minAccessLevel))
 	u.RawQuery = q.Encode()
+	var body []byte
+	// firstRequest := true
 
+	reqUrl := u.String()
+
+	for {
+
+		var resp *http.Response
+		resp, body, err = makeGitLabRequest(&client, reqUrl)
+		if err != nil {
+			return
+		}
+
+		if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+			logger.Println(string(body))
+		}
+
+		switch resp.StatusCode {
+		case http.StatusOK:
+			if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+				logger.Println("projects retrieved successfully")
+			}
+		case http.StatusForbidden:
+			logger.Println("failed to get projects due to invalid missing permissions (HTTP 403)")
+
+			return repos
+		default:
+			logger.Printf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
+
+			return repos
+		}
+
+		var respObj gitLabGetProjectsResponse
+
+		if err = json.Unmarshal(body, &respObj); err != nil {
+			logger.Fatal(err)
+		}
+
+		for _, project := range respObj {
+			// gitlab replaces hyphens with spaces in owner names, so fix
+			owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
+			repo := repository{
+				Name:              project.Path,
+				Owner:             owner,
+				PathWithNameSpace: project.PathWithNameSpace,
+				HTTPSUrl:          project.HTTPSURL,
+				SSHUrl:            project.SSHURL,
+				Domain:            "gitlab.com",
+			}
+
+			repos = append(repos, repo)
+		}
+
+		// if we got a link response then
+		// reset request url
+		reqUrl = ""
+		for _, l := range link.ParseResponse(resp) {
+			if l.Rel == "next" {
+				reqUrl = l.URI
+			}
+		}
+
+		if reqUrl == "" {
+			break
+		}
+	}
+
+	return repos
+}
+
+func makeGitLabRequest(c *http.Client, reqUrl string) (resp *http.Response, body []byte, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	var req *http.Request
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
-		logger.Fatal(err)
+		return
 	}
 
 	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
-	var resp *http.Response
-
-	resp, err = client.Do(req)
+	resp, err = c.Do(req)
 	if err != nil {
-		logger.Fatal(err)
+		return
 	}
 
-	bodyB, _ := io.ReadAll(resp.Body)
-	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-	if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
-		logger.Println(bodyStr)
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return
 	}
-
+	body = bytes.ReplaceAll(body, []byte("\r"), []byte("\r\n"))
 	_ = resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
-			logger.Println("projects retrieved successfully")
-		}
-	case http.StatusForbidden:
-		logger.Println("failed to get projects due to invalid missing permissions (HTTP 403)")
-
-		return repos
-	default:
-		logger.Printf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
-
-		return repos
-	}
-
-	var respObj gitLabGetProjectsResponse
-
-	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		logger.Fatal(err)
-	}
-
-	for _, project := range respObj {
-		// gitlab replaces hyphens with spaces in owner names, so fix
-		owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
-		repo := repository{
-			Name:              project.Path,
-			Owner:             owner,
-			PathWithNameSpace: project.PathWithNameSpace,
-			HTTPSUrl:          project.HTTPSURL,
-			SSHUrl:            project.SSHURL,
-			Domain:            "gitlab.com",
-		}
-
-		repos = append(repos, repo)
-	}
-
-	return repos
+	return resp, body, err
 }
 
 func (provider gitlabHost) describeRepos() describeReposOutput {
