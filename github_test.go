@@ -58,6 +58,9 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 
 func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
 	resetBackups()
+	require.NoError(t, os.Setenv("SOBA_DEV", "true"))
+	defer os.Unsetenv("SOBA_DEV")
+
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
