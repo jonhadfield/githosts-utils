@@ -64,6 +64,122 @@ func createHost(input newHostInput) (gitProvider, error) {
 	}
 }
 
+// gitRefs is a mapping of references to SHAs
+type gitRefs map[string]string
+
+func getLatestBundleRefs(backupPath string) (heads gitRefs, err error) {
+	bFiles, err := getBundleFiles(backupPath)
+	if err != nil {
+		return
+	}
+
+	// get timestamps in filenames for sorting
+	fNameTimes := map[string]int{}
+
+	for _, f := range bFiles {
+		var ts int
+		if ts, err = getTimeStampPartFromFileName(f.info.Name()); err == nil {
+			fNameTimes[f.info.Name()] = ts
+		}
+	}
+
+	type kv struct {
+		Key   string
+		Value int
+	}
+
+	ss := make([]kv, 0, len(fNameTimes))
+
+	for k, v := range fNameTimes {
+		ss = append(ss, kv{k, v})
+	}
+
+	sort.Slice(ss, func(i, j int) bool {
+		return ss[i].Value > ss[j].Value
+	})
+
+	// get heads from latest bundle
+	bundleHeadsCmd := exec.Command("git", "bundle", "list-heads", backupPath+pathSep+ss[0].Key)
+	// remoteHeadsCmd.Dir = .
+	out, bundleHeadsErr := bundleHeadsCmd.CombinedOutput()
+	if bundleHeadsErr != nil {
+		return heads, errors.Wrap(bundleHeadsErr, "failed to retrieve remote heads")
+	}
+
+	heads = make(map[string]string)
+	lines := strings.Split(string(out), "\n")
+
+	for x := range lines {
+		// if empty (final line perhaps) then skip
+		if len(strings.TrimSpace(lines[x])) == 0 {
+			continue
+		}
+
+		fields := strings.Fields(lines[x])
+		// expect only a sha and a ref
+		if len(fields) != 2 {
+			logger.Printf("invalid ref: %s", lines[x])
+		}
+
+		heads[fields[1]] = fields[0]
+	}
+
+	return
+}
+
+func localRefsMatch(cloneURL, backupPath string) bool {
+	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
+		var rHeads, lHeads gitRefs
+
+		rHeads, err = getRemoteRefs(cloneURL)
+		if err != nil {
+			logger.Printf("failed to get remote refs")
+
+			return false
+		}
+
+		if lHeads, err = getLatestBundleRefs(backupPath); err != nil {
+			logger.Printf("failed to get bundle refs")
+
+			return false
+		}
+
+		if reflect.DeepEqual(lHeads, rHeads) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
+	remoteHeadsCmd := exec.Command("git", "ls-remote", cloneURL)
+
+	out, err := remoteHeadsCmd.CombinedOutput()
+	if err != nil {
+		return refs, errors.Wrap(err, "failed to retrieve remote heads")
+	}
+
+	refs = make(map[string]string)
+	lines := strings.Split(string(out), "\n")
+
+	for x := range lines {
+		// if empty (final line perhaps) then skip
+		if len(strings.TrimSpace(lines[x])) == 0 {
+			continue
+		}
+		fields := strings.Fields(lines[x])
+		// expect only a sha and a ref
+		if len(fields) != 2 {
+			logger.Printf("invalid ref: %s", lines[x])
+		}
+
+		refs[fields[1]] = fields[0]
+	}
+
+	return
+}
+
 func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	// CREATE BACKUP PATH
 	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
@@ -73,8 +189,6 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	if delErr != nil {
 		logger.Fatal(delErr)
 	}
-	// CLONE REPO
-	logger.Printf("cloning: %s", repo.HTTPSUrl)
 
 	var cloneURL string
 	if repo.URLWithToken != "" {
@@ -83,6 +197,19 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 		cloneURL = repo.URLWithBasicAuth
 	}
 
+	// Check if existing, latest bundle refs, already match the remote
+	if os.Getenv("SOBA_DEV") != "" {
+		// check backup path exists before attempting to compare remote and local heads
+		if localRefsMatch(cloneURL, backupPath) {
+			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
+
+			return nil
+		}
+
+	}
+
+	// CLONE REPO
+	logger.Printf("cloning: %s", repo.HTTPSUrl)
 	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	cloneCmd.Dir = backupDIR
 
@@ -141,6 +268,44 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	}
 
 	return nil
+}
+
+func getBundleFiles(backupPath string) (bfs bundleFiles, err error) {
+	files, err := os.ReadDir(backupPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "backup path read failed")
+	}
+
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".bundle") {
+			logger.Printf("skipping non bundle file '%s'", f.Name())
+
+			continue
+		}
+
+		var ts time.Time
+
+		ts, err = timeStampFromBundleName(f.Name())
+		if err != nil {
+			return nil, err
+		}
+
+		var info os.FileInfo
+
+		info, err = f.Info()
+		if err != nil {
+			return nil, err
+		}
+
+		bfs = append(bfs, bundleFile{
+			info:    info,
+			created: ts,
+		})
+	}
+
+	sort.Sort(bfs)
+
+	return bfs, err
 }
 
 func pruneBackups(backupPath string, keep int) error {
