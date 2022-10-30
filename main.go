@@ -24,7 +24,10 @@ const (
 var logger *log.Logger
 
 func init() {
-	logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
+	// allow for tests to override
+	if logger == nil {
+		logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
+	}
 }
 
 // Backup accepts a Git hosting provider and executes the backup task for it.
