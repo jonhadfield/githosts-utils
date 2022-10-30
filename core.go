@@ -231,6 +231,18 @@ func timeStampFromBundleName(i string) (t time.Time, err error) {
 	return timeStampToTime(sTime)
 }
 
+func getTimeStampPartFromFileName(name string) (timeStamp int, err error) {
+	if strings.Count(name, ".") >= minBundleFileNameTokens-1 {
+		parts := strings.Split(name, ".")
+		strTimestamp := parts[len(parts)-2]
+		return strconv.Atoi(strTimestamp)
+
+	}
+
+	return 0, fmt.Errorf("filename '%s' does not match bundle format <repo-name>.<timestamp>.bundle",
+		name)
+}
+
 func removeBundleIfDuplicate(dir string) {
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -246,14 +258,9 @@ func removeBundleIfDuplicate(dir string) {
 	fNameTimes := map[string]int{}
 
 	for _, f := range files {
-		if strings.Count(f.Name(), ".") >= minBundleFileNameTokens-1 {
-			parts := strings.Split(f.Name(), ".")
-			strTimestamp := parts[len(parts)-2]
-			intTimestamp, convErr := strconv.Atoi(strTimestamp)
-
-			if convErr == nil {
-				fNameTimes[f.Name()] = intTimestamp
-			}
+		var ts int
+		if ts, err = getTimeStampPartFromFileName(f.Name()); err == nil {
+			fNameTimes[f.Name()] = ts
 		}
 	}
 
