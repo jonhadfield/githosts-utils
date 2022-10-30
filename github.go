@@ -87,9 +87,27 @@ func makeGithubRequest(c *http.Client, payload string) string {
 		logger.Fatal(reqErr)
 	}
 
-	bodyB, _ := io.ReadAll(resp.Body)
+	bodyB, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Fatal(err)
+	}
+
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 	_ = resp.Body.Close()
+
+	// check response for errors
+	switch resp.StatusCode {
+	case 401:
+		if strings.Contains(bodyStr, "Personal access tokens with fine grained access do not support the GraphQL API") {
+			logger.Fatal("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
+		}
+
+		logger.Fatalf("GitHub authorisation failed: %s", bodyStr)
+	case 200:
+		// authorisation successful
+	default:
+		logger.Fatalf("GitHub request failed: %s", bodyStr)
+	}
 
 	return bodyStr
 }
