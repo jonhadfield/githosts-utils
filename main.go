@@ -3,6 +3,7 @@ package githosts
 import (
 	"log"
 	"os"
+	"strings"
 )
 
 const (
@@ -30,7 +31,7 @@ func init() {
 func Backup(providerName, backupDIR, APIURL string) (err error) {
 	var provider gitProvider
 
-	switch providerName {
+	switch strings.ToLower(providerName) {
 	case "bitbucket":
 		u := bitbucketAPIURL
 		if APIURL != "" {
@@ -77,6 +78,8 @@ func Backup(providerName, backupDIR, APIURL string) (err error) {
 		if err != nil {
 			return
 		}
+	default:
+		logger.Fatalf("unexpected provider '%s'", providerName)
 	}
 
 	provider.Backup(backupDIR)
