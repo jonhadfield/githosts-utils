@@ -16,17 +16,19 @@ import (
 var buf bytes.Buffer
 
 func init() {
-	logger = log.New(&buf, "soba: ", log.Lshortfile|log.LstdFlags)
+	logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
 	defer func() {
 		log.SetOutput(os.Stderr)
 	}()
 }
 
 func TestPublicGitHubRepositoryBackup(t *testing.T) {
-	resetBackups()
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
+
+	resetBackups()
+
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
@@ -57,13 +59,18 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 }
 
 func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
+	if os.Getenv("GITHUB_TOKEN") == "" {
+		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+	}
+
+	// need to set output to buffer in order to test output
+	logger.SetOutput(&buf)
+	defer logger.SetOutput(os.Stdout)
+
 	resetBackups()
 	require.NoError(t, os.Setenv("SOBA_DEV", "true"))
 	defer os.Unsetenv("SOBA_DEV")
 
-	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
-	}
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
