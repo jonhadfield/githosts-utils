@@ -33,12 +33,33 @@ func createTestTextFile(fileName, content string) string {
 	defer f.Close()
 
 	_, err = f.WriteString(content)
-
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	}
 
 	return filepath.Clean(f.Name())
+}
+
+func TestGetLatestBundleRefs(t *testing.T) {
+	refs, err := getLatestBundleRefs("testfiles/example-bundles")
+	require.NoError(t, err)
+	var found int
+	for k, v := range refs {
+		switch k {
+		case "refs/heads/master":
+			if v == "2c84a508078d81eae0246ae3f3097befd0bcb7dc" {
+				found++
+			}
+		case "refs/heads/my-branch":
+			if v == "e16f7204b7640723bafc020c78ab29f4ea9f9265" {
+				found++
+			}
+		case "HEAD":
+			if v == "2c84a508078d81eae0246ae3f3097befd0bcb7dc" {
+				found++
+			}
+		}
+	}
 }
 
 func TestGetSHA2Hash(t *testing.T) {
@@ -111,7 +132,7 @@ func TestCreateHost(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, gitlabAPIURL, provider.getAPIURL())
 
-	provider, err = createHost(newHostInput{
+	_, err = createHost(newHostInput{
 		ProviderName: "example",
 		APIURL:       gitlabAPIURL,
 	})
@@ -131,6 +152,11 @@ func TestGetLatestBundlePath(t *testing.T) {
 	bundlePath, err = getLatestBundlePath(dir)
 	require.Empty(t, bundlePath)
 	require.Contains(t, err.Error(), "no bundle files found in path")
+
+	// directory with two bundles
+	bundlePath, err = getLatestBundlePath("testfiles/example-bundles")
+	require.NoError(t, err)
+	require.Equal(t, "testfiles/example-bundles/example.20221102202522.bundle", bundlePath)
 }
 
 func TestPruneBackups(t *testing.T) {

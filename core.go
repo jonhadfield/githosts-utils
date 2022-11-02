@@ -180,23 +180,26 @@ func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
 			return nil, err
 		}
 
+		// get refs for bundle
 		if refs, err = getBundleRefs(path); err != nil {
+			// failed to get refs
 			logger.Print(err.Error())
 			if strings.Contains(err.Error(), invalidBundleStringCheck) {
-				// rename and try again
+				// rename the invalid bundle
+				logger.Printf("renaming invalid bundle to %s.invalid", path)
 				if err = os.Rename(path, fmt.Sprintf("%s.invalid", path)); err != nil {
+					// failed to rename, meaning a filesystem or permissions issue
 					return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
 				}
+
+				// invalid bundle rename, so continue to check for the next latest bundle
+				continue
 			}
-
-			// otherwise, we should fail
-			return refs, err
-
 		}
 
-		return refs, err
+		// otherwise return the refs
+		return refs, nil
 	}
-
 }
 
 func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
@@ -216,6 +219,11 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
 	var err error
 
 	lHeads, err = getLatestBundleRefs(backupPath)
+	if err != nil {
+		logger.Printf("failed to get latest bundle refs for %s", backupPath)
+
+		return false
+	}
 
 	rHeads, err = getRemoteRefs(cloneURL)
 	if err != nil {
@@ -364,7 +372,6 @@ func getBundleFiles(backupPath string) (bfs bundleFiles, err error) {
 
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".bundle") {
-			logger.Printf("skipping non bundle file '%s'", f.Name())
 
 			continue
 		}
