@@ -1,9 +1,13 @@
 package githosts
 
 import (
+	b64 "encoding/base64"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -14,11 +18,126 @@ func deleteBackupsDir(path string) error {
 	return os.RemoveAll(path)
 }
 
+func createTestTextFile(fileName, content string) string {
+	tmpDir := os.TempDir()
+	dir, err := os.MkdirTemp(tmpDir, "soba-*")
+	if err != nil {
+		panic(err)
+	}
+
+	f, err := os.Create(filepath.Join(dir, fileName))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
+	_, err = f.WriteString(content)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return filepath.Clean(f.Name())
+}
+
+func TestGetSHA2Hash(t *testing.T) {
+	pathOne := createTestTextFile("one", "some content")
+	sha, err := getSHA2Hash(pathOne)
+	require.NoError(t, err)
+
+	expectedSHA := "KQ9JPET11j0Gs3TQpavSkvrji5LKsvrl7+/hsOk0f1Y="
+	require.Equal(t, expectedSHA, b64.StdEncoding.EncodeToString(sha))
+
+	pathTwo := createTestTextFile("one", "some more content")
+	sha, err = getSHA2Hash(pathTwo)
+	require.NoError(t, err)
+	require.NotEqual(t, expectedSHA, b64.StdEncoding.EncodeToString(sha))
+
+	sha, err = getSHA2Hash("missing-file")
+	require.Error(t, err)
+	require.Empty(t, sha)
+	require.Contains(t, err.Error(), "failed to open file")
+}
+
+func TestFilesIdentical(t *testing.T) {
+	pathOne := createTestTextFile("one", "some content")
+	pathTwo := createTestTextFile("two", "some content")
+	require.True(t, filesIdentical(pathOne, pathTwo))
+
+	pathOne = createTestTextFile("one", "some content")
+	pathTwo = createTestTextFile("two", "some other content")
+	require.False(t, filesIdentical(pathOne, pathTwo))
+}
+
+func TestGetTimeStampPartFromFileName(t *testing.T) {
+	// test success
+	timeStamp, err := getTimeStampPartFromFileName("repoName.20221102153359.bundle")
+	require.NoError(t, err)
+	require.Equal(t, 20221102153359, timeStamp)
+
+	// test invalid format without enough tokens
+	timeStamp, err = getTimeStampPartFromFileName("repoName.20221102153359")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "bundle format")
+	require.Zero(t, timeStamp)
+
+	// test invalid format with wrong order
+	timeStamp, err = getTimeStampPartFromFileName("repoName.bundle.20221102153359")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid syntax")
+	require.Zero(t, timeStamp)
+}
+
+func TestCreateHost(t *testing.T) {
+	provider, err := createHost(newHostInput{
+		ProviderName: "bitbucket",
+		APIURL:       bitbucketAPIURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, bitbucketAPIURL, provider.getAPIURL())
+
+	provider, err = createHost(newHostInput{
+		ProviderName: "github",
+		APIURL:       githubAPIURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, githubAPIURL, provider.getAPIURL())
+
+	provider, err = createHost(newHostInput{
+		ProviderName: "gitlab",
+		APIURL:       gitlabAPIURL,
+	})
+	require.NoError(t, err)
+	require.Equal(t, gitlabAPIURL, provider.getAPIURL())
+
+	provider, err = createHost(newHostInput{
+		ProviderName: "example",
+		APIURL:       gitlabAPIURL,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "provider invalid or not implemented")
+}
+
+func TestGetLatestBundlePath(t *testing.T) {
+	// invalid directory
+	bundlePath, err := getLatestBundlePath("invalid-directory")
+	require.Empty(t, bundlePath)
+	require.Contains(t, err.Error(), "backup path read failed")
+
+	// empty directory
+	dir, err := os.MkdirTemp(os.TempDir(), "soba-*")
+	require.NoError(t, err)
+	bundlePath, err = getLatestBundlePath(dir)
+	require.Empty(t, bundlePath)
+	require.Contains(t, err.Error(), "no bundle files found in path")
+}
+
 func TestPruneBackups(t *testing.T) {
 	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
-			fmt.Printf("err: failed to delete backup directory '%s'", backupDir)
+
 			return
 		}
 	}()
@@ -54,7 +173,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
-			fmt.Printf("err: failed to delete backup directory '%s'", backupDir)
+
 			return
 		}
 	}()

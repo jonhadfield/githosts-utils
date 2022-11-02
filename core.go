@@ -67,10 +67,15 @@ func createHost(input newHostInput) (gitProvider, error) {
 // gitRefs is a mapping of references to SHAs
 type gitRefs map[string]string
 
-func getLatestBundleRefs(backupPath string) (heads gitRefs, err error) {
+func getLatestBundlePath(backupPath string) (path string, err error) {
 	bFiles, err := getBundleFiles(backupPath)
 	if err != nil {
+
 		return
+	}
+
+	if len(bFiles) == 0 {
+		return "", errors.New("no bundle files found in path")
 	}
 
 	// get timestamps in filenames for sorting
@@ -80,7 +85,11 @@ func getLatestBundleRefs(backupPath string) (heads gitRefs, err error) {
 		var ts int
 		if ts, err = getTimeStampPartFromFileName(f.info.Name()); err == nil {
 			fNameTimes[f.info.Name()] = ts
+
+			continue
 		}
+
+		// ignoring error output
 	}
 
 	type kv struct {
@@ -98,12 +107,15 @@ func getLatestBundleRefs(backupPath string) (heads gitRefs, err error) {
 		return ss[i].Value > ss[j].Value
 	})
 
-	// get heads from latest bundle
-	bundleHeadsCmd := exec.Command("git", "bundle", "list-heads", backupPath+pathSep+ss[0].Key)
-	// remoteHeadsCmd.Dir = .
+	return backupPath + pathSep + ss[0].Key, nil
+}
+
+func getBundleRefs(bundlePath string) (heads gitRefs, err error) {
+	bundleHeadsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
 	out, bundleHeadsErr := bundleHeadsCmd.CombinedOutput()
 	if bundleHeadsErr != nil {
-		return heads, errors.Wrap(bundleHeadsErr, "failed to retrieve remote heads")
+
+		return heads, errors.New(string(out))
 	}
 
 	heads = make(map[string]string)
@@ -127,26 +139,93 @@ func getLatestBundleRefs(backupPath string) (heads gitRefs, err error) {
 	return
 }
 
-func localRefsMatch(cloneURL, backupPath string) bool {
-	if _, err := os.Stat(backupPath); !os.IsNotExist(err) {
-		var rHeads, lHeads gitRefs
+func dirHasBundles(dir string) bool {
+	f, err := os.Open(dir)
+	if err != nil {
+		return false
+	}
 
-		rHeads, err = getRemoteRefs(cloneURL)
-		if err != nil {
-			logger.Printf("failed to get remote refs")
+	defer f.Close()
 
-			return false
-		}
+	names, err := f.Readdirnames(1)
+	if err == io.EOF {
+		return false
+	}
 
-		if lHeads, err = getLatestBundleRefs(backupPath); err != nil {
-			logger.Printf("failed to get bundle refs")
+	if err != nil {
+		logger.Printf("failed to read bundle directory contents: %s", err.Error())
+	}
 
-			return false
-		}
-
-		if reflect.DeepEqual(lHeads, rHeads) {
+	for _, name := range names {
+		if strings.HasSuffix(name, ".bundle") {
 			return true
 		}
+	}
+
+	return false
+}
+
+const (
+	// invalidBundleStringCheck checks for a portion of the following in the command output
+	// to determine if valid: "does not look like a v2 or v3 bundle file"
+	invalidBundleStringCheck = "does not look like"
+)
+
+func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
+	// if we encounter an invalid bundle, then we need to repeat until we find a valid one or run out
+	for {
+		var path string
+		path, err = getLatestBundlePath(backupPath)
+		if err != nil {
+			return nil, err
+		}
+
+		if refs, err = getBundleRefs(path); err != nil {
+			logger.Print(err.Error())
+			if strings.Contains(err.Error(), invalidBundleStringCheck) {
+				// rename and try again
+				if err = os.Rename(path, fmt.Sprintf("%s.invalid", path)); err != nil {
+					return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
+				}
+			}
+
+			// otherwise, we should fail
+			return refs, err
+
+		}
+
+		return refs, err
+	}
+
+}
+
+func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
+	// if there's no backup path then return false
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+
+		return false
+	}
+
+	// if there are no backups
+	if !dirHasBundles(backupPath) {
+
+		return false
+	}
+
+	var rHeads, lHeads gitRefs
+	var err error
+
+	lHeads, err = getLatestBundleRefs(backupPath)
+
+	rHeads, err = getRemoteRefs(cloneURL)
+	if err != nil {
+		logger.Printf("failed to get remote refs")
+
+		return false
+	}
+
+	if reflect.DeepEqual(lHeads, rHeads) {
+		return true
 	}
 
 	return false
@@ -180,50 +259,12 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
-func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
-	// CREATE BACKUP PATH
-	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
-	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
-	// CLEAN EXISTING WORKING DIRECTORY
-	delErr := os.RemoveAll(workingPath + pathSep)
-	if delErr != nil {
-		logger.Fatal(delErr)
-	}
-
-	var cloneURL string
-	if repo.URLWithToken != "" {
-		cloneURL = repo.URLWithToken
-	} else if repo.URLWithBasicAuth != "" {
-		cloneURL = repo.URLWithBasicAuth
-	}
-
-	// Check if existing, latest bundle refs, already match the remote
-	if os.Getenv("SOBA_DEV") != "" {
-		// check backup path exists before attempting to compare remote and local heads
-		if localRefsMatch(cloneURL, backupPath) {
-			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
-
-			return nil
-		}
-
-	}
-
-	// CLONE REPO
-	logger.Printf("cloning: %s", repo.HTTPSUrl)
-	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
-	cloneCmd.Dir = backupDIR
-
-	_, cloneErr := cloneCmd.CombinedOutput()
-	if cloneErr != nil {
-		return errors.Wrap(cloneErr, "cloning failed")
-	}
-
-	// CREATE BUNDLE
+func createBundle(workingPath, backupPath string, repo repository) error {
 	objectsPath := workingPath + pathSep + "objects"
 
 	dirs, err := os.ReadDir(objectsPath)
 	if err != nil {
-		return errors.Wrapf(cloneErr, "failed to read objectsPath: %s", objectsPath)
+		return errors.Wrapf(err, "failed to read objectsPath: %s", objectsPath)
 	}
 
 	emptyPack, checkEmptyErr := isEmpty(objectsPath + pathSep + "pack")
@@ -259,10 +300,55 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 		logger.Fatal(bundleErr)
 	}
 
+	return nil
+}
+
+func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
+	// create backup path
+	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
+	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
+	// clean existing working directory
+	delErr := os.RemoveAll(workingPath + pathSep)
+	if delErr != nil {
+		logger.Fatal(delErr)
+	}
+
+	var cloneURL string
+	if repo.URLWithToken != "" {
+		cloneURL = repo.URLWithToken
+	} else if repo.URLWithBasicAuth != "" {
+		cloneURL = repo.URLWithBasicAuth
+	}
+
+	// Check if existing, latest bundle refs, already match the remote
+	if os.Getenv("SOBA_DEV") != "" {
+		// check backup path exists before attempting to compare remote and local heads
+		if remoteRefsMatchLocalRefs(cloneURL, backupPath) {
+			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
+
+			return nil
+		}
+	}
+
+	// clone repo
+	logger.Printf("cloning: %s", repo.HTTPSUrl)
+	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
+	cloneCmd.Dir = backupDIR
+
+	_, cloneErr := cloneCmd.CombinedOutput()
+	if cloneErr != nil {
+		return errors.Wrap(cloneErr, "cloning failed")
+	}
+
+	// create bundle
+	if err := createBundle(workingPath, backupPath, repo); err != nil {
+		return err
+	}
+
 	removeBundleIfDuplicate(backupPath)
 
 	if backupsToKeep > 0 {
-		if err = pruneBackups(backupPath, backupsToKeep); err != nil {
+		if err := pruneBackups(backupPath, backupsToKeep); err != nil {
 			return err
 		}
 	}
@@ -350,7 +436,7 @@ func pruneBackups(backupPath string, keep int) error {
 	firstFilesToDelete := len(bfs) - keep
 	for x, f := range files {
 		if x < firstFilesToDelete {
-			if err := os.Remove(backupPath + pathSep + f.Name()); err != nil {
+			if err = os.Remove(backupPath + pathSep + f.Name()); err != nil {
 				return err
 			}
 
@@ -408,8 +494,35 @@ func getTimeStampPartFromFileName(name string) (timeStamp int, err error) {
 		name)
 }
 
+func filesIdentical(path1, path2 string) bool {
+	// check if file sizes are same
+	latestBundleSize := getFileSize(path1)
+
+	previousBundleSize := getFileSize(path2)
+
+	if latestBundleSize == previousBundleSize {
+		// check if hashes match
+		latestBundleHash, latestHashErr := getSHA2Hash(path1)
+		if latestHashErr != nil {
+			logger.Printf("failed to get sha2 hash for: %s", path1)
+		}
+
+		previousBundleHash, previousHashErr := getSHA2Hash(path2)
+
+		if previousHashErr != nil {
+			logger.Printf("failed to get sha2 hash for: %s", path2)
+		}
+
+		if reflect.DeepEqual(latestBundleHash, previousBundleHash) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func removeBundleIfDuplicate(dir string) {
-	files, err := os.ReadDir(dir)
+	files, err := getBundleFiles(dir)
 	if err != nil {
 		logger.Println(err)
 
@@ -424,8 +537,8 @@ func removeBundleIfDuplicate(dir string) {
 
 	for _, f := range files {
 		var ts int
-		if ts, err = getTimeStampPartFromFileName(f.Name()); err == nil {
-			fNameTimes[f.Name()] = ts
+		if ts, err = getTimeStampPartFromFileName(f.info.Name()); err == nil {
+			fNameTimes[f.info.Name()] = ts
 		}
 	}
 
@@ -444,31 +557,15 @@ func removeBundleIfDuplicate(dir string) {
 		return ss[i].Value > ss[j].Value
 	})
 
-	// check if file sizes are same
-	latestBundleSize := getFileSize(dir + pathSep + ss[0].Key)
+	latestBundleFilePath := dir + pathSep + ss[0].Key
+	previousBundleFilePath := dir + pathSep + ss[0].Key
 
-	previousBundleSize := getFileSize(dir + pathSep + ss[1].Key)
+	if filesIdentical(latestBundleFilePath, previousBundleFilePath) {
+		logger.Printf("no change since previous bundle: %s", ss[1].Key)
+		logger.Printf("deleting duplicate bundle: %s", ss[0].Key)
 
-	if latestBundleSize == previousBundleSize {
-		// check if hashes match
-		latestBundleHash, latestHashErr := getSHA2Hash(dir + pathSep + ss[0].Key)
-		if latestHashErr != nil {
-			logger.Printf("failed to get sha2 hash for: %s", dir+pathSep+ss[0].Key)
-		}
-
-		previousBundleHash, previousHashErr := getSHA2Hash(dir + pathSep + ss[1].Key)
-
-		if previousHashErr != nil {
-			logger.Printf("failed to get sha2 hash for: %s", dir+pathSep+ss[1].Key)
-		}
-
-		if reflect.DeepEqual(latestBundleHash, previousBundleHash) {
-			logger.Printf("no change since previous bundle: %s", ss[1].Key)
-			logger.Printf("deleting duplicate bundle: %s", ss[0].Key)
-
-			if deleteFile(dir+pathSep+ss[0].Key) != nil {
-				logger.Println("failed to remove duplicate bundle")
-			}
+		if deleteFile(dir+pathSep+ss[0].Key) != nil {
+			logger.Println("failed to remove duplicate bundle")
 		}
 	}
 }
@@ -488,13 +585,13 @@ func getSHA2Hash(filePath string) ([]byte, error) {
 	}
 
 	defer func() {
-		if cErr := file.Close(); cErr != nil {
+		if err = file.Close(); err != nil {
 			logger.Printf("warn: failed to close: %s", filePath)
 		}
 	}()
 
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
+	if _, err = io.Copy(hash, file); err != nil {
 		return result, errors.Wrap(err, "failed to get hash")
 	}
 

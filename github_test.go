@@ -2,7 +2,6 @@ package githosts
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -104,7 +103,6 @@ func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
 	var reRepo1 = regexp.MustCompile(`skipping.*go-soba/repo1`)
 	var matches int
 	for x := range logLines {
-		fmt.Println(logLines[x])
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
