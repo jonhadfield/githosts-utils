@@ -54,6 +54,9 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo1\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
 
+	expectedPathThree := filepath.Join(backupDIR, "github.com", "go-soba", "repo2")
+	require.NoDirExists(t, expectedPathThree)
+
 	restoreEnvironmentVariables(envBackup)
 }
 
