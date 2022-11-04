@@ -280,6 +280,10 @@ func createBundle(workingPath, backupPath string, repo repository) error {
 		logger.Printf("failed to check if: '%s' is empty", objectsPath+pathSep+"pack")
 	}
 
+	if emptyPack {
+		return fmt.Errorf("%s is empty", repo.PathWithNameSpace)
+	}
+
 	if len(dirs) == 2 && emptyPack {
 		logger.Printf("%s is empty, so not creating bundle", repo.Name)
 
@@ -350,6 +354,11 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 
 	// create bundle
 	if err := createBundle(workingPath, backupPath, repo); err != nil {
+		if strings.HasSuffix(err.Error(), "is empty") {
+			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
+			return nil
+		}
+
 		return err
 	}
 
