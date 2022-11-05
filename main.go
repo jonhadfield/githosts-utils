@@ -8,12 +8,9 @@ import (
 
 const (
 	workingDIRName               = ".working"
-	bundleExtension              = ".bundle"
 	maxIdleConns                 = 10
 	idleConnTimeout              = 30
 	maxRequestTime               = 10
-	bundleTimestampChars         = 14
-	minBundleFileNameTokens      = 3
 	timeStampFormat              = "20060102150405"
 	bitbucketAPIURL              = "https://api.bitbucket.org/2.0"
 	githubAPIURL                 = "https://api.github.com/graphql"
@@ -31,14 +28,14 @@ func init() {
 }
 
 // Backup accepts a Git hosting provider and executes the backup task for it.
-func Backup(providerName, backupDIR, APIURL string) (err error) {
+func Backup(providerName, backupDIR, apiURL string) (err error) {
 	var provider gitProvider
 
 	switch strings.ToLower(providerName) {
 	case "bitbucket":
 		u := bitbucketAPIURL
-		if APIURL != "" {
-			u = APIURL
+		if apiURL != "" {
+			u = apiURL
 		}
 
 		input := newHostInput{
@@ -53,8 +50,8 @@ func Backup(providerName, backupDIR, APIURL string) (err error) {
 		}
 	case "github":
 		u := githubAPIURL
-		if APIURL != "" {
-			u = APIURL
+		if apiURL != "" {
+			u = apiURL
 		}
 
 		input := newHostInput{
@@ -68,8 +65,8 @@ func Backup(providerName, backupDIR, APIURL string) (err error) {
 		}
 	case "gitlab":
 		u := gitlabAPIURL
-		if APIURL != "" {
-			u = APIURL
+		if apiURL != "" {
+			u = apiURL
 		}
 
 		input := newHostInput{
