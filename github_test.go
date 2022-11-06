@@ -2,14 +2,13 @@ package githosts
 
 import (
 	"bytes"
+	"github.com/stretchr/testify/require"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
 var buf bytes.Buffer
@@ -36,8 +35,9 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 
 	ghHost := githubHost{
-		Provider: "GitHub",
-		APIURL:   githubAPIURL,
+		Provider:         "GitHub",
+		APIURL:           githubAPIURL,
+		DiffRemoteMethod: cloneMethod,
 	}
 
 	ghHost.Backup(backupDIR)
@@ -60,7 +60,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	restoreEnvironmentVariables(envBackup)
 }
 
-func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
+func TestPublicGitHubRepositoryRefsCompare(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
@@ -70,8 +70,6 @@ func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
 	defer logger.SetOutput(os.Stdout)
 
 	resetBackups()
-	require.NoError(t, os.Setenv("SOBA_DEV", "true"))
-	defer os.Unsetenv("SOBA_DEV")
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
@@ -81,8 +79,9 @@ func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 
 	ghHost := githubHost{
-		Provider: "GitHub",
-		APIURL:   githubAPIURL,
+		Provider:         "GitHub",
+		APIURL:           githubAPIURL,
+		DiffRemoteMethod: refsMethod,
 	}
 
 	ghHost.Backup(backupDIR)
@@ -102,10 +101,15 @@ func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
 	// backup once more so we have bundles to compare and skip
 	ghHost.Backup(backupDIR)
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
-	var reRepo0 = regexp.MustCompile(`skipping.*go-soba/repo0`)
-	var reRepo1 = regexp.MustCompile(`skipping.*go-soba/repo1`)
+
+	var reRepo0 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
+	var reRepo1 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
 	var matches int
+
+	logger.SetOutput(os.Stdout)
+
 	for x := range logLines {
+		logger.Print(logLines[x])
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
@@ -113,6 +117,7 @@ func TestPublicGitHubRepositoryQuickCompare(t *testing.T) {
 			matches++
 		}
 	}
+
 	require.Equal(t, 2, matches)
 
 	restoreEnvironmentVariables(envBackup)

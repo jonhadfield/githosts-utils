@@ -147,11 +147,11 @@ func (provider bitbucketHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func bitBucketWorker(user, token, backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func bitBucketWorker(user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		parts := strings.Split(repo.HTTPSUrl, "//")
 		repo.URLWithBasicAuth = parts[0] + "//" + user + ":" + token + "@" + parts[1]
-		results <- processBackup(repo, backupDIR, backupsToKeep)
+		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
 
@@ -191,7 +191,7 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 	results := make(chan error, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(user, token, backupDIR, backupsToKeep, jobs, results)
+		go bitBucketWorker(user, token, backupDIR, provider.diffRemoteMethod(), backupsToKeep, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -210,8 +210,9 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 }
 
 type bitbucketHost struct {
-	Provider string
-	APIURL   string
+	Provider         string
+	APIURL           string
+	DiffRemoteMethod string
 }
 
 type bitbucketOwner struct {
@@ -240,4 +241,19 @@ type bitbucketGetProjectsResponse struct {
 	Pagelen int                `json:"pagelen"`
 	Values  []bitbucketProject `json:"values"`
 	Next    string             `json:"next"`
+}
+
+// return normalised method
+func (provider bitbucketHost) diffRemoteMethod() string {
+	switch strings.ToLower(provider.DiffRemoteMethod) {
+	case refsMethod:
+		return refsMethod
+	case cloneMethod:
+		return cloneMethod
+	default:
+		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)
+
+		// default to bundle as safest
+		return cloneMethod
+	}
 }

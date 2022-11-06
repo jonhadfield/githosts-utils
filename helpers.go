@@ -1,9 +1,10 @@
 package githosts
 
 import (
-	"errors"
-	"io"
+	"fmt"
+	"github.com/pkg/errors"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -39,23 +40,39 @@ func stripTrailing(input string, toStrip string) string {
 	return input
 }
 
-func isEmpty(name string) (bool, error) {
-	f, err := os.Open(name)
-
-	defer func() {
-		if cErr := f.Close(); cErr != nil {
-			logger.Printf("warn: failed to close: %s", name)
-		}
-	}()
-
+func isEmpty(clonedRepoPath string) (bool, error) {
+	remoteHeadsCmd := exec.Command("git", "count-objects", "-v")
+	remoteHeadsCmd.Dir = clonedRepoPath
+	out, err := remoteHeadsCmd.CombinedOutput()
 	if err != nil {
-		return false, err
+		return true, errors.Wrapf(err, "failed to count objects in %s", clonedRepoPath)
 	}
 
-	_, err = f.Readdirnames(1)
-	if errors.Is(err, io.EOF) {
+	cmdOutput := strings.Split(string(out), "\n")
+	var looseObjects bool
+	var inPackObjects bool
+	var matchingLinesFound int
+	for _, line := range cmdOutput {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			switch fields[0] {
+			case "count:":
+				matchingLinesFound++
+				looseObjects = fields[1] != "0"
+			case "in-pack:":
+				matchingLinesFound++
+				inPackObjects = fields[1] != "0"
+			}
+		}
+	}
+
+	if matchingLinesFound != 2 {
+		return false, fmt.Errorf("failed to get object counts from %s", clonedRepoPath)
+	}
+
+	if !looseObjects && !inPackObjects {
 		return true, nil
 	}
 
-	return false, err
+	return false, nil
 }
