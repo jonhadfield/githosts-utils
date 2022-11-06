@@ -23,9 +23,10 @@ const (
 )
 
 type gitlabHost struct {
-	User     gitlabUser
-	Provider string
-	APIURL   string
+	User             gitlabUser
+	Provider         string
+	APIURL           string
+	DiffRemoteMethod string
 }
 
 type gitlabUser struct {
@@ -34,7 +35,17 @@ type gitlabUser struct {
 }
 
 func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user gitlabUser) {
+	gitlabToken := strings.TrimSpace(os.Getenv("GITLAB_TOKEN"))
+	if gitlabToken == "" {
+		panic("env var GITLAB_TOKEN not set")
+	}
+
 	var err error
+
+	// use default if not passed
+	if provider.APIURL == "" {
+		provider.APIURL = gitlabAPIURL
+	}
 
 	getUserIDURL := provider.APIURL + "/user"
 
@@ -66,7 +77,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
 			logger.Println("authentication successful")
 		}
 	case http.StatusForbidden:
@@ -124,6 +135,10 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 
 	logger.Printf("retrieving all projects for user %s (%d):", provider.User.UserName, provider.User.ID)
 
+	if strings.TrimSpace(provider.APIURL) == "" {
+		provider.APIURL = gitlabAPIURL
+	}
+
 	getProjectsURL := provider.APIURL + "/projects"
 
 	var minAccessLevel int
@@ -166,25 +181,22 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 	q.Set("min_access_level", strconv.Itoa(minAccessLevel))
 	u.RawQuery = q.Encode()
 	var body []byte
-	// firstRequest := true
 
 	reqUrl := u.String()
-
 	for {
-
 		var resp *http.Response
 		resp, body, err = makeGitLabRequest(&client, reqUrl)
 		if err != nil {
 			return
 		}
 
-		if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
 			logger.Println(string(body))
 		}
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if strings.ToLower(os.Getenv("SOBA_LOG")) == "trace" {
+			if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
 				logger.Println("projects retrieved successfully")
 			}
 		case http.StatusForbidden:
@@ -240,6 +252,7 @@ func makeGitLabRequest(c *http.Client, reqUrl string) (resp *http.Response, body
 	defer cancel()
 
 	var req *http.Request
+
 	req, err = http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
 		return
@@ -286,11 +299,11 @@ func (provider gitlabHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func gitlabWorker(userName string, backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func gitlabWorker(userName, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + userName + ":" + stripTrailing(os.Getenv("GITLAB_TOKEN"), "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
-		results <- processBackup(repo, backupDIR, backupsToKeep)
+		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
 
@@ -317,7 +330,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(provider.User.UserName, backupDIR, backupsToKeep, jobs, results)
+		go gitlabWorker(provider.User.UserName, backupDIR, provider.diffRemoteMethod(), backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -332,5 +345,20 @@ func (provider gitlabHost) Backup(backupDIR string) {
 		if res != nil {
 			logger.Printf("backup failed: %+v\n", res)
 		}
+	}
+}
+
+// return normalised method
+func (provider gitlabHost) diffRemoteMethod() string {
+	switch strings.ToLower(provider.DiffRemoteMethod) {
+	case refsMethod:
+		return refsMethod
+	case cloneMethod:
+		return cloneMethod
+	default:
+		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)
+
+		// default to bundle as safest
+		return cloneMethod
 	}
 }

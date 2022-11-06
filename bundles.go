@@ -22,6 +22,8 @@ const (
 	invalidBundleStringCheck = "does not look like"
 	bundleTimestampChars     = 14
 	minBundleFileNameTokens  = 3
+	refsMethod               = "refs"
+	cloneMethod              = "clone"
 )
 
 func getLatestBundlePath(backupPath string) (path string, err error) {
@@ -165,19 +167,13 @@ func createBundle(workingPath, backupPath string, repo repository) error {
 		return errors.Wrapf(err, "failed to read objectsPath: %s", objectsPath)
 	}
 
-	emptyPack, checkEmptyErr := isEmpty(objectsPath + pathSep + "pack")
-	if checkEmptyErr != nil {
-		logger.Printf("failed to check if: '%s' is empty", objectsPath+pathSep+"pack")
+	emptyClone, err := isEmpty(workingPath)
+	if err != nil {
+		return err
 	}
 
-	if emptyPack {
+	if len(dirs) == 2 && emptyClone {
 		return fmt.Errorf("%s is empty", repo.PathWithNameSpace)
-	}
-
-	if len(dirs) == 2 && emptyPack {
-		logger.Printf("%s is empty, so not creating bundle", repo.Name)
-
-		return nil
 	}
 
 	backupFile := repo.Name + "." + getTimestamp() + bundleExtension
@@ -406,8 +402,7 @@ func removeBundleIfDuplicate(dir string) {
 	})
 
 	latestBundleFilePath := dir + pathSep + ss[0].Key
-	previousBundleFilePath := dir + pathSep + ss[0].Key
-
+	previousBundleFilePath := dir + pathSep + ss[1].Key
 	if filesIdentical(latestBundleFilePath, previousBundleFilePath) {
 		logger.Printf("no change since previous bundle: %s", ss[1].Key)
 		logger.Printf("deleting duplicate bundle: %s", ss[0].Key)

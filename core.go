@@ -27,29 +27,39 @@ type gitProvider interface {
 	getAPIURL() string
 	describeRepos() describeReposOutput
 	Backup(string)
+	diffRemoteMethod() string
 }
 
 type newHostInput struct {
-	ProviderName string
-	APIURL       string
+	ProviderName  string
+	APIURL        string
+	CompareMethod string
 }
 
 func createHost(input newHostInput) (gitProvider, error) {
+	// default compare method to clone
+	if input.CompareMethod == "" {
+		input.CompareMethod = cloneMethod
+	}
+
 	switch strings.ToLower(input.ProviderName) {
 	case "bitbucket":
 		return bitbucketHost{
-			Provider: "BitBucket",
-			APIURL:   input.APIURL,
+			Provider:         "BitBucket",
+			APIURL:           input.APIURL,
+			DiffRemoteMethod: input.CompareMethod,
 		}, nil
 	case "github":
 		return githubHost{
-			Provider: "Github",
-			APIURL:   input.APIURL,
+			Provider:         "Github",
+			APIURL:           input.APIURL,
+			DiffRemoteMethod: input.CompareMethod,
 		}, nil
 	case "gitlab":
 		return gitlabHost{
-			Provider: "Gitlab",
-			APIURL:   input.APIURL,
+			Provider:         "Gitlab",
+			APIURL:           input.APIURL,
+			DiffRemoteMethod: input.CompareMethod,
 		}, nil
 	default:
 		return nil, errors.New("provider invalid or not implemented")
@@ -124,7 +134,7 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
-func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
+func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) error {
 	// create backup path
 	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
 	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
@@ -142,7 +152,7 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	}
 
 	// Check if existing, latest bundle refs, already match the remote
-	if os.Getenv("SOBA_DEV") != "" {
+	if diffRemoteMethod == refsMethod {
 		// check backup path exists before attempting to compare remote and local heads
 		if remoteRefsMatchLocalRefs(cloneURL, backupPath) {
 			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
@@ -152,7 +162,7 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int) error {
 	}
 
 	// clone repo
-	logger.Printf("cloning: %s", repo.HTTPSUrl)
+	logger.Printf("cloning: %s to: %s", repo.HTTPSUrl, workingPath)
 	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	cloneCmd.Dir = backupDIR
 
