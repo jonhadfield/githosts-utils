@@ -18,8 +18,9 @@ const (
 )
 
 type githubHost struct {
-	Provider string
-	APIURL   string
+	Provider         string
+	APIURL           string
+	DiffRemoteMethod string
 }
 
 type edge struct {
@@ -217,11 +218,11 @@ func (provider githubHost) getAPIURL() string {
 	return provider.APIURL
 }
 
-func gitHubWorker(backupDIR string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func gitHubWorker(backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv("GITHUB_TOKEN"), "\n"), repo.HTTPSUrl[firstPos+2:])
-		results <- processBackup(repo, backupDIR, backupsToKeep)
+		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
 
@@ -238,7 +239,7 @@ func (provider githubHost) Backup(backupDIR string) {
 	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(backupDIR, backupsToKeep, jobs, results)
+		go gitHubWorker(backupDIR, provider.diffRemoteMethod(), backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -253,5 +254,20 @@ func (provider githubHost) Backup(backupDIR string) {
 		if res != nil {
 			logger.Printf("backup failed: %+v\n", res)
 		}
+	}
+}
+
+// return normalised method
+func (provider githubHost) diffRemoteMethod() string {
+	switch strings.ToLower(provider.DiffRemoteMethod) {
+	case refsMethod:
+		return refsMethod
+	case cloneMethod:
+		return cloneMethod
+	default:
+		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)
+
+		// default to bundle as safest
+		return cloneMethod
 	}
 }

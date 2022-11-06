@@ -28,7 +28,7 @@ func init() {
 }
 
 // Backup accepts a Git hosting provider and executes the backup task for it.
-func Backup(providerName, backupDIR, apiURL string) (err error) {
+func Backup(providerName, backupDIR, apiURL, compareMethod string) (err error) {
 	var provider gitProvider
 
 	switch strings.ToLower(providerName) {
@@ -39,8 +39,9 @@ func Backup(providerName, backupDIR, apiURL string) (err error) {
 		}
 
 		input := newHostInput{
-			ProviderName: "BitBucket",
-			APIURL:       u,
+			ProviderName:  "BitBucket",
+			APIURL:        u,
+			CompareMethod: compareMethod,
 		}
 
 		provider, err = createHost(input)
@@ -55,8 +56,9 @@ func Backup(providerName, backupDIR, apiURL string) (err error) {
 		}
 
 		input := newHostInput{
-			ProviderName: "Github",
-			APIURL:       u,
+			ProviderName:  "Github",
+			APIURL:        u,
+			CompareMethod: compareMethod,
 		}
 		provider, err = createHost(input)
 
@@ -70,8 +72,9 @@ func Backup(providerName, backupDIR, apiURL string) (err error) {
 		}
 
 		input := newHostInput{
-			ProviderName: "Gitlab",
-			APIURL:       u,
+			ProviderName:  "Gitlab",
+			APIURL:        u,
+			CompareMethod: compareMethod,
 		}
 		provider, err = createHost(input)
 
