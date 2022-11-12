@@ -166,9 +166,9 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRem
 	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	cloneCmd.Dir = backupDIR
 
-	_, cloneErr := cloneCmd.CombinedOutput()
+	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 	if cloneErr != nil {
-		return errors.Wrap(cloneErr, "cloning failed")
+		return errors.Wrapf(cloneErr, "cloning failed: %s", string(cloneOut))
 	}
 
 	// create bundle
