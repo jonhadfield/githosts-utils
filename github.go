@@ -116,9 +116,17 @@ func makeGithubRequest(c *http.Client, payload string) string {
 func describeGithubUserRepos(c *http.Client) []repository {
 	logger.Println("listing GitHub user's repositories")
 
+	gcs := gitHubCallSize
+	envCallSize := os.Getenv("GITHUB_CALL_SIZE")
+	if envCallSize != "" {
+		if callSize, err := strconv.Atoi(envCallSize); err != nil {
+			gcs = callSize
+		}
+	}
+
 	var repos []repository
 
-	reqBody := "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gitHubCallSize) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
+	reqBody := "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
 
 	for {
 		bodyStr := makeGithubRequest(c, reqBody)
@@ -141,7 +149,7 @@ func describeGithubUserRepos(c *http.Client) []repository {
 		if !respObj.Data.Viewer.Repositories.PageInfo.HasNextPage {
 			break
 		} else {
-			reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gitHubCallSize) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
+			reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gcs) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
 		}
 	}
 
@@ -160,9 +168,17 @@ func createGithubRequestPayload(body string) string {
 func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 	logger.Printf("listing GitHub organisation %s's repositories", orgName)
 
+	gcs := gitHubCallSize
+	envCallSize := os.Getenv("GITHUB_CALL_SIZE")
+	if envCallSize != "" {
+		if callSize, err := strconv.Atoi(envCallSize); err != nil {
+			gcs = callSize
+		}
+	}
+
 	var repos []repository
 
-	reqBody := "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gitHubCallSize) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
+	reqBody := "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
 
 	for {
 		bodyStr := makeGithubRequest(c, createGithubRequestPayload(reqBody))
@@ -185,7 +201,7 @@ func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 		if !respObj.Data.Organization.Repositories.PageInfo.HasNextPage {
 			break
 		} else {
-			reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gitHubCallSize) + ",\"after\":\"" + respObj.Data.Organization.Repositories.PageInfo.EndCursor + "\"} }"
+			reqBody = "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gcs) + " after: \"" + respObj.Data.Organization.Repositories.PageInfo.EndCursor + "\") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
 		}
 	}
 
