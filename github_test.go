@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"github.com/stretchr/testify/require"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -60,7 +61,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	restoreEnvironmentVariables(envBackup)
 }
 
-func TestPublicGitHubRepositoryRefsCompare(t *testing.T) {
+func TestDescribeGithubOrgRepos(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
@@ -74,7 +75,29 @@ func TestPublicGitHubRepositoryRefsCompare(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITHUB_TOKEN"})
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITHUB_TOKEN", "GITHUB_ORGS"})
+
+	repos := describeGithubOrgRepos(http.DefaultClient, "Nudelmesse")
+	require.Len(t, repos, 2)
+
+	restoreEnvironmentVariables(envBackup)
+}
+
+func TestPublicGitHubOrgRepoBackups(t *testing.T) {
+	if os.Getenv("GITHUB_TOKEN") == "" {
+		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+	}
+
+	// need to set output to buffer in order to test output
+	logger.SetOutput(&buf)
+	defer logger.SetOutput(os.Stdout)
+
+	resetBackups()
+
+	resetGlobals()
+	envBackup := backupEnvironmentVariables()
+
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITHUB_TOKEN", "GITHUB_ORGS"})
 
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 
