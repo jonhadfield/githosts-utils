@@ -2,15 +2,18 @@ package githosts
 
 import (
 	"log"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
 	workingDIRName               = ".working"
 	maxIdleConns                 = 10
-	idleConnTimeout              = 30
-	maxRequestTime               = 10
+	idleConnTimeout              = 30 * time.Second
+	defaultHttpRequestTimeout    = 30 * time.Second
+	defaultHttpClientTimeout     = 10 * time.Second
 	timeStampFormat              = "20060102150405"
 	bitbucketAPIURL              = "https://api.bitbucket.org/2.0"
 	githubAPIURL                 = "https://api.github.com/graphql"
@@ -25,6 +28,16 @@ func init() {
 	if logger == nil {
 		logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
 	}
+}
+
+var httpTransport = &http.Transport{
+	MaxIdleConns:       maxIdleConns,
+	IdleConnTimeout:    idleConnTimeout,
+	DisableCompression: true,
+}
+var httpClient = &http.Client{
+	Transport: httpTransport,
+	Timeout:   defaultHttpClientTimeout,
 }
 
 // Backup accepts a Git hosting provider and executes the backup task for it.

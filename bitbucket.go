@@ -5,46 +5,45 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/pkg/errors"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"time"
-
-	"github.com/pkg/errors"
 )
 
 func (provider bitbucketHost) auth(c *http.Client, key, secret string) (token string, err error) {
-	reqBody := "grant_type=client_credentials"
-	contentReader := bytes.NewReader([]byte(reqBody))
+	rc := retryablehttp.NewClient()
+	rc.Logger = nil
+	rc.HTTPClient = c
+	rc.RetryMax = 1
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
-	defer cancel()
-
-	req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://bitbucket.org/site/oauth2/access_token", contentReader)
-	if newReqErr != nil {
-		logger.Fatal(newReqErr)
+	b, _, _, err := httpRequest(httpRequestInput{
+		client: rc,
+		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
+		method: http.MethodPost,
+		headers: http.Header{
+			"Host":         []string{"bitbucket.org"},
+			"Content-Type": []string{"application/x-www-form-urlencoded"},
+			"Accept":       []string{"*/*"},
+		},
+		reqBody:           []byte("grant_type=client_credentials"),
+		basicAuthUser:     key,
+		basicAuthPassword: secret,
+		secrets:           []string{key, secret},
+		timeout:           defaultHttpRequestTimeout,
+	})
+	if err != nil {
+		return
 	}
 
-	req.Header.Set("Host", "bitbucket.org")
-	req.SetBasicAuth(key, secret)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "*/*")
-
-	resp, reqErr := c.Do(req)
-	if reqErr != nil {
-		logger.Fatal(reqErr)
-	}
-
-	bodyB, _ := io.ReadAll(resp.Body)
-	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
-	_ = resp.Body.Close()
+	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
 
 	var respObj bitbucketAuthResponse
 
-	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		return "", errors.Wrap(err, "failed to unmarshall bitbucket json response")
 	}
 
@@ -62,14 +61,6 @@ type bitbucketAuthResponse struct {
 func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 	logger.Println("listing BitBucket repositories")
 
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout * time.Second,
-		DisableCompression: true,
-	}
-
-	client := &http.Client{Transport: tr}
-
 	var err error
 
 	key := os.Getenv("BITBUCKET_KEY")
@@ -77,7 +68,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	var token string
 
-	token, err = provider.auth(client, key, secret)
+	token, err = provider.auth(httpClient, key, secret)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -86,7 +77,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	rawRequestURL := provider.APIURL + "/repositories?role=member"
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
 	for {
@@ -101,7 +92,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 		var resp *http.Response
 
-		resp, err = client.Do(req)
+		resp, err = httpClient.Do(req)
 		if err != nil {
 			logger.Fatal(err)
 		}
@@ -160,7 +151,7 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 
 	tr := &http.Transport{
 		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout * time.Second,
+		IdleConnTimeout:    idleConnTimeout,
 		DisableCompression: true,
 	}
 
@@ -249,6 +240,8 @@ func (provider bitbucketHost) diffRemoteMethod() string {
 	case refsMethod:
 		return refsMethod
 	case cloneMethod:
+		return cloneMethod
+	case "":
 		return cloneMethod
 	default:
 		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)

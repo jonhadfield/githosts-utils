@@ -15,7 +15,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -49,7 +48,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 
 	getUserIDURL := provider.APIURL + "/user"
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
 	var req *http.Request
@@ -248,7 +247,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 }
 
 func makeGitLabRequest(c *http.Client, reqUrl string) (resp *http.Response, body []byte, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
 	var req *http.Request
@@ -282,7 +281,7 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 
 	tr := &http.Transport{
 		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout * time.Second,
+		IdleConnTimeout:    idleConnTimeout,
 		DisableCompression: true,
 	}
 
@@ -312,7 +311,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 
 	tr := &http.Transport{
 		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout * time.Second,
+		IdleConnTimeout:    idleConnTimeout,
 		DisableCompression: true,
 	}
 
