@@ -1,8 +1,14 @@
 package githosts
 
 import (
+	"bytes"
+	"compress/gzip"
+	"context"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -75,4 +81,98 @@ func isEmpty(clonedRepoPath string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func getResponseBody(resp *http.Response) (body []byte, err error) {
+	var output io.ReadCloser
+
+	switch resp.Header.Get("Content-Encoding") {
+	case "gzip":
+		output, err = gzip.NewReader(resp.Body)
+
+		if err != nil {
+			return
+		}
+	default:
+		output = resp.Body
+
+		if err != nil {
+			return
+		}
+	}
+
+	buf := new(bytes.Buffer)
+
+	_, err = buf.ReadFrom(output)
+	if err != nil {
+		return
+	}
+
+	body = buf.Bytes()
+
+	return
+}
+
+func maskSecrets(content string, secret []string) string {
+	for _, s := range secret {
+		content = strings.ReplaceAll(content, s, strings.Repeat("*", len(s)))
+	}
+
+	return content
+}
+
+type httpRequestInput struct {
+	client            *retryablehttp.Client
+	url               string
+	method            string
+	headers           http.Header
+	reqBody           []byte
+	secrets           []string
+	basicAuthUser     string
+	basicAuthPassword string
+	timeout           time.Duration
+}
+
+func httpRequest(in httpRequestInput) (body []byte, headers http.Header, status int, err error) {
+	if in.method == "" {
+		err = fmt.Errorf("HTTP method not specified")
+
+		return
+	}
+
+	req, err := retryablehttp.NewRequest(in.method, in.url, in.reqBody)
+	if err != nil {
+		err = fmt.Errorf("failed to request %s: %w", maskSecrets(in.url, in.secrets), err)
+
+		return
+	}
+
+	req.Header = in.headers
+
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if in.timeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, in.timeout)
+		defer cancel()
+	}
+
+	var resp *http.Response
+
+	resp, err = in.client.Do(req)
+	if err != nil {
+		return
+	}
+
+	headers = resp.Header
+
+	body, err = getResponseBody(resp)
+	if err != nil {
+		err = fmt.Errorf("%w", err)
+
+		return
+	}
+
+	defer resp.Body.Close()
+
+	return body, resp.Header, resp.StatusCode, err
 }

@@ -10,7 +10,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -69,7 +68,7 @@ type graphQLRequest struct {
 func makeGithubRequest(c *http.Client, payload string) string {
 	contentReader := bytes.NewReader([]byte(payload))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*maxRequestTime)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
 	req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
@@ -211,7 +210,7 @@ func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 func (provider githubHost) describeRepos() describeReposOutput {
 	tr := &http.Transport{
 		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout * time.Second,
+		IdleConnTimeout:    idleConnTimeout,
 		DisableCompression: true,
 	}
 	client := &http.Client{Transport: tr}
