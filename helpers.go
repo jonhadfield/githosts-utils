@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	pathSep       = string(os.PathSeparator)
 	backupDirMode = 0o755
 )
 
