@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
@@ -66,7 +67,7 @@ func getLatestBundlePath(backupPath string) (path string, err error) {
 		return ss[i].Value > ss[j].Value
 	})
 
-	return backupPath + pathSep + ss[0].Key, nil
+	return filepath.Join(backupPath, ss[0].Key), nil
 }
 
 func getBundleRefs(bundlePath string) (heads gitRefs, err error) {
@@ -160,7 +161,7 @@ func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
 }
 
 func createBundle(workingPath, backupPath string, repo repository) error {
-	objectsPath := workingPath + pathSep + "objects"
+	objectsPath := filepath.Join(workingPath, "objects")
 
 	dirs, err := os.ReadDir(objectsPath)
 	if err != nil {
@@ -177,7 +178,7 @@ func createBundle(workingPath, backupPath string, repo repository) error {
 	}
 
 	backupFile := repo.Name + "." + getTimestamp() + bundleExtension
-	backupFilePath := backupPath + pathSep + backupFile
+	backupFilePath := filepath.Join(backupPath, backupFile)
 
 	createErr := createDirIfAbsent(backupPath)
 	if createErr != nil {
@@ -280,7 +281,7 @@ func pruneBackups(backupPath string, keep int) error {
 	firstFilesToDelete := len(bfs) - keep
 	for x, f := range files {
 		if x < firstFilesToDelete {
-			if err = os.Remove(backupPath + pathSep + f.Name()); err != nil {
+			if err = os.Remove(filepath.Join(backupPath, f.Name())); err != nil {
 				return err
 			}
 
@@ -401,13 +402,13 @@ func removeBundleIfDuplicate(dir string) {
 		return ss[i].Value > ss[j].Value
 	})
 
-	latestBundleFilePath := dir + pathSep + ss[0].Key
-	previousBundleFilePath := dir + pathSep + ss[1].Key
+	latestBundleFilePath := filepath.Join(dir, ss[0].Key)
+	previousBundleFilePath := filepath.Join(dir, ss[1].Key)
 	if filesIdentical(latestBundleFilePath, previousBundleFilePath) {
 		logger.Printf("no change since previous bundle: %s", ss[1].Key)
 		logger.Printf("deleting duplicate bundle: %s", ss[0].Key)
 
-		if deleteFile(dir+pathSep+ss[0].Key) != nil {
+		if deleteFile(filepath.Join(dir, ss[0].Key)) != nil {
 			logger.Println("failed to remove duplicate bundle")
 		}
 	}
