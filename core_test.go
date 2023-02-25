@@ -160,7 +160,7 @@ func TestGetLatestBundlePath(t *testing.T) {
 }
 
 func TestPruneBackups(t *testing.T) {
-	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
+	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
 
@@ -196,7 +196,7 @@ func TestPruneBackups(t *testing.T) {
 }
 
 func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
-	backupDir := path.Join(os.TempDir() + pathSep + "tmp_githosts-utils")
+	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
 
