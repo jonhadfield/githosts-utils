@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 )
@@ -136,10 +137,10 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 
 func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) error {
 	// create backup path
-	workingPath := backupDIR + pathSep + workingDIRName + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
-	backupPath := backupDIR + pathSep + repo.Domain + pathSep + repo.PathWithNameSpace
+	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
+	backupPath := filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
 	// clean existing working directory
-	delErr := os.RemoveAll(workingPath + pathSep)
+	delErr := os.RemoveAll(workingPath)
 	if delErr != nil {
 		logger.Fatal(delErr)
 	}
