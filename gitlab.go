@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultMinimumProjectAccessLevel = 20
+	DefaultMinimumProjectAccessLevel = 20
 )
 
 type gitlabHost struct {
@@ -151,7 +151,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 			logger.Printf("GITLAB_PROJECT_MIN_ACCESS_LEVEL '%s' is not a number so using default",
 				minAccessLevelEnvVar)
 
-			minAccessLevel = defaultMinimumProjectAccessLevel
+			minAccessLevel = DefaultMinimumProjectAccessLevel
 		}
 	}
 
@@ -161,7 +161,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 				strings.Join(validMinimumProjectAccessLevels, ", "))
 		}
 
-		minAccessLevel = defaultMinimumProjectAccessLevel
+		minAccessLevel = DefaultMinimumProjectAccessLevel
 	}
 
 	logger.Printf("project minimum access level set to %s (%d)",
