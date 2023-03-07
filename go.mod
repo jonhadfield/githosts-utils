@@ -3,16 +3,16 @@ module github.com/jonhadfield/githosts-utils
 go 1.18
 
 require (
+	github.com/hashicorp/go-retryablehttp v0.7.2
 	github.com/peterhellberg/link v1.2.0
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.8.1
-	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
+	github.com/stretchr/testify v1.8.2
+	golang.org/x/exp v0.0.0-20230307190834-24139beb5833
 )
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.2 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
