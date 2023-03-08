@@ -240,11 +240,13 @@ func getBundleFiles(backupPath string) (bfs bundleFiles, err error) {
 }
 
 func pruneBackups(backupPath string, keep int) error {
-	logger.Printf("pruning %s to keep %d newest only", backupPath, keep)
-
 	files, err := os.ReadDir(backupPath)
 	if err != nil {
 		return errors.Wrap(err, "backup path read failed")
+	}
+
+	if len(files) > 0 {
+		logger.Printf("pruning %s to keep %d newest only", backupPath, keep)
 	}
 
 	var bfs bundleFiles
