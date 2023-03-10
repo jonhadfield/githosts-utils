@@ -7,7 +7,7 @@ require (
 	github.com/peterhellberg/link v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.2
-	golang.org/x/exp v0.0.0-20230307190834-24139beb5833
+	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0
 )
 
 require (
