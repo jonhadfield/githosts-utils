@@ -70,31 +70,15 @@ func getLatestBundlePath(backupPath string) (path string, err error) {
 	return filepath.Join(backupPath, ss[0].Key), nil
 }
 
-func getBundleRefs(bundlePath string) (heads gitRefs, err error) {
-	bundleHeadsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
-	out, bundleHeadsErr := bundleHeadsCmd.CombinedOutput()
-	if bundleHeadsErr != nil {
+func getBundleRefs(bundlePath string) (refs gitRefs, err error) {
+	bundleRefsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
+	out, bundleRefsCmdErr := bundleRefsCmd.CombinedOutput()
+	if bundleRefsCmdErr != nil {
 
-		return heads, errors.New(string(out))
+		return refs, errors.New(string(out))
 	}
 
-	heads = make(map[string]string)
-	lines := strings.Split(string(out), "\n")
-
-	for x := range lines {
-		// if empty (final line perhaps) then skip
-		if len(strings.TrimSpace(lines[x])) == 0 {
-			continue
-		}
-
-		fields := strings.Fields(lines[x])
-		// expect only a sha and a ref
-		if len(fields) != 2 {
-			logger.Printf("invalid ref: %s", lines[x])
-		}
-
-		heads[fields[1]] = fields[0]
-	}
+	refs, err = generateMapFromRefsCmdOutput(out)
 
 	return
 }
