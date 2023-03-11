@@ -2,6 +2,7 @@ package githosts
 
 import (
 	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -152,6 +153,13 @@ func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs, err error) {
 			continue
 		}
 
+		// git bundle list-heads returns pseudo-refs but not peeled tags
+		// this is required for comparison with remote references
+		if slices.Contains([]string{"HEAD", "FETCH_HEAD", "ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD"}, ref) {
+
+			continue
+		}
+
 		refs[ref] = sha
 	}
 
@@ -159,7 +167,9 @@ func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs, err error) {
 }
 
 func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
-	remoteHeadsCmd := exec.Command("git", "ls-remote", cloneURL)
+	// --refs ignores pseudo-refs like HEAD and FETCH_HEAD, and also peeled tags that reference other objects
+	// this enables comparison with refs from existing bundles
+	remoteHeadsCmd := exec.Command("git", "ls-remote", "--refs", cloneURL)
 
 	out, err := remoteHeadsCmd.CombinedOutput()
 	if err != nil {
