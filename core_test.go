@@ -244,6 +244,7 @@ func TestGenerateMapFromRefsCmdOutput(t *testing.T) {
 	// use a mixture of spaces and tabs to separate the sha from the ref
 	// include tag ref with leading space
 	// include invalid line with only a single entry
+	// ensure pseudo ref HEAD is stripped
 	input := `
 	74e5977463007b3cb29ef11d776afa620e4e8698	    HEAD
 	2b59eaba487acaa8a16467222520377cc09b5bac    	refs/heads/another-example
@@ -255,7 +256,6 @@ func TestGenerateMapFromRefsCmdOutput(t *testing.T) {
 	refs, err := generateMapFromRefsCmdOutput([]byte(input))
 	require.NoError(t, err)
 	require.Equal(t, "2b59eaba487acaa8a16467222520377cc09b5bac", refs["refs/tags/ dev_25#1^{}"])
-	require.Equal(t, "74e5977463007b3cb29ef11d776afa620e4e8698", refs["HEAD"])
 	require.Equal(t, "2b59eaba487acaa8a16467222520377cc09b5bac", refs["refs/heads/another-example"])
 	require.Equal(t, "74e5977463007b3cb29ef11d776afa620e4e8698", refs["refs/heads/example"])
 	require.Equal(t, "74e5977463007b3cb29ef11d776afa620e4e8698", refs["refs/heads/master"])
