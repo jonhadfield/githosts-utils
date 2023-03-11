@@ -79,7 +79,6 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
 
 	// if there are no backups
 	if !dirHasBundles(backupPath) {
-
 		return false
 	}
 
@@ -107,6 +106,58 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
 	return false
 }
 
+func cutBySpaceAndTrimOutput(in string) (before, after string, found bool) {
+	// remove leading and trailing space
+	in = strings.TrimSpace(in)
+	// try cutting by tab
+	b, a, f := strings.Cut(in, "\t")
+	if f {
+		b = strings.TrimSpace(b)
+		a = strings.TrimSpace(a)
+		if len(a) > 0 && len(b) > 0 {
+			return b, a, true
+		}
+	}
+
+	// try cutting by tab
+	b, a, f = strings.Cut(in, " ")
+	if f {
+		b = strings.TrimSpace(b)
+		a = strings.TrimSpace(a)
+		if len(a) > 0 && len(b) > 0 {
+			return b, a, true
+		}
+	}
+
+	return
+}
+
+func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs, err error) {
+	refs = make(map[string]string)
+	lines := strings.Split(string(in), "\n")
+
+	for x := range lines {
+		// if empty (final line perhaps) then skip
+		if len(strings.TrimSpace(lines[x])) == 0 {
+			continue
+		}
+
+		// try cutting ref by both space and tab as its possible for both to be used
+		sha, ref, found := cutBySpaceAndTrimOutput(lines[x])
+
+		// expect only a sha and a ref
+		if !found {
+			logger.Printf("skipping invalid ref: %s", strings.TrimSpace(lines[x]))
+
+			continue
+		}
+
+		refs[ref] = sha
+	}
+
+	return
+}
+
 func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	remoteHeadsCmd := exec.Command("git", "ls-remote", cloneURL)
 
@@ -115,22 +166,7 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 		return refs, errors.Wrap(err, "failed to retrieve remote heads")
 	}
 
-	refs = make(map[string]string)
-	lines := strings.Split(string(out), "\n")
-
-	for x := range lines {
-		// if empty (final line perhaps) then skip
-		if len(strings.TrimSpace(lines[x])) == 0 {
-			continue
-		}
-		fields := strings.Fields(lines[x])
-		// expect only a sha and a ref
-		if len(fields) != 2 {
-			logger.Printf("invalid ref: %s", lines[x])
-		}
-
-		refs[fields[1]] = fields[0]
-	}
+	refs, err = generateMapFromRefsCmdOutput(out)
 
 	return
 }
