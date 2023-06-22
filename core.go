@@ -190,7 +190,6 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRem
 	if delErr != nil {
 		logger.Fatal(delErr)
 	}
-
 	var cloneURL string
 	if repo.URLWithToken != "" {
 		cloneURL = repo.URLWithToken
