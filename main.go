@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -73,6 +74,23 @@ func Backup(providerName, backupDIR, apiURL, compareMethod string) (err error) {
 			APIURL:        u,
 			CompareMethod: compareMethod,
 		}
+		provider, err = createHost(input)
+
+		if err != nil {
+			return
+		}
+	case "gitea":
+		apiUrl := os.Getenv(giteaEnvVarAPIUrl)
+		if apiUrl == "" {
+			return errors.New("Gitea API URL not set")
+		}
+
+		input := newHostInput{
+			ProviderName:  "Gitea",
+			APIURL:        apiUrl,
+			CompareMethod: compareMethod,
+		}
+
 		provider, err = createHost(input)
 
 		if err != nil {
