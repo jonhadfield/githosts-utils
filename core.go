@@ -63,6 +63,12 @@ func createHost(input newHostInput) (gitProvider, error) {
 			APIURL:           input.APIURL,
 			DiffRemoteMethod: input.CompareMethod,
 		}, nil
+	case "gitea":
+		return giteaHost{
+			Provider:         "Gitea",
+			APIURL:           input.APIURL,
+			DiffRemoteMethod: input.CompareMethod,
+		}, nil
 	default:
 		return nil, errors.New("provider invalid or not implemented")
 	}
@@ -190,7 +196,6 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRem
 	if delErr != nil {
 		logger.Fatal(delErr)
 	}
-
 	var cloneURL string
 	if repo.URLWithToken != "" {
 		cloneURL = repo.URLWithToken

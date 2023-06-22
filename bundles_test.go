@@ -9,6 +9,9 @@ import (
 )
 
 func TestRenameInvalidBundle(t *testing.T) {
+	if os.Getenv("GITHUB_TOKEN") == "" {
+		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+	}
 	// require.NoError(t, os.Setenv("")
 	backupDir := os.Getenv("GIT_BACKUP_DIR")
 	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
