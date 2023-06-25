@@ -10,7 +10,7 @@ import (
 )
 
 func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
-	if os.Getenv("BITBUCKET_KEY") == "" {
+	if os.Getenv(bitbucketEnvVarKey) == "" {
 		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY is missing")
 	}
 
@@ -23,7 +23,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "BITBUCKET_KEY", "BITBUCKET_SECRET", "BITBUCKET_USER"})
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 
@@ -72,7 +72,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 }
 
 func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
-	if os.Getenv("BITBUCKET_KEY") == "" {
+	if os.Getenv(bitbucketEnvVarKey) == "" {
 		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY is missing")
 	}
 
@@ -85,7 +85,7 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "BITBUCKET_KEY", "BITBUCKET_SECRET", "BITBUCKET_USER"})
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 

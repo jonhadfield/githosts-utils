@@ -25,7 +25,7 @@ func stringInStrings(single string, group []string) bool {
 
 var sobaEnvVarKeys = []string{
 	"GIT_BACKUP_DIR", githubEnvVarToken, githubEnvVarBackups, "GITLAB_TOKEN", "GITLAB_BACKUPS", "GITLAB_APIURL",
-	"BITBUCKET_USER", "BITBUCKET_KEY", "BITBUCKET_SECRET", "BITBUCKET_BACKUPS",
+	bitbucketEnvVarUser, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarBackups,
 }
 
 var numUserDefinedProviders int64
