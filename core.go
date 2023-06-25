@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+const (
+	envVarGitBackupDir = "GIT_BACKUP_DIR"
+	envVarGitHostsLog  = "GITHOSTS_LOG"
+)
+
 type repository struct {
 	Name              string
 	Owner             string

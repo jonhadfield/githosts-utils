@@ -18,8 +18,12 @@ import (
 )
 
 const (
-	// DefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
-	DefaultMinimumProjectAccessLevel = 20
+	// gitlabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
+	gitlabDefaultMinimumProjectAccessLevel = 20
+	gitlabEnvVarToken                      = "GITLAB_TOKEN"
+	gitlabEnvVarBackups                    = "GITLAB_BACKUPS"
+	gitlabEnvVarProjectMinAccessLevel      = "GITLAB_PROJECT_MIN_ACCESS_LEVEL"
+	gitlabEnvVarAPIUrl                     = "GITLAB_APIURL"
 )
 
 type gitlabHost struct {
@@ -35,7 +39,7 @@ type gitlabUser struct {
 }
 
 func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user gitlabUser) {
-	gitlabToken := strings.TrimSpace(os.Getenv("GITLAB_TOKEN"))
+	gitlabToken := strings.TrimSpace(os.Getenv(gitlabEnvVarToken))
 	if gitlabToken == "" {
 		panic("env var GITLAB_TOKEN not set")
 	}
@@ -59,7 +63,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 		logger.Fatal(err)
 	}
 
-	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
+	req.Header.Set("Private-Token", os.Getenv(gitlabEnvVarToken))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
@@ -77,7 +81,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Println("authentication successful")
 		}
 	case http.StatusForbidden:
@@ -145,14 +149,14 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 
 	var err error
 
-	minAccessLevelEnvVar := os.Getenv("GITLAB_PROJECT_MIN_ACCESS_LEVEL")
+	minAccessLevelEnvVar := os.Getenv(gitlabEnvVarProjectMinAccessLevel)
 	if minAccessLevelEnvVar != "" {
 		minAccessLevel, err = strconv.Atoi(minAccessLevelEnvVar)
 		if err != nil {
-			logger.Printf("GITLAB_PROJECT_MIN_ACCESS_LEVEL '%s' is not a number so using default",
-				minAccessLevelEnvVar)
+			logger.Printf("%s '%s' is not a number so using default",
+				gitlabEnvVarProjectMinAccessLevel, minAccessLevelEnvVar)
 
-			minAccessLevel = DefaultMinimumProjectAccessLevel
+			minAccessLevel = gitlabDefaultMinimumProjectAccessLevel
 		}
 	}
 
@@ -162,7 +166,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 				strings.Join(validMinimumProjectAccessLevels, ", "))
 		}
 
-		minAccessLevel = DefaultMinimumProjectAccessLevel
+		minAccessLevel = gitlabDefaultMinimumProjectAccessLevel
 	}
 
 	logger.Printf("project minimum access level set to %s (%d)",
@@ -190,13 +194,13 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 			return
 		}
 
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Println(string(body))
 		}
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+			if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 				logger.Println("projects retrieved successfully")
 			}
 		case http.StatusForbidden:
@@ -258,7 +262,7 @@ func makeGitLabRequest(c *http.Client, reqUrl string) (resp *http.Response, body
 		return
 	}
 
-	req.Header.Set("Private-Token", os.Getenv("GITLAB_TOKEN"))
+	req.Header.Set("Private-Token", os.Getenv(gitlabEnvVarToken))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
@@ -302,7 +306,7 @@ func (provider gitlabHost) getAPIURL() string {
 func gitlabWorker(userName, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
-		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + userName + ":" + stripTrailing(os.Getenv("GITLAB_TOKEN"), "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
+		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + userName + ":" + stripTrailing(os.Getenv(gitlabEnvVarToken), "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
 		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
@@ -324,7 +328,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
 
-	backupsToKeep, err := strconv.Atoi(os.Getenv("GITLAB_BACKUPS"))
+	backupsToKeep, err := strconv.Atoi(os.Getenv(gitlabEnvVarBackups))
 	if err != nil {
 		backupsToKeep = 0
 	}

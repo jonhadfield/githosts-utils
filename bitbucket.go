@@ -14,6 +14,13 @@ import (
 	"strings"
 )
 
+const (
+	bitbucketEnvVarKey     = "BITBUCKET_KEY"
+	bitbucketEnvVarSecret  = "BITBUCKET_SECRET"
+	bitbucketEnvVarUser    = "BITBUCKET_USER"
+	bitbucketEnvVarBackups = "BITBUCKET_BACKUPS"
+)
+
 func (provider bitbucketHost) auth(c *http.Client, key, secret string) (token string, err error) {
 	rc := retryablehttp.NewClient()
 	rc.Logger = nil
@@ -63,8 +70,8 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	var err error
 
-	key := os.Getenv("BITBUCKET_KEY")
-	secret := os.Getenv("BITBUCKET_SECRET")
+	key := os.Getenv(bitbucketEnvVarKey)
+	secret := os.Getenv(bitbucketEnvVarSecret)
 
 	var token string
 
@@ -159,11 +166,11 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 
 	var err error
 
-	user := os.Getenv("BITBUCKET_USER")
-	key := os.Getenv("BITBUCKET_KEY")
-	secret := os.Getenv("BITBUCKET_SECRET")
+	user := os.Getenv(bitbucketEnvVarUser)
+	key := os.Getenv(bitbucketEnvVarKey)
+	secret := os.Getenv(bitbucketEnvVarSecret)
 
-	backupsToKeep, err := strconv.Atoi(os.Getenv("BITBUCKET_BACKUPS"))
+	backupsToKeep, err := strconv.Atoi(os.Getenv(bitbucketEnvVarBackups))
 	if err != nil {
 		backupsToKeep = 0
 	}
