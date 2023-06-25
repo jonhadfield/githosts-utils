@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	// gitlabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
-	gitlabDefaultMinimumProjectAccessLevel = 20
+	// GitlabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
+	GitlabDefaultMinimumProjectAccessLevel = 20
 	gitlabEnvVarToken                      = "GITLAB_TOKEN"
 	gitlabEnvVarBackups                    = "GITLAB_BACKUPS"
 	gitlabEnvVarProjectMinAccessLevel      = "GITLAB_PROJECT_MIN_ACCESS_LEVEL"
@@ -156,7 +156,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 			logger.Printf("%s '%s' is not a number so using default",
 				gitlabEnvVarProjectMinAccessLevel, minAccessLevelEnvVar)
 
-			minAccessLevel = gitlabDefaultMinimumProjectAccessLevel
+			minAccessLevel = GitlabDefaultMinimumProjectAccessLevel
 		}
 	}
 
@@ -166,7 +166,7 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 				strings.Join(validMinimumProjectAccessLevels, ", "))
 		}
 
-		minAccessLevel = gitlabDefaultMinimumProjectAccessLevel
+		minAccessLevel = GitlabDefaultMinimumProjectAccessLevel
 	}
 
 	logger.Printf("project minimum access level set to %s (%d)",
