@@ -31,9 +31,9 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", githubEnvVarToken})
+	unsetEnvVars([]string{envVarGitBackupDir, githubEnvVarToken})
 
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	ghHost := githubHost{
 		Provider:         "GitHub",
@@ -75,7 +75,7 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", githubEnvVarToken, githubEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, githubEnvVarToken, githubEnvVarOrgs})
 
 	repos := describeGithubOrgRepos(http.DefaultClient, "Nudelmesse")
 	require.Len(t, repos, 2)
@@ -97,9 +97,9 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", githubEnvVarToken, githubEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, githubEnvVarToken, githubEnvVarOrgs})
 
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	ghHost := githubHost{
 		Provider:         "GitHub",
