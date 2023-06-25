@@ -22,7 +22,7 @@ func init() {
 }
 
 func TestPublicGitHubRepositoryBackup(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(githubEnvVarToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -31,7 +31,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITHUB_TOKEN"})
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", githubEnvVarToken})
 
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 
@@ -62,7 +62,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 }
 
 func TestDescribeGithubOrgRepos(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(githubEnvVarToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -75,7 +75,7 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITHUB_TOKEN", "GITHUB_ORGS"})
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", githubEnvVarToken, githubEnvVarOrgs})
 
 	repos := describeGithubOrgRepos(http.DefaultClient, "Nudelmesse")
 	require.Len(t, repos, 2)
@@ -84,7 +84,7 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 }
 
 func TestPublicGitHubOrgRepoBackups(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(githubEnvVarToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -97,7 +97,7 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITHUB_TOKEN", "GITHUB_ORGS"})
+	unsetEnvVars([]string{"GIT_BACKUP_DIR", githubEnvVarToken, githubEnvVarOrgs})
 
 	backupDIR := os.Getenv("GIT_BACKUP_DIR")
 

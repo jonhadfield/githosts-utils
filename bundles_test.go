@@ -9,7 +9,7 @@ import (
 )
 
 func TestRenameInvalidBundle(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(githubEnvVarToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 	// require.NoError(t, os.Setenv("")
@@ -20,7 +20,7 @@ func TestRenameInvalidBundle(t *testing.T) {
 	dfPath := path.Join(dfDir, dfName)
 	_, err := os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
 	require.NoError(t, err)
-	require.NoError(t, os.Setenv("GITHUB_BACKUPS", "1"))
+	require.NoError(t, os.Setenv(githubEnvVarBackups, "1"))
 	// run
 	gh := githubHost{
 		Provider:         "github",
