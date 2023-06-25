@@ -34,7 +34,7 @@ func TestGiteaGetUsers(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", giteaEnvVarToken, giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl})
 
 	gHost := giteaHost{
 		Provider:         giteaProviderName,
@@ -77,7 +77,7 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
 	gHost := giteaHost{
 		Provider:         giteaProviderName,
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
@@ -133,7 +133,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
 
 	gHost := giteaHost{
 		Provider:         giteaProviderName,
@@ -190,7 +190,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
 
 	gHost := giteaHost{
 		Provider:         giteaProviderName,
@@ -264,7 +264,7 @@ func TestGetAllUserRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", giteaEnvVarToken, giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl})
 
 	gHost := giteaHost{
 		Provider:         giteaProviderName,
@@ -352,9 +352,9 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", giteaEnvVarToken})
+	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken})
 
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	// extract domain from API URL to use for unique backup directory
 

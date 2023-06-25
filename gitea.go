@@ -328,7 +328,7 @@ func (g giteaHost) getOrganizationsRepos(client *http.Client, organizations []gi
 	domain := extractDomainFromAPIUrl(g.APIURL)
 
 	for _, org := range organizations {
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Printf("getting repositories from gitea organization %s", org.Name)
 		}
 
@@ -354,7 +354,7 @@ func (g giteaHost) getAllUsers(client *http.Client) (users []giteaUser) {
 	}
 
 	getUsersURL := g.APIURL + "/admin/users"
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("get users url: %s", getUsersURL)
 	}
 
@@ -379,13 +379,13 @@ func (g giteaHost) getAllUsers(client *http.Client) (users []giteaUser) {
 			return
 		}
 
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Printf(string(body))
 		}
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+			if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 				logger.Println("users retrieved successfully")
 			}
 		case http.StatusForbidden:
@@ -445,7 +445,7 @@ func (g giteaHost) getOrganizations(client *http.Client) (organizations []giteaO
 }
 
 func (g giteaHost) getOrganization(client *http.Client, orgName string) (organization giteaOrganization) {
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("retrieving organization %s", orgName)
 	}
 
@@ -454,7 +454,7 @@ func (g giteaHost) getOrganization(client *http.Client, orgName string) (organiz
 	}
 
 	getOrganizationsURL := fmt.Sprintf("%s%s", g.APIURL+"/orgs/", orgName)
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("get organization url: %s", getOrganizationsURL)
 	}
 
@@ -474,13 +474,13 @@ func (g giteaHost) getOrganization(client *http.Client, orgName string) (organiz
 		return
 	}
 
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Print(string(body))
 	}
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Println("organisations retrieved successfully")
 		}
 	case http.StatusForbidden:
@@ -512,7 +512,7 @@ func (g giteaHost) getAllOrganizations(client *http.Client) (organizations []git
 	}
 
 	getOrganizationsURL := g.APIURL + "/orgs"
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("get organizations url: %s", getOrganizationsURL)
 	}
 
@@ -537,13 +537,13 @@ func (g giteaHost) getAllOrganizations(client *http.Client) (organizations []git
 			return
 		}
 
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Print(string(body))
 		}
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+			if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 				logger.Println("organisations retrieved successfully")
 			}
 		case http.StatusForbidden:
@@ -677,7 +677,7 @@ func (g giteaHost) getOrganizationRepos(client *http.Client, organizationName st
 	}
 
 	getOrganizationReposURL := g.APIURL + fmt.Sprintf("/orgs/%s/repos", organizationName)
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("get %s organization repos url: %s", organizationName, getOrganizationReposURL)
 	}
 
@@ -702,13 +702,13 @@ func (g giteaHost) getOrganizationRepos(client *http.Client, organizationName st
 			return
 		}
 
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Print(string(body))
 		}
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+			if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 				logger.Println("repos retrieved successfully")
 			}
 		case http.StatusForbidden:
@@ -755,7 +755,7 @@ func (g giteaHost) getAllUserRepos(client *http.Client, userName string) (repos 
 	}
 
 	getOrganizationReposURL := g.APIURL + fmt.Sprintf("/users/%s/repos", userName)
-	if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("get %s user repos url: %s", userName, getOrganizationReposURL)
 	}
 
@@ -780,13 +780,13 @@ func (g giteaHost) getAllUserRepos(client *http.Client, userName string) (repos 
 			return
 		}
 
-		if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 			logger.Print(string(body))
 		}
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			if strings.ToLower(os.Getenv("GITHOSTS_LOG")) == "trace" {
+			if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 				logger.Println("repos retrieved successfully")
 			}
 		case http.StatusForbidden:
