@@ -3,7 +3,6 @@ package githosts
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
@@ -147,13 +146,6 @@ func httpRequest(in httpRequestInput) (body []byte, headers http.Header, status 
 	}
 
 	req.Header = in.headers
-
-	ctx := context.Background()
-	var cancel context.CancelFunc
-	if in.timeout != 0 {
-		ctx, cancel = context.WithTimeout(ctx, in.timeout)
-		defer cancel()
-	}
 
 	var resp *http.Response
 
