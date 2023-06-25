@@ -13,7 +13,12 @@ import (
 )
 
 const (
-	gitHubCallSize = 100
+	gitHubCallSize       = 100
+	githubEnvVarToken    = "GITHUB_TOKEN"
+	githubEnvVarOrgs     = "GITHUB_ORGS"
+	githubEnvVarBackups  = "GITHUB_BACKUPS"
+	githubEnvVarCallSize = "GITHUB_CALL_SIZE"
+	githubEnvVarLogs     = "GITHUB_LOGS"
 )
 
 type githubHost struct {
@@ -78,7 +83,7 @@ func makeGithubRequest(c *http.Client, payload string) string {
 	}
 
 	req.Header.Set("Authorization", fmt.Sprintf("bearer %s",
-		stripTrailing(os.Getenv("GITHUB_TOKEN"), "\n")))
+		stripTrailing(os.Getenv(githubEnvVarToken), "\n")))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
@@ -116,7 +121,7 @@ func describeGithubUserRepos(c *http.Client) []repository {
 	logger.Println("listing GitHub user's repositories")
 
 	gcs := gitHubCallSize
-	envCallSize := os.Getenv("GITHUB_CALL_SIZE")
+	envCallSize := os.Getenv(githubEnvVarCallSize)
 	if envCallSize != "" {
 		if callSize, err := strconv.Atoi(envCallSize); err != nil {
 			gcs = callSize
@@ -168,7 +173,7 @@ func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 	logger.Printf("listing GitHub organisation %s's repositories", orgName)
 
 	gcs := gitHubCallSize
-	envCallSize := os.Getenv("GITHUB_CALL_SIZE")
+	envCallSize := os.Getenv(githubEnvVarCallSize)
 	if envCallSize != "" {
 		if callSize, err := strconv.Atoi(envCallSize); err != nil {
 			gcs = callSize
@@ -217,8 +222,8 @@ func (provider githubHost) describeRepos() describeReposOutput {
 
 	repos := describeGithubUserRepos(client)
 
-	if len(strings.TrimSpace(os.Getenv("GITHUB_ORGS"))) > 0 {
-		orgs := strings.Split(os.Getenv("GITHUB_ORGS"), ",")
+	if len(strings.TrimSpace(os.Getenv(githubEnvVarOrgs))) > 0 {
+		orgs := strings.Split(os.Getenv(githubEnvVarOrgs), ",")
 		for _, org := range orgs {
 			repos = append(repos, describeGithubOrgRepos(client, org)...)
 		}
@@ -236,7 +241,7 @@ func (provider githubHost) getAPIURL() string {
 func gitHubWorker(backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
-		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv("GITHUB_TOKEN"), "\n"), repo.HTTPSUrl[firstPos+2:])
+		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv(githubEnvVarToken), "\n"), repo.HTTPSUrl[firstPos+2:])
 		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
@@ -248,7 +253,7 @@ func (provider githubHost) Backup(backupDIR string) {
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
 
-	backupsToKeep, err := strconv.Atoi(os.Getenv("GITHUB_BACKUPS"))
+	backupsToKeep, err := strconv.Atoi(os.Getenv(githubEnvVarBackups))
 	if err != nil {
 		backupsToKeep = 0
 	}
