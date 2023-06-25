@@ -24,7 +24,7 @@ func stringInStrings(single string, group []string) bool {
 }
 
 var sobaEnvVarKeys = []string{
-	"GIT_BACKUP_DIR", githubEnvVarToken, githubEnvVarBackups, "GITLAB_TOKEN", "GITLAB_BACKUPS", "GITLAB_APIURL",
+	envVarGitBackupDir, githubEnvVarToken, githubEnvVarBackups, gitlabEnvVarToken, gitlabEnvVarBackups, gitlabEnvVarAPIUrl,
 	bitbucketEnvVarUser, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarBackups,
 }
 
@@ -32,7 +32,7 @@ var numUserDefinedProviders int64
 
 func preflight() {
 	// create backup dir if defined but missing
-	bud := os.Getenv("GIT_BACKUP_DIR")
+	bud := os.Getenv(envVarGitBackupDir)
 	if bud == "" {
 		bud = os.TempDir()
 	}
@@ -82,8 +82,8 @@ func dirContents(path string) (contents []os.DirEntry, err error) {
 }
 
 func resetBackups() {
-	_ = os.RemoveAll(os.Getenv("GIT_BACKUP_DIR"))
-	if err := os.MkdirAll(os.Getenv("GIT_BACKUP_DIR"), 0o755); err != nil {
+	_ = os.RemoveAll(os.Getenv(envVarGitBackupDir))
+	if err := os.MkdirAll(os.Getenv(envVarGitBackupDir), 0o755); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -23,9 +23,9 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
+	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	bbHost := bitbucketHost{
 		Provider:         "bitbucket",
@@ -85,9 +85,9 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
+	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	bbHost := bitbucketHost{
 		Provider:         "bitbucket",
