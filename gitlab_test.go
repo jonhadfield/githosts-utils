@@ -10,13 +10,13 @@ import (
 
 func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	resetBackups()
-	if os.Getenv("GITLAB_TOKEN") == "" {
+	if os.Getenv(gitlabEnvVarToken) == "" {
 		t.Skip("Skipping GitLab test as GITLAB_TOKEN is missing")
 	}
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITLAB_TOKEN"})
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	gl := gitlabHost{
 		DiffRemoteMethod: cloneMethod,
@@ -40,13 +40,13 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 
 func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	resetBackups()
-	if os.Getenv("GITLAB_TOKEN") == "" {
+	if os.Getenv(gitlabEnvVarToken) == "" {
 		t.Skip("Skipping GitLab test as GITLAB_TOKEN is missing")
 	}
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
-	unsetEnvVars([]string{"GIT_BACKUP_DIR", "GITLAB_TOKEN"})
-	backupDIR := os.Getenv("GIT_BACKUP_DIR")
+	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
+	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	gl := gitlabHost{
 		DiffRemoteMethod: refsMethod,
