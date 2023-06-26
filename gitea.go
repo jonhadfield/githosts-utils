@@ -149,12 +149,17 @@ func allTrue(in ...bool) bool {
 func repoExists(in repoExistsInput) bool {
 	switch in.matchBy {
 	case giteaMatchByExact:
-		logger.Printf("matchBy %s", giteaMatchByExact)
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+			logger.Printf("matchBy %s", giteaMatchByExact)
+		}
 	case giteaMatchByIfDefined:
-		logger.Printf("matchBy %s", giteaMatchByExact)
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+			logger.Printf("matchBy %s", giteaMatchByExact)
+		}
 	case "":
-		logger.Printf("matchBy not defined")
-
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+			logger.Printf("matchBy not defined")
+		}
 		return false
 	default:
 		logger.Printf("unexpected matchBy value %s", in.matchBy)
@@ -163,7 +168,9 @@ func repoExists(in repoExistsInput) bool {
 	}
 
 	if in.matchBy == "" {
-		logger.Printf("matchBy not defined, defaulting to %s", giteaMatchByExact)
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+			logger.Printf("matchBy not defined, defaulting to %s", giteaMatchByExact)
+		}
 	}
 
 	if len(in.repos) == 0 {
