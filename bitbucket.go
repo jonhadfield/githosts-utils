@@ -110,7 +110,7 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 		_ = resp.Body.Close()
 
 		var respObj bitbucketGetProjectsResponse
-		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 			logger.Fatal(err)
 		}
 
