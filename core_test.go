@@ -40,6 +40,13 @@ func createTestTextFile(fileName, content string) string {
 	return filepath.Clean(f.Name())
 }
 
+func TestHostsImplementGitHostsInterface(t *testing.T) {
+	require.Implements(t, (*gitProvider)(nil), new(giteaHost))
+	require.Implements(t, (*gitProvider)(nil), new(githubHost))
+	require.Implements(t, (*gitProvider)(nil), new(bitbucketHost))
+	require.Implements(t, (*gitProvider)(nil), new(gitlabHost))
+}
+
 func TestGetLatestBundleRefs(t *testing.T) {
 	refs, err := getLatestBundleRefs("testfiles/example-bundles")
 	require.NoError(t, err)
