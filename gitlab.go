@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
 	"golang.org/x/exp/slices"
 
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -26,19 +28,46 @@ const (
 	gitlabEnvVarAPIUrl                     = "GITLAB_APIURL"
 )
 
-type gitlabHost struct {
-	User             gitlabUser
-	Provider         string
-	APIURL           string
-	DiffRemoteMethod string
-}
-
 type gitlabUser struct {
 	ID       int    `json:"id"`
 	UserName string `json:"username"`
 }
 
-func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user gitlabUser) {
+type GitlabHost struct {
+	httpClient       *retryablehttp.Client
+	APIURL           string
+	DiffRemoteMethod string
+	BackupDir        string
+	BackupsToKeep    int
+	Token            string
+	User             gitlabUser
+}
+
+func NewGitLabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
+	apiURL := gitlabAPIURL
+	if input.APIURL != "" {
+		apiURL = input.APIURL
+	}
+
+	diffRemoteMethod := cloneMethod
+	if input.DiffRemoteMethod != "" {
+		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
+			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
+		}
+
+		diffRemoteMethod = input.DiffRemoteMethod
+	}
+
+	return &GitlabHost{
+		httpClient:       getHTTPClient(),
+		APIURL:           apiURL,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupDir:        input.BackupDir,
+		BackupsToKeep:    getBackupsToKeep(gitlabEnvVarBackups),
+	}, nil
+}
+
+func (gl *GitlabHost) getAuthenticatedGitlabUser() (user gitlabUser) {
 	gitlabToken := strings.TrimSpace(os.Getenv(gitlabEnvVarToken))
 	if gitlabToken == "" {
 		panic("env var GITLAB_TOKEN not set")
@@ -47,18 +76,18 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 	var err error
 
 	// use default if not passed
-	if provider.APIURL == "" {
-		provider.APIURL = gitlabAPIURL
+	if gl.APIURL == "" {
+		gl.APIURL = gitlabAPIURL
 	}
 
-	getUserIDURL := provider.APIURL + "/user"
+	getUserIDURL := gl.APIURL + "/user"
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
-	var req *http.Request
+	var req *retryablehttp.Request
 
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
+	req, err = retryablehttp.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -69,7 +98,7 @@ func (provider gitlabHost) getAuthenticatedGitlabUser(client http.Client) (user 
 
 	var resp *http.Response
 
-	resp, err = client.Do(req)
+	resp, err = gl.httpClient.Do(req)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -123,7 +152,7 @@ var validAccessLevels = map[int]string{
 	50: "Owner",
 }
 
-func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos []repository) {
+func (gl *GitlabHost) getAllProjectRepositories(client http.Client) (repos []repository) {
 	var sortedLevels []int
 	for k := range validAccessLevels {
 		sortedLevels = append(sortedLevels, k)
@@ -137,13 +166,13 @@ func (provider gitlabHost) getAllProjectRepositories(client http.Client) (repos 
 		validMinimumProjectAccessLevels = append(validMinimumProjectAccessLevels, fmt.Sprintf("%s (%d)", validAccessLevels[level], level))
 	}
 
-	logger.Printf("retrieving all projects for user %s (%d):", provider.User.UserName, provider.User.ID)
+	logger.Printf("retrieving all projects for user %s (%d):", gl.User.UserName, gl.User.ID)
 
-	if strings.TrimSpace(provider.APIURL) == "" {
-		provider.APIURL = gitlabAPIURL
+	if strings.TrimSpace(gl.APIURL) == "" {
+		gl.APIURL = gitlabAPIURL
 	}
 
-	getProjectsURL := provider.APIURL + "/projects"
+	getProjectsURL := gl.APIURL + "/projects"
 
 	var minAccessLevel int
 
@@ -281,7 +310,69 @@ func makeGitLabRequest(c *http.Client, reqUrl string) (resp *http.Response, body
 	return resp, body, err
 }
 
-func (provider gitlabHost) describeRepos() describeReposOutput {
+type NewGitlabHostInput struct {
+	APIURL           string
+	DiffRemoteMethod string
+	BackupDir        string
+	Token            string
+}
+
+func NewGitlabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
+	apiURL := gitlabAPIURL
+	if input.APIURL != "" {
+		apiURL = input.APIURL
+	}
+
+	diffRemoteMethod := cloneMethod
+	if input.DiffRemoteMethod != "" {
+		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
+			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
+		}
+
+		diffRemoteMethod = input.DiffRemoteMethod
+	}
+
+	return &GitlabHost{
+		httpClient:       getHTTPClient(),
+		APIURL:           apiURL,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupDir:        input.BackupDir,
+		BackupsToKeep:    getBackupsToKeep(gitlabEnvVarBackups),
+	}, nil
+}
+
+func (gl *GitlabHost) auth(key, secret string) (token string, err error) {
+	b, _, _, err := httpRequest(httpRequestInput{
+		client: gl.httpClient,
+		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
+		method: http.MethodPost,
+		headers: http.Header{
+			"Host":         []string{"bitbucket.org"},
+			"Content-Type": []string{"application/x-www-form-urlencoded"},
+			"Accept":       []string{"*/*"},
+		},
+		reqBody:           []byte("grant_type=client_credentials"),
+		basicAuthUser:     key,
+		basicAuthPassword: secret,
+		secrets:           []string{key, secret},
+		timeout:           defaultHttpRequestTimeout,
+	})
+	if err != nil {
+		return
+	}
+
+	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
+
+	var respObj bitbucketAuthResponse
+
+	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		return "", errors.New("failed to unmarshall bitbucket json response")
+	}
+
+	return respObj.AccessToken, err
+}
+
+func (gl *GitlabHost) describeRepos() describeReposOutput {
 	logger.Println("listing repositories")
 
 	tr := &http.Transport{
@@ -292,15 +383,15 @@ func (provider gitlabHost) describeRepos() describeReposOutput {
 
 	client := &http.Client{Transport: tr}
 
-	userRepos := provider.getAllProjectRepositories(*client)
+	userRepos := gl.getAllProjectRepositories(*client)
 
 	return describeReposOutput{
 		Repos: userRepos,
 	}
 }
 
-func (provider gitlabHost) getAPIURL() string {
-	return provider.APIURL
+func (gl *GitlabHost) getAPIURL() string {
+	return gl.APIURL
 }
 
 func gitlabWorker(userName, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
@@ -311,19 +402,19 @@ func gitlabWorker(userName, backupDIR, diffRemoteMethod string, backupsToKeep in
 	}
 }
 
-func (provider gitlabHost) Backup(backupDIR string) {
-	maxConcurrent := 5
+func (gl *GitlabHost) Backup() {
+	if gl.BackupDir == "" {
+		logger.Printf("backup skipped as backup directory not specified")
 
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
+		return
 	}
 
-	client := &http.Client{Transport: tr}
-	provider.User = provider.getAuthenticatedGitlabUser(*client)
+	maxConcurrent := 5
 
-	repoDesc := provider.describeRepos()
+	gl.httpClient = retryablehttp.NewClient()
+	gl.User = gl.getAuthenticatedGitlabUser()
+
+	repoDesc := gl.describeRepos()
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
@@ -334,7 +425,7 @@ func (provider gitlabHost) Backup(backupDIR string) {
 	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(provider.User.UserName, backupDIR, provider.diffRemoteMethod(), backupsToKeep, jobs, results)
+		go gitlabWorker(gl.User.UserName, gl.BackupDir, gl.diffRemoteMethod(), backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -353,14 +444,14 @@ func (provider gitlabHost) Backup(backupDIR string) {
 }
 
 // return normalised method
-func (provider gitlabHost) diffRemoteMethod() string {
-	switch strings.ToLower(provider.DiffRemoteMethod) {
+func (gl *GitlabHost) diffRemoteMethod() string {
+	switch strings.ToLower(gl.DiffRemoteMethod) {
 	case refsMethod:
 		return refsMethod
 	case cloneMethod:
 		return cloneMethod
 	default:
-		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)
+		logger.Printf("unexpected diff remote method: %s", gl.DiffRemoteMethod)
 
 		// default to bundle as safest
 		return cloneMethod

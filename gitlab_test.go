@@ -10,18 +10,16 @@ import (
 
 func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	resetBackups()
-	if os.Getenv(gitlabEnvVarToken) == "" {
-		t.Skip("Skipping GitLab test as GITLAB_TOKEN is missing")
-	}
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	gl := gitlabHost{
+	gl := GitlabHost{
 		DiffRemoteMethod: cloneMethod,
+		BackupDir:        backupDIR,
 	}
-	gl.Backup(backupDIR)
+	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")
 	expectedSubProjectTwoPath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-two")
 	require.DirExists(t, expectedSubProjectOnePath)
@@ -48,10 +46,11 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	gl := gitlabHost{
+	gl := GitlabHost{
 		DiffRemoteMethod: refsMethod,
+		BackupDir:        backupDIR,
 	}
-	gl.Backup(backupDIR)
+	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")
 	expectedSubProjectTwoPath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-two")
 	require.DirExists(t, expectedSubProjectOnePath)
