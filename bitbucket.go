@@ -10,25 +10,59 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 )
 
 const (
-	bitbucketEnvVarKey     = "BITBUCKET_KEY"
-	bitbucketEnvVarSecret  = "BITBUCKET_SECRET"
-	bitbucketEnvVarUser    = "BITBUCKET_USER"
-	bitbucketEnvVarBackups = "BITBUCKET_BACKUPS"
+	defaultBackupsToKeep       = 2
+	BitbucketProviderName      = "BitBucket"
+	bitbucketProviderNameLower = "bitbucket"
+	bitbucketEnvVarKey         = "BITBUCKET_KEY"
+	bitbucketEnvVarSecret      = "BITBUCKET_SECRET"
+	bitbucketEnvVarUser        = "BITBUCKET_USER"
+	bitbucketEnvVarBackups     = "BITBUCKET_BACKUPS"
 )
 
-func (provider bitbucketHost) auth(c *http.Client, key, secret string) (token string, err error) {
-	rc := retryablehttp.NewClient()
-	rc.Logger = nil
-	rc.HTTPClient = c
-	rc.RetryMax = 1
+type NewBitBucketHostInput struct {
+	APIURL           string
+	DiffRemoteMethod string
+	BackupDir        string
+	User             string
+	Key              string
+	Secret           string
+}
 
+func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err error) {
+	apiURL := bitbucketAPIURL
+	if input.APIURL != "" {
+		apiURL = input.APIURL
+	}
+
+	diffRemoteMethod := cloneMethod
+	if input.DiffRemoteMethod != "" {
+		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
+			return nil, errors.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
+		}
+
+		diffRemoteMethod = input.DiffRemoteMethod
+	}
+
+	return &BitbucketHost{
+		httpClient:       getHTTPClient(),
+		Provider:         BitbucketProviderName,
+		APIURL:           apiURL,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupDir:        input.BackupDir,
+		BackupsToKeep:    getBackupsToKeep(bitbucketEnvVarBackups),
+		User:             input.User,
+		Key:              input.Key,
+		Secret:           input.Secret,
+	}, nil
+}
+
+func (bb BitbucketHost) auth(key, secret string) (token string, err error) {
 	b, _, _, err := httpRequest(httpRequestInput{
-		client: rc,
+		client: bb.httpClient,
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
 		method: http.MethodPost,
 		headers: http.Header{
@@ -65,7 +99,7 @@ type bitbucketAuthResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
-func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
+func (bb BitbucketHost) describeRepos() (dRO describeReposOutput) {
 	logger.Println("listing BitBucket repositories")
 
 	var err error
@@ -75,14 +109,14 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 
 	var token string
 
-	token, err = provider.auth(httpClient, key, secret)
+	token, err = bb.auth(key, secret)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
 	var repos []repository
 
-	rawRequestURL := provider.APIURL + "/repositories?role=member"
+	rawRequestURL := bb.APIURL + "/repositories?role=member"
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
@@ -141,8 +175,8 @@ func (provider bitbucketHost) describeRepos() (dRO describeReposOutput) {
 	}
 }
 
-func (provider bitbucketHost) getAPIURL() string {
-	return provider.APIURL
+func (bb BitbucketHost) getAPIURL() string {
+	return bb.APIURL
 }
 
 func bitBucketWorker(user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
@@ -153,43 +187,31 @@ func bitBucketWorker(user, token, backupDIR, diffRemoteMethod string, backupsToK
 	}
 }
 
-func (provider bitbucketHost) Backup(backupDIR string) {
-	maxConcurrent := 5
+func (bb BitbucketHost) Backup() {
+	if bb.BackupDir == "" {
+		logger.Printf("backup skipped as backup directory not specified")
 
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
+		return
 	}
 
-	client := &http.Client{Transport: tr}
+	maxConcurrent := 5
 
 	var err error
 
-	user := os.Getenv(bitbucketEnvVarUser)
-	key := os.Getenv(bitbucketEnvVarKey)
-	secret := os.Getenv(bitbucketEnvVarSecret)
-
-	backupsToKeep, err := strconv.Atoi(os.Getenv(bitbucketEnvVarBackups))
-	if err != nil {
-		backupsToKeep = 0
-	}
-
 	var token string
-	token, err = provider.auth(client, key, secret)
-
+	token, err = bb.auth(bb.Key, bb.Secret)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
-	drO := provider.describeRepos()
+	drO := bb.describeRepos()
 
 	jobs := make(chan repository, len(drO.Repos))
 
 	results := make(chan error, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(user, token, backupDIR, provider.diffRemoteMethod(), backupsToKeep, jobs, results)
+		go bitBucketWorker(bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToKeep, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -207,10 +229,16 @@ func (provider bitbucketHost) Backup(backupDIR string) {
 	}
 }
 
-type bitbucketHost struct {
+type BitbucketHost struct {
+	httpClient       *retryablehttp.Client
 	Provider         string
 	APIURL           string
 	DiffRemoteMethod string
+	BackupDir        string
+	BackupsToKeep    int
+	User             string
+	Key              string
+	Secret           string
 }
 
 type bitbucketOwner struct {
@@ -242,8 +270,8 @@ type bitbucketGetProjectsResponse struct {
 }
 
 // return normalised method
-func (provider bitbucketHost) diffRemoteMethod() string {
-	switch strings.ToLower(provider.DiffRemoteMethod) {
+func (bb BitbucketHost) diffRemoteMethod() string {
+	switch strings.ToLower(bb.DiffRemoteMethod) {
 	case refsMethod:
 		return refsMethod
 	case cloneMethod:
@@ -251,7 +279,7 @@ func (provider bitbucketHost) diffRemoteMethod() string {
 	case "":
 		return cloneMethod
 	default:
-		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)
+		logger.Printf("unexpected diff remote method: %s", bb.DiffRemoteMethod)
 
 		// default to bundle as safest
 		return cloneMethod
