@@ -41,10 +41,10 @@ func createTestTextFile(fileName, content string) string {
 }
 
 func TestHostsImplementGitHostsInterface(t *testing.T) {
-	require.Implements(t, (*gitProvider)(nil), new(giteaHost))
-	require.Implements(t, (*gitProvider)(nil), new(githubHost))
-	require.Implements(t, (*gitProvider)(nil), new(bitbucketHost))
-	require.Implements(t, (*gitProvider)(nil), new(gitlabHost))
+	require.Implements(t, (*gitProvider)(nil), new(GiteaHost))
+	require.Implements(t, (*gitProvider)(nil), new(GitHubHost))
+	require.Implements(t, (*gitProvider)(nil), new(BitbucketHost))
+	require.Implements(t, (*gitProvider)(nil), new(GitlabHost))
 }
 
 func TestGetLatestBundleRefs(t *testing.T) {
@@ -118,33 +118,21 @@ func TestGetTimeStampPartFromFileName(t *testing.T) {
 }
 
 func TestCreateHost(t *testing.T) {
-	provider, err := createHost(newHostInput{
-		ProviderName: "bitbucket",
-		APIURL:       bitbucketAPIURL,
+	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{})
+	require.NoError(t, err)
+	require.Equal(t, bitbucketAPIURL, bbHost.getAPIURL())
+
+	ghHost, err := NewGitHubHost(NewGitHubHostInput{
+		APIURL: githubAPIURL,
 	})
 	require.NoError(t, err)
-	require.Equal(t, bitbucketAPIURL, provider.getAPIURL())
+	require.Equal(t, githubAPIURL, ghHost.getAPIURL())
 
-	provider, err = createHost(newHostInput{
-		ProviderName: "github",
-		APIURL:       githubAPIURL,
+	glHost, err := NewGitlabHost(NewGitlabHostInput{
+		APIURL: gitlabAPIURL,
 	})
 	require.NoError(t, err)
-	require.Equal(t, githubAPIURL, provider.getAPIURL())
-
-	provider, err = createHost(newHostInput{
-		ProviderName: "gitlab",
-		APIURL:       gitlabAPIURL,
-	})
-	require.NoError(t, err)
-	require.Equal(t, gitlabAPIURL, provider.getAPIURL())
-
-	_, err = createHost(newHostInput{
-		ProviderName: "example",
-		APIURL:       gitlabAPIURL,
-	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "provider invalid or not implemented")
+	require.Equal(t, gitlabAPIURL, glHost.getAPIURL())
 }
 
 func TestGetLatestBundlePath(t *testing.T) {

@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,13 +25,56 @@ const (
 	giteaReposPerPageDefault         = 20
 	giteaReposLimit                  = -1
 	giteaEnvVarAPIUrl                = "GITEA_APIURL"
-	giteaEnvVarToken                 = "GITEA_TOKEN"
-	giteaEnvVarOrgs                  = "GITEA_ORGS"
-	giteaEnvVarBackups               = "GITEA_BACKUPS"
-	giteaMatchByExact                = "exact"
-	giteaMatchByIfDefined            = "anyDefined"
-	giteaProviderName                = "Gitea"
+	// giteaEnvVarToken                 = "GITEA_TOKEN"
+	giteaEnvVarBackups    = "GITEA_BACKUPS"
+	giteaMatchByExact     = "exact"
+	giteaMatchByIfDefined = "anyDefined"
+	giteaProviderName     = "Gitea"
 )
+
+type NewGiteaHostInput struct {
+	APIURL           string
+	DiffRemoteMethod string
+	BackupDir        string
+	Token            string
+	Orgs             []string
+}
+
+type HostsConfig struct {
+	httpClient *retryablehttp.Client
+	debug      bool
+}
+
+type GiteaHost struct {
+	httpClient       *retryablehttp.Client
+	APIURL           string
+	DiffRemoteMethod string
+	BackupDir        string
+	BackupsToKeep    int
+	Token            string
+	Orgs             []string
+}
+
+func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
+	diffRemoteMethod := cloneMethod
+	if input.DiffRemoteMethod != "" {
+		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
+			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
+		}
+
+		diffRemoteMethod = input.DiffRemoteMethod
+	}
+
+	return &GiteaHost{
+		httpClient:       getHTTPClient(),
+		APIURL:           input.APIURL,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupDir:        input.BackupDir,
+		BackupsToKeep:    getBackupsToKeep(giteaEnvVarBackups),
+		Token:            input.Token,
+		Orgs:             input.Orgs,
+	}, nil
+}
 
 type giteaHost struct {
 	Provider         string
@@ -77,22 +122,22 @@ type giteaOrganization struct {
 type giteaGetUsersResponse []giteaUser
 type giteaGetOrganizationsResponse []giteaOrganization
 
-func makeGiteaRequest(c *http.Client, reqUrl string) (resp *http.Response, body []byte, err error) {
+func (g *GiteaHost) makeGiteaRequest(reqUrl string) (resp *http.Response, body []byte, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
-	var req *http.Request
+	// var req *http.Request
 
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
 		return
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv(giteaEnvVarToken)))
+	req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITEA_TOKEN")))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
-	resp, err = c.Do(req)
+	resp, err = g.httpClient.Do(req)
 	if err != nil {
 		return
 	}
@@ -297,24 +342,16 @@ func organisationExists(in organisationExistsInput) bool {
 	return false
 }
 
-func (g giteaHost) describeRepos() describeReposOutput {
+func (g *GiteaHost) describeRepos() describeReposOutput {
 	logger.Println("listing repositories")
 
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
+	userRepos := g.getAllUserRepositories()
 
-	client := &http.Client{Transport: tr}
-
-	userRepos := g.getAllUserRepositories(client)
-
-	orgs := g.getOrganizations(client)
+	orgs := g.getOrganizations()
 
 	var orgsRepos []repository
 	if len(orgs) > 0 {
-		orgsRepos = g.getOrganizationsRepos(client, orgs)
+		orgsRepos = g.getOrganizationsRepos(orgs)
 	}
 
 	return describeReposOutput{
@@ -331,7 +368,7 @@ func extractDomainFromAPIUrl(apiUrl string) string {
 	return u.Hostname()
 }
 
-func (g giteaHost) getOrganizationsRepos(client *http.Client, organizations []giteaOrganization) (repos []repository) {
+func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) (repos []repository) {
 	domain := extractDomainFromAPIUrl(g.APIURL)
 
 	for _, org := range organizations {
@@ -339,7 +376,7 @@ func (g giteaHost) getOrganizationsRepos(client *http.Client, organizations []gi
 			logger.Printf("getting repositories from gitea organization %s", org.Name)
 		}
 
-		orgRepos := g.getOrganizationRepos(client, org.Name)
+		orgRepos := g.getOrganizationRepos(org.Name)
 		for _, orgRepo := range orgRepos {
 			repos = append(repos, repository{
 				Name:              orgRepo.Name,
@@ -355,7 +392,7 @@ func (g giteaHost) getOrganizationsRepos(client *http.Client, organizations []gi
 	return repos
 }
 
-func (g giteaHost) getAllUsers(client *http.Client) (users []giteaUser) {
+func (g *GiteaHost) getAllUsers() (users []giteaUser) {
 	if strings.TrimSpace(g.APIURL) == "" {
 		g.APIURL = gitlabAPIURL
 	}
@@ -381,7 +418,7 @@ func (g giteaHost) getAllUsers(client *http.Client) (users []giteaUser) {
 	reqUrl := u.String()
 	for {
 		var resp *http.Response
-		resp, body, err = makeGiteaRequest(client, reqUrl)
+		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			return
 		}
@@ -428,10 +465,11 @@ func (g giteaHost) getAllUsers(client *http.Client) (users []giteaUser) {
 	return users
 }
 
-func (g giteaHost) getOrganizations(client *http.Client) (organizations []giteaOrganization) {
-	orgNames := strings.TrimSpace(os.Getenv(giteaEnvVarOrgs))
-	if len(orgNames) == 0 {
-		logger.Printf("no organizations specified in %s", giteaEnvVarOrgs)
+func (g *GiteaHost) getOrganizations() (organizations []giteaOrganization) {
+	if len(g.Orgs) == 0 {
+		if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+			logger.Print("no organizations specified")
+		}
 
 		return
 	}
@@ -440,18 +478,18 @@ func (g giteaHost) getOrganizations(client *http.Client) (organizations []giteaO
 		g.APIURL = gitlabAPIURL
 	}
 
-	if orgNames == "*" {
-		organizations = g.getAllOrganizations(client)
+	if slices.Contains(g.Orgs, "*") {
+		organizations = g.getAllOrganizations()
 	} else {
-		for _, orgName := range strings.Split(orgNames, ",") {
-			organizations = append(organizations, g.getOrganization(client, orgName))
+		for _, orgName := range g.Orgs {
+			organizations = append(organizations, g.getOrganization(orgName))
 		}
 	}
 
 	return organizations
 }
 
-func (g giteaHost) getOrganization(client *http.Client, orgName string) (organization giteaOrganization) {
+func (g *GiteaHost) getOrganization(orgName string) (organization giteaOrganization) {
 	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
 		logger.Printf("retrieving organization %s", orgName)
 	}
@@ -476,7 +514,7 @@ func (g giteaHost) getOrganization(client *http.Client, orgName string) (organiz
 
 	reqUrl := u.String()
 	var resp *http.Response
-	resp, body, err = makeGiteaRequest(client, reqUrl)
+	resp, body, err = g.makeGiteaRequest(reqUrl)
 	if err != nil {
 		return
 	}
@@ -511,7 +549,7 @@ func (g giteaHost) getOrganization(client *http.Client, orgName string) (organiz
 	return organization
 }
 
-func (g giteaHost) getAllOrganizations(client *http.Client) (organizations []giteaOrganization) {
+func (g *GiteaHost) getAllOrganizations() (organizations []giteaOrganization) {
 	logger.Printf("retrieving organizations")
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -539,7 +577,7 @@ func (g giteaHost) getAllOrganizations(client *http.Client) (organizations []git
 	reqUrl := u.String()
 	for {
 		var resp *http.Response
-		resp, body, err = makeGiteaRequest(client, reqUrl)
+		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			return
 		}
@@ -676,7 +714,7 @@ type giteaRepository struct {
 	RepoTransfer                  interface{} `json:"repo_transfer"`
 }
 
-func (g giteaHost) getOrganizationRepos(client *http.Client, organizationName string) (repos []giteaRepository) {
+func (g *GiteaHost) getOrganizationRepos(organizationName string) (repos []giteaRepository) {
 	logger.Printf("retrieving repositories for organization %s", organizationName)
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -704,7 +742,7 @@ func (g giteaHost) getOrganizationRepos(client *http.Client, organizationName st
 	reqUrl := u.String()
 	for {
 		var resp *http.Response
-		resp, body, err = makeGiteaRequest(client, reqUrl)
+		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			return
 		}
@@ -754,7 +792,7 @@ func (g giteaHost) getOrganizationRepos(client *http.Client, organizationName st
 	return repos
 }
 
-func (g giteaHost) getAllUserRepos(client *http.Client, userName string) (repos []repository) {
+func (g *GiteaHost) getAllUserRepos(userName string) (repos []repository) {
 	logger.Printf("retrieving all repositories for user %s", userName)
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -782,7 +820,7 @@ func (g giteaHost) getAllUserRepos(client *http.Client, userName string) (repos 
 	reqUrl := u.String()
 	for {
 		var resp *http.Response
-		resp, body, err = makeGiteaRequest(client, reqUrl)
+		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			return
 		}
@@ -846,12 +884,12 @@ func (g giteaHost) getAllUserRepos(client *http.Client, userName string) (repos 
 	return repos
 }
 
-func (g giteaHost) getAPIURL() string {
+func (g *GiteaHost) getAPIURL() string {
 	return g.APIURL
 }
 
 // return normalised method
-func (g giteaHost) diffRemoteMethod() string {
+func (g *GiteaHost) diffRemoteMethod() string {
 	switch strings.ToLower(g.DiffRemoteMethod) {
 	case refsMethod:
 		return refsMethod
@@ -867,12 +905,18 @@ func (g giteaHost) diffRemoteMethod() string {
 func giteaWorker(backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
-		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv(giteaEnvVarToken), "\n"), repo.HTTPSUrl[firstPos+2:])
+		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv("GITEA_TOKEN"), "\n"), repo.HTTPSUrl[firstPos+2:])
 		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
 
-func (g giteaHost) Backup(backupDIR string) {
+func (g *GiteaHost) Backup() {
+	if g.BackupDir == "" {
+		logger.Printf("backup skipped as backup directory not specified")
+
+		return
+	}
+
 	maxConcurrent := 5
 	repoDesc := g.describeRepos()
 
@@ -885,7 +929,7 @@ func (g giteaHost) Backup(backupDIR string) {
 	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go giteaWorker(backupDIR, g.diffRemoteMethod(), backupsToKeep, jobs, results)
+		go giteaWorker(g.BackupDir, g.diffRemoteMethod(), backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -903,20 +947,14 @@ func (g giteaHost) Backup(backupDIR string) {
 	}
 }
 
-func (g giteaHost) getAllUserRepositories(client *http.Client) []repository {
-	gHost := giteaHost{
-		Provider:         giteaProviderName,
-		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
-		DiffRemoteMethod: refsMethod,
-	}
-
-	users := gHost.getAllUsers(client)
+func (g *GiteaHost) getAllUserRepositories() []repository {
+	users := g.getAllUsers()
 
 	var repos []repository
 	var userCount int
 	for _, user := range users {
 		userCount++
-		repos = append(repos, gHost.getAllUserRepos(client, user.Login)...)
+		repos = append(repos, g.getAllUserRepos(user.Login)...)
 	}
 
 	var repositories []repository

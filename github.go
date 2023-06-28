@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"io"
 	"net/http"
 	"os"
@@ -14,17 +15,57 @@ import (
 
 const (
 	gitHubCallSize       = 100
-	githubEnvVarToken    = "GITHUB_TOKEN"
-	githubEnvVarOrgs     = "GITHUB_ORGS"
 	githubEnvVarBackups  = "GITHUB_BACKUPS"
 	githubEnvVarCallSize = "GITHUB_CALL_SIZE"
-	githubEnvVarLogs     = "GITHUB_LOGS"
 )
 
-type githubHost struct {
+type NewGitHubHostInput struct {
+	APIURL           string
+	DiffRemoteMethod string
+	BackupDir        string
+	Token            string
+	Orgs             []string
+}
+
+func (gh *GitHubHost) getAPIURL() string {
+	return gh.APIURL
+}
+
+func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
+	apiURL := githubAPIURL
+	if input.APIURL != "" {
+		apiURL = input.APIURL
+	}
+
+	diffRemoteMethod := cloneMethod
+	if input.DiffRemoteMethod != "" {
+		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
+			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
+		}
+
+		diffRemoteMethod = input.DiffRemoteMethod
+	}
+
+	return &GitHubHost{
+		httpClient:       getHTTPClient(),
+		Provider:         "GitHub",
+		APIURL:           apiURL,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupDir:        input.BackupDir,
+		BackupsToKeep:    getBackupsToKeep(githubEnvVarBackups),
+		Token:            input.Token,
+	}, nil
+}
+
+type GitHubHost struct {
+	httpClient       *retryablehttp.Client
 	Provider         string
 	APIURL           string
 	DiffRemoteMethod string
+	BackupDir        string
+	BackupsToKeep    int
+	Token            string
+	Orgs             []string
 }
 
 type edge struct {
@@ -70,24 +111,23 @@ type graphQLRequest struct {
 	Variables string `json:"variables"`
 }
 
-func makeGithubRequest(c *http.Client, payload string) string {
+func (gh *GitHubHost) makeGithubRequest(payload string) string {
 	contentReader := bytes.NewReader([]byte(payload))
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
-	req, newReqErr := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
+	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
 
 	if newReqErr != nil {
 		logger.Fatal(newReqErr)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("bearer %s",
-		stripTrailing(os.Getenv(githubEnvVarToken), "\n")))
+	req.Header.Set("Authorization", fmt.Sprintf("bearer %s", gh.Token))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
-	resp, reqErr := c.Do(req)
+	resp, reqErr := gh.httpClient.Do(req)
 	if reqErr != nil {
 		logger.Fatal(reqErr)
 	}
@@ -117,7 +157,7 @@ func makeGithubRequest(c *http.Client, payload string) string {
 	return bodyStr
 }
 
-func describeGithubUserRepos(c *http.Client) []repository {
+func (gh *GitHubHost) describeGithubUserRepos() []repository {
 	logger.Println("listing GitHub user's repositories")
 
 	gcs := gitHubCallSize
@@ -133,7 +173,7 @@ func describeGithubUserRepos(c *http.Client) []repository {
 	reqBody := "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
 
 	for {
-		bodyStr := makeGithubRequest(c, reqBody)
+		bodyStr := gh.makeGithubRequest(reqBody)
 
 		var respObj githubQueryNamesResponse
 		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
@@ -169,7 +209,7 @@ func createGithubRequestPayload(body string) string {
 	return string(gqlMarshalled)
 }
 
-func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
+func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 	logger.Printf("listing GitHub organisation %s's repositories", orgName)
 
 	gcs := gitHubCallSize
@@ -185,7 +225,7 @@ func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 	reqBody := "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
 
 	for {
-		bodyStr := makeGithubRequest(c, createGithubRequestPayload(reqBody))
+		bodyStr := gh.makeGithubRequest(createGithubRequestPayload(reqBody))
 
 		var respObj githubQueryOrgResponse
 		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
@@ -212,21 +252,11 @@ func describeGithubOrgRepos(c *http.Client, orgName string) []repository {
 	return repos
 }
 
-func (provider githubHost) describeRepos() describeReposOutput {
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
-	client := &http.Client{Transport: tr}
+func (gh *GitHubHost) describeRepos() describeReposOutput {
+	repos := gh.describeGithubUserRepos()
 
-	repos := describeGithubUserRepos(client)
-
-	if len(strings.TrimSpace(os.Getenv(githubEnvVarOrgs))) > 0 {
-		orgs := strings.Split(os.Getenv(githubEnvVarOrgs), ",")
-		for _, org := range orgs {
-			repos = append(repos, describeGithubOrgRepos(client, org)...)
-		}
+	for _, org := range gh.Orgs {
+		repos = append(repos, gh.describeGithubOrgRepos(org)...)
 	}
 
 	return describeReposOutput{
@@ -234,21 +264,23 @@ func (provider githubHost) describeRepos() describeReposOutput {
 	}
 }
 
-func (provider githubHost) getAPIURL() string {
-	return provider.APIURL
-}
-
-func gitHubWorker(backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func gitHubWorker(token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
-		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv(githubEnvVarToken), "\n"), repo.HTTPSUrl[firstPos+2:])
+		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(token, "\n"), repo.HTTPSUrl[firstPos+2:])
 		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
 
-func (provider githubHost) Backup(backupDIR string) {
+func (gh *GitHubHost) Backup() {
+	if gh.BackupDir == "" {
+		logger.Printf("backup skipped as backup directory not specified")
+
+		return
+	}
+
 	maxConcurrent := 5
-	repoDesc := provider.describeRepos()
+	repoDesc := gh.describeRepos()
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
@@ -259,7 +291,7 @@ func (provider githubHost) Backup(backupDIR string) {
 	}
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(backupDIR, provider.diffRemoteMethod(), backupsToKeep, jobs, results)
+		go gitHubWorker(gh.Token, gh.BackupDir, gh.DiffRemoteMethod, backupsToKeep, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -278,14 +310,14 @@ func (provider githubHost) Backup(backupDIR string) {
 }
 
 // return normalised method
-func (provider githubHost) diffRemoteMethod() string {
-	switch strings.ToLower(provider.DiffRemoteMethod) {
+func (gh *GitHubHost) diffRemoteMethod() string {
+	switch strings.ToLower(gh.DiffRemoteMethod) {
 	case refsMethod:
 		return refsMethod
 	case cloneMethod:
 		return cloneMethod
 	default:
-		logger.Printf("unexpected diff remote method: %s", provider.DiffRemoteMethod)
+		logger.Printf("unexpected diff remote method: %s", gh.DiffRemoteMethod)
 
 		// default to bundle as safest
 		return cloneMethod

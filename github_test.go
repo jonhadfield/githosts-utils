@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"github.com/stretchr/testify/require"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,7 +21,7 @@ func init() {
 }
 
 func TestPublicGitHubRepositoryBackup(t *testing.T) {
-	if os.Getenv(githubEnvVarToken) == "" {
+	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -31,17 +30,19 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, githubEnvVarToken})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	ghHost := githubHost{
-		Provider:         "GitHub",
+	ghHost, err := NewGitHubHost(NewGitHubHostInput{
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: cloneMethod,
-	}
+		BackupDir:        backupDIR,
+		Token:            os.Getenv("GITHUB_TOKEN"),
+	})
+	require.NoError(t, err)
 
-	ghHost.Backup(backupDIR)
+	ghHost.Backup()
 
 	expectedPathOne := filepath.Join(backupDIR, "github.com", "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
@@ -62,7 +63,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 }
 
 func TestDescribeGithubOrgRepos(t *testing.T) {
-	if os.Getenv(githubEnvVarToken) == "" {
+	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -75,16 +76,23 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, githubEnvVarToken, githubEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
 
-	repos := describeGithubOrgRepos(http.DefaultClient, "Nudelmesse")
+	gh, err := NewGitHubHost(NewGitHubHostInput{
+		APIURL:           githubAPIURL,
+		DiffRemoteMethod: refsMethod,
+		Token:            os.Getenv("GITHUB_TOKEN"),
+	})
+	require.NoError(t, err)
+
+	repos := gh.describeGithubOrgRepos("Nudelmesse")
 	require.Len(t, repos, 2)
 
 	restoreEnvironmentVariables(envBackup)
 }
 
 func TestPublicGitHubOrgRepoBackups(t *testing.T) {
-	if os.Getenv(githubEnvVarToken) == "" {
+	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -97,17 +105,19 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, githubEnvVarToken, githubEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	ghHost := githubHost{
-		Provider:         "GitHub",
+	ghHost, err := NewGitHubHost(NewGitHubHostInput{
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
-	}
+		BackupDir:        backupDIR,
+		Token:            os.Getenv("GITHUB_TOKEN"),
+	})
+	require.NoError(t, err)
 
-	ghHost.Backup(backupDIR)
+	ghHost.Backup()
 
 	expectedPathOne := filepath.Join(backupDIR, "github.com", "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
@@ -122,7 +132,7 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	require.Regexp(t, regexp.MustCompile(`^repo1\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
 
 	// backup once more so we have bundles to compare and skip
-	ghHost.Backup(backupDIR)
+	ghHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	var reRepo0 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)

@@ -179,8 +179,12 @@ func createBundle(workingPath, backupPath string, repo repository) error {
 	bundleCmd.Stdout = &bundleOut
 	bundleCmd.Stderr = &bundleOut
 
+	startBundle := time.Now()
 	if bundleErr := bundleCmd.Run(); bundleErr != nil {
 		logger.Fatal(bundleErr)
+	}
+	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+		logger.Printf("git bundle create time: %s", time.Since(startBundle).String())
 	}
 
 	return nil
