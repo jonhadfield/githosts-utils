@@ -3,7 +3,6 @@ package githosts
 import (
 	"github.com/stretchr/testify/require"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,11 +17,11 @@ func init() {
 }
 
 func TestGiteaGetUsers(t *testing.T) {
-	giteaToken := os.Getenv(giteaEnvVarToken)
+	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", giteaEnvVarToken)
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
 	}
 
 	if giteaAPIURL == "" {
@@ -34,21 +33,15 @@ func TestGiteaGetUsers(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
-	gHost := giteaHost{
-		Provider:         giteaProviderName,
+	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-	}
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
-	client := &http.Client{Transport: tr}
+	})
+	require.NoError(t, err)
 
-	users := gHost.getAllUsers(client)
+	users := gHost.getAllUsers()
 	require.True(t, userExists(userExistsInput{
 		matchBy:  giteaMatchByIfDefined,
 		users:    users,
@@ -61,11 +54,11 @@ func TestGiteaGetUsers(t *testing.T) {
 }
 
 func TestGiteaGetOrganisations(t *testing.T) {
-	giteaToken := os.Getenv(giteaEnvVarToken)
+	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", giteaEnvVarToken)
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
 	}
 
 	if giteaAPIURL == "" {
@@ -77,26 +70,21 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
-	gHost := giteaHost{
-		Provider:         giteaProviderName,
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
+
+	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-	}
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
-	client := &http.Client{Transport: tr}
+	})
+	require.NoError(t, err)
 
 	// without org names we should get no orgs
-	organizations := gHost.getOrganizations(client)
+	organizations := gHost.getOrganizations()
 	require.Len(t, organizations, 0)
 
 	// with single org name we should only get that org
-	_ = os.Setenv(giteaEnvVarOrgs, "soba-org-two")
-	organizations = gHost.getOrganizations(client)
+	gHost.Orgs = []string{"soba-org-two"}
+	organizations = gHost.getOrganizations()
 
 	require.False(t, organisationExists(organisationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
@@ -117,11 +105,11 @@ func TestGiteaGetOrganisations(t *testing.T) {
 
 // getOrganizationsRepos
 func TestGetOrganizationsRepos(t *testing.T) {
-	giteaToken := os.Getenv(giteaEnvVarToken)
+	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", giteaEnvVarToken)
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
 	}
 
 	if giteaAPIURL == "" {
@@ -133,22 +121,16 @@ func TestGetOrganizationsRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
-	gHost := giteaHost{
-		Provider:         giteaProviderName,
+	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-	}
-
-	client := &http.Client{Transport: &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}}
+	})
+	require.NoError(t, err)
 
 	// without env vars, we shouldn't get any orgs
-	repos := gHost.getOrganizationsRepos(client, []giteaOrganization{
+	repos := gHost.getOrganizationsRepos([]giteaOrganization{
 		{Name: "soba-org-one", FullName: "soba org one"},
 	})
 
@@ -174,11 +156,11 @@ func TestGetOrganizationsRepos(t *testing.T) {
 }
 
 func TestGetAllOrganizationRepos(t *testing.T) {
-	giteaToken := os.Getenv(giteaEnvVarToken)
+	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", giteaEnvVarToken)
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
 	}
 
 	if giteaAPIURL == "" {
@@ -190,25 +172,27 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl, giteaEnvVarOrgs})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
-	gHost := giteaHost{
-		Provider:         giteaProviderName,
+	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-	}
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
-	client := &http.Client{Transport: tr}
+	})
 
-	organizations := gHost.getOrganizations(client)
+	require.NoError(t, err)
+
+	organizations := gHost.getOrganizations()
 	require.GreaterOrEqual(t, len(organizations), 0)
+	require.False(t, organisationExists(organisationExistsInput{
+		matchBy:       giteaMatchByIfDefined,
+		organisations: organizations,
+		name:          "soba-org-one",
+		fullName:      "soba org one",
+	}))
+	// gHost.Orgs = []string{"soba-org-two"}
 
-	_ = os.Setenv(giteaEnvVarOrgs, "soba-org-two")
-	organizations = gHost.getOrganizations(client)
+	gHost.Orgs = []string{"soba-org-two"}
+	organizations = gHost.getOrganizations()
 
 	require.GreaterOrEqual(t, len(organizations), 1)
 	require.False(t, organisationExists(organisationExistsInput{
@@ -226,8 +210,8 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	}))
 
 	// * should return all orgs
-	_ = os.Setenv(giteaEnvVarOrgs, "*")
-	organizations = gHost.getOrganizations(client)
+	gHost.Orgs = []string{"*"}
+	organizations = gHost.getOrganizations()
 
 	require.GreaterOrEqual(t, len(organizations), 2)
 	require.True(t, organisationExists(organisationExistsInput{
@@ -248,11 +232,11 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 }
 
 func TestGetAllUserRepos(t *testing.T) {
-	giteaToken := os.Getenv(giteaEnvVarToken)
+	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", giteaEnvVarToken)
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
 	}
 
 	if giteaAPIURL == "" {
@@ -264,38 +248,29 @@ func TestGetAllUserRepos(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken, giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
-	gHost := giteaHost{
-		Provider:         giteaProviderName,
+	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-	}
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
-	client := &http.Client{Transport: tr}
+	})
+	require.NoError(t, err)
 
-	users := gHost.getAllUsers(client)
+	users := gHost.getAllUsers()
 
 	var repos []repository
 	var userCount int
 	for _, user := range users {
 		userCount++
-		repos = append(repos, gHost.getAllUserRepos(client, user.Login)...)
+		repos = append(repos, gHost.getAllUserRepos(user.Login)...)
 	}
 
 	require.True(t, repoExists(repoExistsInput{
-		matchBy:          giteaMatchByIfDefined,
-		repos:            repos,
-		name:             "soba-test-rod-repo-one",
-		owner:            "soba-test-rod",
-		httpsUrl:         "https://gitea.lessknown.co.uk/soba-test-rod/soba-test-rod-repo-one.git",
-		sshUrl:           "",
-		urlWithToken:     "",
-		urlWithBasicAuth: "",
+		matchBy:  giteaMatchByIfDefined,
+		repos:    repos,
+		name:     "soba-test-rod-repo-one",
+		owner:    "soba-test-rod",
+		httpsUrl: "https://gitea.lessknown.co.uk/soba-test-rod/soba-test-rod-repo-one.git",
 	}))
 
 	restoreEnvironmentVariables(envBackup)
@@ -305,42 +280,45 @@ func TestGetAllUserRepos(t *testing.T) {
 func TestGetAPIURL(t *testing.T) {
 	apiURL := "https://api.example.com/api/v1"
 
-	require.Equal(t, apiURL, giteaHost{
-		Provider:         giteaProviderName,
+	gh, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: cloneMethod,
-	}.getAPIURL())
+		Token:            os.Getenv("GITEA_TOKEN"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, apiURL, gh.getAPIURL())
 }
 
 func TestGiteaDiffRemoteMethod(t *testing.T) {
 	apiURL := "https://api.example.com/api/v1"
 
-	require.Equal(t, refsMethod, giteaHost{
-		Provider:         giteaProviderName,
+	gh, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: refsMethod,
-	}.diffRemoteMethod())
+	})
+	require.NoError(t, err)
+	require.Equal(t, refsMethod, gh.diffRemoteMethod())
 
-	require.Equal(t, cloneMethod, giteaHost{
-		Provider:         giteaProviderName,
+	gh, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: cloneMethod,
-	}.diffRemoteMethod())
+	})
+	require.NoError(t, err)
+	require.Equal(t, cloneMethod, gh.diffRemoteMethod())
 
-	require.Contains(t, giteaHost{
-		Provider:         giteaProviderName,
+	gh, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: "invalid",
-	}.diffRemoteMethod(), "invalid")
-
+	})
+	require.Error(t, err)
 }
 
 func TestGiteaRepositoryBackup(t *testing.T) {
-	giteaToken := os.Getenv(giteaEnvVarToken)
+	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", giteaEnvVarToken)
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
 	}
 
 	if giteaAPIURL == "" {
@@ -352,19 +330,19 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, giteaEnvVarToken})
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN"})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
 	// extract domain from API URL to use for unique backup directory
 
-	ghHost := giteaHost{
-		Provider:         giteaProviderName,
+	ghHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           giteaAPIURL,
 		DiffRemoteMethod: cloneMethod,
-	}
+		BackupDir:        backupDIR,
+	})
 
-	ghHost.Backup(backupDIR)
+	ghHost.Backup()
 
 	expectedPathOne := filepath.Join(backupDIR, "gitea.lessknown.co.uk", "gitea_admin", "soba-repo-one")
 	require.DirExists(t, expectedPathOne)

@@ -9,9 +9,10 @@ import (
 )
 
 func TestRenameInvalidBundle(t *testing.T) {
-	if os.Getenv(githubEnvVarToken) == "" {
+	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
+
 	// require.NoError(t, os.Setenv("")
 	backupDir := os.Getenv(envVarGitBackupDir)
 	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
@@ -22,11 +23,15 @@ func TestRenameInvalidBundle(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.Setenv(githubEnvVarBackups, "1"))
 	// run
-	gh := githubHost{
-		Provider:         "github",
+	gh, err := NewGitHubHost(NewGitHubHostInput{
+		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
-	}
-	gh.Backup(backupDir)
+		BackupDir:        backupDir,
+		Token:            os.Getenv("GITHUB_TOKEN"),
+	})
+	require.NoError(t, err)
+
+	gh.Backup()
 	// check only one bundle remains
 	files, err := os.ReadDir(dfDir)
 	require.NoError(t, err)
