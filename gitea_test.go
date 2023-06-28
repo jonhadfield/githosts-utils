@@ -306,7 +306,7 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cloneMethod, gh.diffRemoteMethod())
 
-	gh, err = NewGiteaHost(NewGiteaHostInput{
+	_, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: "invalid",
 	})
@@ -341,6 +341,7 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        backupDIR,
 	})
+	require.NoError(t, err)
 
 	ghHost.Backup()
 
