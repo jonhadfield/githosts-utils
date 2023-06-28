@@ -33,6 +33,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 		Key:              os.Getenv(bitbucketEnvVarKey),
 		Secret:           os.Getenv(bitbucketEnvVarSecret),
 	})
+	require.NoError(t, err)
 
 	bbHost.Backup()
 	expectedPathOne := filepath.Join(bbHost.BackupDir, "bitbucket.com", "go-soba", "repo0")
