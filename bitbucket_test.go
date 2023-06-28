@@ -25,29 +25,30 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 
 	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
-	backupDIR := os.Getenv(envVarGitBackupDir)
-
-	bbHost := bitbucketHost{
-		Provider:         "bitbucket",
+	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: refsMethod,
-	}
+		BackupDir:        os.Getenv(envVarGitBackupDir),
+		User:             os.Getenv(bitbucketEnvVarUser),
+		Key:              os.Getenv(bitbucketEnvVarKey),
+		Secret:           os.Getenv(bitbucketEnvVarSecret),
+	})
 
-	bbHost.Backup(backupDIR)
-	expectedPathOne := filepath.Join(backupDIR, "bitbucket.com", "go-soba", "repo0")
+	bbHost.Backup()
+	expectedPathOne := filepath.Join(bbHost.BackupDir, "bitbucket.com", "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(backupDIR, "bitbucket.com", "teamsoba", "teamsobarepoone")
+	expectedPathTwo := filepath.Join(bbHost.BackupDir, "bitbucket.com", "teamsoba", "teamsobarepoone")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^teamSobaRepoOne\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
 
 	// backup once more so we have bundles to compare and skip
-	bbHost.Backup(backupDIR)
+	bbHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	var reRepo0 = regexp.MustCompile(`skipping.*go-soba/repo0`)
@@ -87,29 +88,32 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 
 	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
-	backupDIR := os.Getenv(envVarGitBackupDir)
-
-	bbHost := bitbucketHost{
-		Provider:         "bitbucket",
+	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: cloneMethod,
-	}
+		BackupDir:        os.Getenv(envVarGitBackupDir),
+		User:             os.Getenv(bitbucketEnvVarUser),
+		Key:              os.Getenv(bitbucketEnvVarKey),
+		Secret:           os.Getenv(bitbucketEnvVarSecret),
+	})
+	require.NoError(t, err)
 
-	bbHost.Backup(backupDIR)
-	expectedPathOne := filepath.Join(backupDIR, "bitbucket.com", "go-soba", "repo0")
+	bbHost.Backup()
+
+	expectedPathOne := filepath.Join(bbHost.BackupDir, "bitbucket.com", "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(backupDIR, "bitbucket.com", "teamsoba", "teamsobarepoone")
+	expectedPathTwo := filepath.Join(bbHost.BackupDir, "bitbucket.com", "teamsoba", "teamsobarepoone")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^teamSobaRepoOne\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
 
 	// backup once more so we have bundles to compare and skip
-	bbHost.Backup(backupDIR)
+	bbHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	var reRepo0 = regexp.MustCompile(`skipping.*go-soba/repo0`)

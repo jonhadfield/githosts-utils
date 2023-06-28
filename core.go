@@ -1,13 +1,17 @@
 package githosts
 
 import (
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -33,50 +37,8 @@ type describeReposOutput struct {
 type gitProvider interface {
 	getAPIURL() string
 	describeRepos() describeReposOutput
-	Backup(string)
+	Backup()
 	diffRemoteMethod() string
-}
-
-type newHostInput struct {
-	ProviderName  string
-	APIURL        string
-	CompareMethod string
-}
-
-func createHost(input newHostInput) (gitProvider, error) {
-	// default compare method to clone
-	if input.CompareMethod == "" {
-		input.CompareMethod = cloneMethod
-	}
-
-	switch strings.ToLower(input.ProviderName) {
-	case "bitbucket":
-		return bitbucketHost{
-			Provider:         "BitBucket",
-			APIURL:           input.APIURL,
-			DiffRemoteMethod: input.CompareMethod,
-		}, nil
-	case "github":
-		return githubHost{
-			Provider:         "Github",
-			APIURL:           input.APIURL,
-			DiffRemoteMethod: input.CompareMethod,
-		}, nil
-	case "gitlab":
-		return gitlabHost{
-			Provider:         "Gitlab",
-			APIURL:           input.APIURL,
-			DiffRemoteMethod: input.CompareMethod,
-		}, nil
-	case "gitea":
-		return giteaHost{
-			Provider:         "Gitea",
-			APIURL:           input.APIURL,
-			DiffRemoteMethod: input.CompareMethod,
-		}, nil
-	default:
-		return nil, errors.New("provider invalid or not implemented")
-	}
 }
 
 // gitRefs is a mapping of references to SHAs
@@ -248,4 +210,48 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRem
 	}
 
 	return nil
+}
+
+func getHTTPClient() *retryablehttp.Client {
+	tr := &http.Transport{
+		DisableKeepAlives:  false,
+		DisableCompression: true,
+		MaxIdleConns:       maxIdleConns,
+		IdleConnTimeout:    idleConnTimeout,
+		ForceAttemptHTTP2:  false,
+	}
+
+	rc := retryablehttp.NewClient()
+	rc.HTTPClient = &http.Client{
+		Transport: tr,
+		Timeout:   120 * time.Second,
+	}
+
+	rc.Logger = nil
+	rc.RetryWaitMax = 120 * time.Second
+	rc.RetryWaitMin = 60 * time.Second
+	rc.RetryMax = 2
+
+	return rc
+}
+
+func validDiffRemoteMethod(method string) bool {
+	return slices.Contains([]string{cloneMethod, refsMethod}, method)
+}
+
+func getBackupsToKeep(envVar string) int {
+	if os.Getenv(envVar) == "" {
+		logger.Printf("environment variable %s not set, using default of %d", envVar, defaultBackupsToKeep)
+
+		return defaultBackupsToKeep
+	}
+
+	backupsToKeep, err := strconv.Atoi(os.Getenv(envVar))
+	if err != nil {
+		logger.Printf("error converting environment variable %s to int so defaulting to: %d", envVar, defaultBackupsToKeep)
+
+		return defaultBackupsToKeep
+	}
+
+	return backupsToKeep
 }
