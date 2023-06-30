@@ -95,6 +95,7 @@ func dirHasBundles(dir string) bool {
 		}
 	}()
 
+	// TODO: why limit to 1?
 	names, err := f.Readdirnames(1)
 	if err == io.EOF {
 		return false
@@ -125,7 +126,6 @@ func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
 		// get refs for bundle
 		if refs, err = getBundleRefs(path); err != nil {
 			// failed to get refs
-			logger.Print(err.Error())
 			if strings.Contains(err.Error(), invalidBundleStringCheck) {
 				// rename the invalid bundle
 				logger.Printf("renaming invalid bundle to %s.invalid", path)
@@ -184,7 +184,7 @@ func createBundle(workingPath, backupPath string, repo repository) error {
 		logger.Fatal(bundleErr)
 	}
 	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
-		logger.Printf("git bundle create time: %s", time.Since(startBundle).String())
+		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
 	}
 
 	return nil

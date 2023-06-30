@@ -70,7 +70,9 @@ func NewGitLabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
 func (gl *GitlabHost) getAuthenticatedGitlabUser() (user gitlabUser) {
 	gitlabToken := strings.TrimSpace(os.Getenv(gitlabEnvVarToken))
 	if gitlabToken == "" {
-		panic("env var GITLAB_TOKEN not set")
+		logger.Print("env var GITLAB_TOKEN not set")
+
+		return
 	}
 
 	var err error
@@ -413,6 +415,10 @@ func (gl *GitlabHost) Backup() {
 
 	gl.httpClient = retryablehttp.NewClient()
 	gl.User = gl.getAuthenticatedGitlabUser()
+	if gl.User.ID == 0 {
+		// skip backup if user is not authenticated
+		return
+	}
 
 	repoDesc := gl.describeRepos()
 
