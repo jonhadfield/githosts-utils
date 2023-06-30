@@ -76,12 +76,6 @@ func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
 	}, nil
 }
 
-type giteaHost struct {
-	Provider         string
-	APIURL           string
-	DiffRemoteMethod string
-}
-
 type giteaUser struct {
 	ID                int    `json:"id"`
 	Login             string `json:"login"`

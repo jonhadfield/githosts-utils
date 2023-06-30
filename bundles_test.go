@@ -13,12 +13,14 @@ func TestRenameInvalidBundle(t *testing.T) {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
-	// require.NoError(t, os.Setenv("")
+	resetBackups()
+
 	backupDir := os.Getenv(envVarGitBackupDir)
 	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
 	require.NoError(t, os.MkdirAll(dfDir, 0o755))
 	dfName := "repo0.20200401111111.bundle"
 	dfPath := path.Join(dfDir, dfName)
+
 	_, err := os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
 	require.NoError(t, err)
 	require.NoError(t, os.Setenv(githubEnvVarBackups, "1"))
@@ -50,6 +52,8 @@ func TestRenameInvalidBundle(t *testing.T) {
 		}
 
 	}
+
 	require.Zero(t, originalFound)
+
 	require.Equal(t, 1, renamedFound)
 }

@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
@@ -47,7 +48,6 @@ type gitRefs map[string]string
 func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
 	// if there's no backup path then return false
 	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-
 		return false
 	}
 
@@ -188,7 +188,11 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRem
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
 	if cloneErr != nil {
-		return errors.Wrapf(cloneErr, "cloning failed: %s", strings.Join(cloneOutLines, ", "))
+		if os.Getenv("GITHOSTS_LOG") == "debug" {
+			return errors.Wrapf(cloneErr, "cloning failed: %s", strings.Join(cloneOutLines, ", "))
+		}
+
+		return fmt.Errorf("cloning failed for repository: %s", repo.Name)
 	}
 
 	// create bundle
