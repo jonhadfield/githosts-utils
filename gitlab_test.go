@@ -15,10 +15,13 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	gl := GitlabHost{
+	gl, err := NewGitlabHost(NewGitlabHostInput{
+		APIURL:           gitlabAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        backupDIR,
-	}
+	})
+	require.NoError(t, err)
+
 	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")
 	expectedSubProjectTwoPath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-two")
@@ -46,10 +49,12 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	gl := GitlabHost{
+	gl, err := NewGitlabHost(NewGitlabHostInput{
+		APIURL:           gitlabAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDIR,
-	}
+	})
+
 	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")
 	expectedSubProjectTwoPath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-two")

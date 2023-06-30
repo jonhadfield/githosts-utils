@@ -413,7 +413,6 @@ func (gl *GitlabHost) Backup() {
 
 	maxConcurrent := 5
 
-	gl.httpClient = retryablehttp.NewClient()
 	gl.User = gl.getAuthenticatedGitlabUser()
 	if gl.User.ID == 0 {
 		// skip backup if user is not authenticated
