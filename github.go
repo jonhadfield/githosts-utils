@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"os"
@@ -24,6 +25,7 @@ type NewGitHubHostInput struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	Token            string
+	SkipUserRepos    bool
 	Orgs             []string
 }
 
@@ -52,8 +54,10 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
+		SkipUserRepos:    input.SkipUserRepos,
 		BackupsToKeep:    getBackupsToKeep(githubEnvVarBackups),
 		Token:            input.Token,
+		Orgs:             input.Orgs,
 	}, nil
 }
 
@@ -63,6 +67,7 @@ type GitHubHost struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
+	SkipUserRepos    bool
 	BackupsToKeep    int
 	Token            string
 	Orgs             []string
@@ -92,6 +97,31 @@ type githubQueryNamesResponse struct {
 	}
 }
 
+type githubQueryOrgsResponse struct {
+	Data struct {
+		Viewer struct {
+			Organizations struct {
+				Edges    []orgsEdge
+				PageInfo struct {
+					EndCursor   string
+					HasNextPage bool
+				}
+			}
+		}
+	}
+	Errors []struct {
+		Type    string
+		Path    []string
+		Message string
+	}
+}
+type orgsEdge struct {
+	Node struct {
+		Name string
+	}
+	Cursor string
+}
+
 type githubQueryOrgResponse struct {
 	Data struct {
 		Organization struct {
@@ -103,6 +133,11 @@ type githubQueryOrgResponse struct {
 				}
 			}
 		}
+	}
+	Errors []struct {
+		Type    string
+		Path    []string
+		Message string
 	}
 }
 
@@ -157,8 +192,9 @@ func (gh *GitHubHost) makeGithubRequest(payload string) string {
 	return bodyStr
 }
 
+// describeGithubUserRepos returns a list of repositories owned by authenticated user
 func (gh *GitHubHost) describeGithubUserRepos() []repository {
-	logger.Println("listing GitHub user's repositories")
+	logger.Println("listing GitHub user's owned repositories")
 
 	gcs := gitHubCallSize
 	envCallSize := os.Getenv(githubEnvVarCallSize)
@@ -200,6 +236,40 @@ func (gh *GitHubHost) describeGithubUserRepos() []repository {
 	return repos
 }
 
+func (gh *GitHubHost) describeGithubUserOrganizations() []githubOrganization {
+	logger.Println("listing GitHub user's related Organizations")
+
+	var orgs []githubOrganization
+
+	reqBody := "{\"query\": \"{ viewer { organizations(first:100) { edges { node { name } } } } }\""
+
+	bodyStr := gh.makeGithubRequest(reqBody)
+	var respObj githubQueryOrgsResponse
+	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		logger.Fatal(err)
+	}
+
+	if len(respObj.Errors) > 0 {
+		for _, queryError := range respObj.Errors {
+			logger.Printf("failed to retrieve organizations user's a member of: %s", queryError.Message)
+		}
+
+		return nil
+	}
+
+	for _, org := range respObj.Data.Viewer.Organizations.Edges {
+		orgs = append(orgs, githubOrganization{
+			Name: org.Node.Name,
+		})
+	}
+
+	return orgs
+}
+
+type githubOrganization struct {
+	Name string `json:"name"`
+}
+
 func createGithubRequestPayload(body string) string {
 	gqlMarshalled, err := json.Marshal(graphQLRequest{Query: body})
 	if err != nil {
@@ -226,10 +296,19 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 
 	for {
 		bodyStr := gh.makeGithubRequest(createGithubRequestPayload(reqBody))
-
 		var respObj githubQueryOrgResponse
 		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 			logger.Fatal(err)
+		}
+
+		if respObj.Errors != nil {
+			for _, gqlErr := range respObj.Errors {
+				if gqlErr.Type == "NOT_FOUND" {
+					logger.Printf("organization %s not found", orgName)
+				} else {
+					logger.Printf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
+				}
+			}
 		}
 
 		for _, repo := range respObj.Data.Organization.Repositories.Edges {
@@ -252,10 +331,39 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 	return repos
 }
 
-func (gh *GitHubHost) describeRepos() describeReposOutput {
-	repos := gh.describeGithubUserRepos()
+func remove(s []string, r string) []string {
+	for i, v := range s {
+		if v == r {
+			return append(s[:i], s[i+1:]...)
+		}
+	}
+	return s
+}
 
-	for _, org := range gh.Orgs {
+func (gh *GitHubHost) describeRepos() describeReposOutput {
+	var repos []repository
+	if !gh.SkipUserRepos {
+		// get authenticated user's owned repos
+		repos = gh.describeGithubUserRepos()
+	}
+
+	// set orgs repos to retrieve to those specified when client constructed
+	orgs := gh.Orgs
+
+	// if we get a wildcard, get all orgs user belongs to
+	if slices.Contains(gh.Orgs, "*") {
+		// delete the wildcard, leaving any existing specified orgs that may have been passed in
+		orgs = remove(orgs, "*")
+		// get a list of orgs the authenticated user belongs to
+		githubOrgs := gh.describeGithubUserOrganizations()
+
+		for _, gho := range githubOrgs {
+			orgs = append(orgs, gho.Name)
+		}
+	}
+
+	// append repos belonging to any orgs specified
+	for _, org := range orgs {
 		repos = append(repos, gh.describeGithubOrgRepos(org)...)
 	}
 
@@ -279,9 +387,8 @@ func (gh *GitHubHost) Backup() {
 		return
 	}
 
-	maxConcurrent := 5
+	maxConcurrent := 10
 	repoDesc := gh.describeRepos()
-
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
 
