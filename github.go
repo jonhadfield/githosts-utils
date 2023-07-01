@@ -27,6 +27,7 @@ type NewGitHubHostInput struct {
 	SkipUserRepos    bool
 	Orgs             []string
 	BackupsToRetain  int
+	LogLevel         int
 }
 
 func (gh *GitHubHost) getAPIURL() string {
@@ -58,6 +59,7 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 		BackupsToRetain:  input.BackupsToRetain,
 		Token:            input.Token,
 		Orgs:             input.Orgs,
+		LogLevel:         input.LogLevel,
 	}, nil
 }
 
@@ -71,6 +73,7 @@ type GitHubHost struct {
 	BackupsToRetain  int
 	Token            string
 	Orgs             []string
+	LogLevel         int
 }
 
 type edge struct {
@@ -372,11 +375,11 @@ func (gh *GitHubHost) describeRepos() describeReposOutput {
 	}
 }
 
-func gitHubWorker(token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(token, "\n"), repo.HTTPSUrl[firstPos+2:])
-		results <- processBackup(repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		results <- processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
 
@@ -393,7 +396,7 @@ func (gh *GitHubHost) Backup() {
 	results := make(chan error, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, jobs, results)
+		go gitHubWorker(gh.LogLevel, gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {

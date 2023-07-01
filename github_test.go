@@ -220,6 +220,9 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	logger.SetOutput(os.Stdout)
 
 	for x := range logLines {
+		if strings.TrimSpace(logLines[x]) == "" {
+			continue
+		}
 		logger.Print(logLines[x])
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
