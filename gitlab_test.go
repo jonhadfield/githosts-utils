@@ -54,6 +54,7 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDIR,
 	})
+	require.NoError(t, err)
 
 	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")

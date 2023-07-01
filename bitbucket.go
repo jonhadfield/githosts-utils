@@ -14,13 +14,10 @@ import (
 )
 
 const (
-	defaultBackupsToKeep       = 2
-	BitbucketProviderName      = "BitBucket"
-	bitbucketProviderNameLower = "bitbucket"
-	bitbucketEnvVarKey         = "BITBUCKET_KEY"
-	bitbucketEnvVarSecret      = "BITBUCKET_SECRET"
-	bitbucketEnvVarUser        = "BITBUCKET_USER"
-	bitbucketEnvVarBackups     = "BITBUCKET_BACKUPS"
+	BitbucketProviderName = "BitBucket"
+	bitbucketEnvVarKey    = "BITBUCKET_KEY"
+	bitbucketEnvVarSecret = "BITBUCKET_SECRET"
+	bitbucketEnvVarUser   = "BITBUCKET_USER"
 )
 
 type NewBitBucketHostInput struct {
@@ -30,6 +27,7 @@ type NewBitBucketHostInput struct {
 	User             string
 	Key              string
 	Secret           string
+	BackupsToRetain  int
 }
 
 func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err error) {
@@ -53,7 +51,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err err
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
-		BackupsToKeep:    getBackupsToKeep(bitbucketEnvVarBackups),
+		BackupsToRetain:  input.BackupsToRetain,
 		User:             input.User,
 		Key:              input.Key,
 		Secret:           input.Secret,
@@ -211,7 +209,7 @@ func (bb BitbucketHost) Backup() {
 	results := make(chan error, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToKeep, jobs, results)
+		go bitBucketWorker(bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -235,7 +233,7 @@ type BitbucketHost struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
-	BackupsToKeep    int
+	BackupsToRetain  int
 	User             string
 	Key              string
 	Secret           string

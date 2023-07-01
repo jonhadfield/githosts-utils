@@ -23,7 +23,6 @@ const (
 	// GitlabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
 	GitlabDefaultMinimumProjectAccessLevel = 20
 	gitlabEnvVarToken                      = "GITLAB_TOKEN"
-	gitlabEnvVarBackups                    = "GITLAB_BACKUPS"
 	gitlabEnvVarProjectMinAccessLevel      = "GITLAB_PROJECT_MIN_ACCESS_LEVEL"
 	gitlabEnvVarAPIUrl                     = "GITLAB_APIURL"
 )
@@ -38,7 +37,7 @@ type GitlabHost struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
-	BackupsToKeep    int
+	BackupsToRetain  int
 	Token            string
 	User             gitlabUser
 }
@@ -63,7 +62,7 @@ func NewGitLabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
-		BackupsToKeep:    getBackupsToKeep(gitlabEnvVarBackups),
+		BackupsToRetain:  input.BackupsToRetain,
 	}, nil
 }
 
@@ -317,6 +316,7 @@ type NewGitlabHostInput struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	Token            string
+	BackupsToRetain  int
 }
 
 func NewGitlabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
@@ -339,7 +339,7 @@ func NewGitlabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
-		BackupsToKeep:    getBackupsToKeep(gitlabEnvVarBackups),
+		BackupsToRetain:  input.BackupsToRetain,
 	}, nil
 }
 
@@ -424,13 +424,8 @@ func (gl *GitlabHost) Backup() {
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
 
-	backupsToKeep, err := strconv.Atoi(os.Getenv(gitlabEnvVarBackups))
-	if err != nil {
-		backupsToKeep = 0
-	}
-
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(gl.User.UserName, gl.BackupDir, gl.diffRemoteMethod(), backupsToKeep, jobs, results)
+		go gitlabWorker(gl.User.UserName, gl.BackupDir, gl.diffRemoteMethod(), gl.BackupsToRetain, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
