@@ -64,8 +64,6 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 			continue
 		}
 
-		logger.Print(logLines[x])
-
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
@@ -131,7 +129,6 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	logger.SetOutput(os.Stdout)
 
 	for x := range logLines {
-		logger.Print(logLines[x])
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}

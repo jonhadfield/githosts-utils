@@ -23,8 +23,6 @@ const (
 	invalidBundleStringCheck = "does not look like"
 	bundleTimestampChars     = 14
 	minBundleFileNameTokens  = 3
-	refsMethod               = "refs"
-	cloneMethod              = "clone"
 )
 
 func getLatestBundlePath(backupPath string) (path string, err error) {

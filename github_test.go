@@ -14,7 +14,9 @@ import (
 var buf bytes.Buffer
 
 func init() {
-	logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
+	if logger == nil {
+		logger = log.New(os.Stdout, logEntryPrefix, log.Lshortfile|log.LstdFlags)
+	}
 	defer func() {
 		log.SetOutput(os.Stderr)
 	}()
@@ -151,7 +153,6 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 	logger.SetOutput(os.Stdout)
 
 	for x := range logLines {
-		logger.Print(logLines[x])
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
@@ -223,10 +224,11 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 		if strings.TrimSpace(logLines[x]) == "" {
 			continue
 		}
-		logger.Print(logLines[x])
+
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
+
 		if reRepo1.MatchString(logLines[x]) {
 			matches++
 		}

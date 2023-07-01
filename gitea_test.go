@@ -10,7 +10,10 @@ import (
 )
 
 func init() {
-	logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
+	if logger == nil {
+		logger = log.New(os.Stdout, logEntryPrefix, log.Lshortfile|log.LstdFlags)
+	}
+
 	defer func() {
 		log.SetOutput(os.Stderr)
 	}()
@@ -38,8 +41,11 @@ func TestGiteaGetUsers(t *testing.T) {
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
+		Token:            giteaToken,
 	})
 	require.NoError(t, err)
+
+	gHost.Token = giteaToken
 
 	users := gHost.getAllUsers()
 	require.True(t, userExists(userExistsInput{
@@ -75,6 +81,7 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
+		Token:            giteaToken,
 	})
 	require.NoError(t, err)
 
@@ -126,6 +133,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
+		Token:            giteaToken,
 	})
 	require.NoError(t, err)
 
@@ -177,6 +185,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
+		Token:            os.Getenv("GITEA_TOKEN"),
 	})
 
 	require.NoError(t, err)
@@ -253,6 +262,7 @@ func TestGetAllUserRepos(t *testing.T) {
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
+		Token:            os.Getenv("GITEA_TOKEN"),
 	})
 	require.NoError(t, err)
 
@@ -295,6 +305,7 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 	gh, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: refsMethod,
+		Token:            os.Getenv("GITEA_TOKEN"),
 	})
 	require.NoError(t, err)
 	require.Equal(t, refsMethod, gh.diffRemoteMethod())
@@ -302,15 +313,18 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 	gh, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: cloneMethod,
+		Token:            os.Getenv("GITEA_TOKEN"),
 	})
 	require.NoError(t, err)
 	require.Equal(t, cloneMethod, gh.diffRemoteMethod())
 
-	_, err = NewGiteaHost(NewGiteaHostInput{
+	gh, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: "invalid",
+		Token:            os.Getenv("GITEA_TOKEN"),
 	})
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.Equal(t, defaultRemoteMethod, gh.diffRemoteMethod())
 }
 
 func TestGiteaRepositoryBackup(t *testing.T) {
@@ -340,6 +354,7 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 		APIURL:           giteaAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        backupDIR,
+		Token:            giteaToken,
 	})
 	require.NoError(t, err)
 

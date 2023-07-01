@@ -9,7 +9,6 @@ import (
 	"github.com/peterhellberg/link"
 	"golang.org/x/exp/slices"
 
-	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -29,6 +28,7 @@ type gitlabUser struct {
 }
 
 type GitLabHost struct {
+	Caller                string
 	httpClient            *retryablehttp.Client
 	APIURL                string
 	DiffRemoteMethod      string
@@ -275,6 +275,7 @@ func makeGitLabRequest(c *http.Client, reqUrl, token string) (resp *http.Respons
 }
 
 type NewGitLabHostInput struct {
+	Caller                string
 	APIURL                string
 	DiffRemoteMethod      string
 	BackupDir             string
@@ -285,24 +286,18 @@ type NewGitLabHostInput struct {
 }
 
 func NewGitLabHost(input NewGitLabHostInput) (host *GitLabHost, err error) {
+	setLoggerPrefix(input.Caller)
+
 	apiURL := gitlabAPIURL
 	if input.APIURL != "" {
 		apiURL = input.APIURL
 	}
 
-	diffRemoteMethod := cloneMethod
-	if input.DiffRemoteMethod != "" {
-		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
-			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
-		}
-
-		diffRemoteMethod = input.DiffRemoteMethod
-	}
-
 	return &GitLabHost{
+		Caller:                input.Caller,
 		httpClient:            getHTTPClient(),
 		APIURL:                apiURL,
-		DiffRemoteMethod:      diffRemoteMethod,
+		DiffRemoteMethod:      getDiffRemoteMethod(input.DiffRemoteMethod),
 		BackupDir:             input.BackupDir,
 		BackupsToRetain:       input.BackupsToRetain,
 		Token:                 input.Token,
@@ -311,36 +306,37 @@ func NewGitLabHost(input NewGitLabHostInput) (host *GitLabHost, err error) {
 	}, nil
 }
 
-func (gl *GitLabHost) auth(key, secret string) (token string, err error) {
-	b, _, _, err := httpRequest(httpRequestInput{
-		client: gl.httpClient,
-		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
-		method: http.MethodPost,
-		headers: http.Header{
-			"Host":         []string{"bitbucket.org"},
-			"Content-Type": []string{"application/x-www-form-urlencoded"},
-			"Accept":       []string{"*/*"},
-		},
-		reqBody:           []byte("grant_type=client_credentials"),
-		basicAuthUser:     key,
-		basicAuthPassword: secret,
-		secrets:           []string{key, secret},
-		timeout:           defaultHttpRequestTimeout,
-	})
-	if err != nil {
-		return
-	}
-
-	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
-
-	var respObj bitbucketAuthResponse
-
-	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		return "", errors.New("failed to unmarshall bitbucket json response")
-	}
-
-	return respObj.AccessToken, err
-}
+//
+// func (gl *GitLabHost) auth(key, secret string) (token string, err error) {
+// 	b, _, _, err := httpRequest(httpRequestInput{
+// 		client: gl.httpClient,
+// 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
+// 		method: http.MethodPost,
+// 		headers: http.Header{
+// 			"Host":         []string{"bitbucket.org"},
+// 			"Content-Type": []string{"application/x-www-form-urlencoded"},
+// 			"Accept":       []string{"*/*"},
+// 		},
+// 		reqBody:           []byte("grant_type=client_credentials"),
+// 		basicAuthUser:     key,
+// 		basicAuthPassword: secret,
+// 		secrets:           []string{key, secret},
+// 		timeout:           defaultHttpRequestTimeout,
+// 	})
+// 	if err != nil {
+// 		return
+// 	}
+//
+// 	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
+//
+// 	var respObj bitbucketAuthResponse
+//
+// 	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+// 		return "", errors.New("failed to unmarshall bitbucket json response")
+// 	}
+//
+// 	return respObj.AccessToken, err
+// }
 
 func (gl *GitLabHost) describeRepos() describeReposOutput {
 	logger.Println("listing repositories")

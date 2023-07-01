@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -25,13 +24,13 @@ const (
 	giteaReposPerPageDefault         = 20
 	giteaReposLimit                  = -1
 	giteaEnvVarAPIUrl                = "GITEA_APIURL"
-	// giteaEnvVarToken                 = "GITEA_TOKEN"
-	giteaMatchByExact     = "exact"
-	giteaMatchByIfDefined = "anyDefined"
-	giteaProviderName     = "Gitea"
+	giteaMatchByExact                = "exact"
+	giteaMatchByIfDefined            = "anyDefined"
+	giteaProviderName                = "Gitea"
 )
 
 type NewGiteaHostInput struct {
+	Caller           string
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
@@ -41,12 +40,8 @@ type NewGiteaHostInput struct {
 	LogLevel         int
 }
 
-type HostsConfig struct {
-	httpClient *retryablehttp.Client
-	debug      bool
-}
-
 type GiteaHost struct {
+	Caller           string
 	httpClient       *retryablehttp.Client
 	APIURL           string
 	DiffRemoteMethod string
@@ -57,20 +52,28 @@ type GiteaHost struct {
 	LogLevel         int
 }
 
-func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
-	diffRemoteMethod := cloneMethod
-	if input.DiffRemoteMethod != "" {
-		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
-			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
-		}
+func getDiffRemoteMethod(input string) (method string) {
+	if err := validDiffRemoteMethod(input); err != nil {
+		logger.Print(err.Error())
+		logger.Print("using default diff remote method: " + defaultRemoteMethod)
 
-		diffRemoteMethod = input.DiffRemoteMethod
+		return defaultRemoteMethod
+	}
+
+	return input
+}
+
+func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
+	setLoggerPrefix(input.Caller)
+
+	if input.APIURL == "" {
+		return nil, fmt.Errorf("%s API URL missing", giteaProviderName)
 	}
 
 	return &GiteaHost{
 		httpClient:       getHTTPClient(),
 		APIURL:           input.APIURL,
-		DiffRemoteMethod: diffRemoteMethod,
+		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
 		Token:            input.Token,
@@ -123,14 +126,12 @@ func (g *GiteaHost) makeGiteaRequest(reqUrl string) (resp *http.Response, body [
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
-	// var req *http.Request
-
 	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
 		return
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITEA_TOKEN")))
+	req.Header.Set("Authorization", fmt.Sprintf("token %s", g.Token))
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
@@ -900,10 +901,10 @@ func (g *GiteaHost) diffRemoteMethod() string {
 	}
 }
 
-func giteaWorker(logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
-		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(os.Getenv("GITEA_TOKEN"), "\n"), repo.HTTPSUrl[firstPos+2:])
+		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], token, repo.HTTPSUrl[firstPos+2:])
 		results <- processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
 	}
 }
@@ -922,7 +923,7 @@ func (g *GiteaHost) Backup() {
 	results := make(chan error, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go giteaWorker(g.LogLevel, g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, jobs, results)
+		go giteaWorker(g.Token, g.LogLevel, g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {

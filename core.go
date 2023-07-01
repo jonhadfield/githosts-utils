@@ -15,7 +15,11 @@ import (
 )
 
 const (
-	envVarGitBackupDir = "GIT_BACKUP_DIR"
+	envVarGitBackupDir  = "GIT_BACKUP_DIR"
+	refsMethod          = "refs"
+	cloneMethod         = "clone"
+	defaultRemoteMethod = cloneMethod
+	logEntryPrefix      = "githosts-utils: "
 )
 
 type repository struct {
@@ -237,6 +241,20 @@ func getHTTPClient() *retryablehttp.Client {
 	return rc
 }
 
-func validDiffRemoteMethod(method string) bool {
-	return slices.Contains([]string{cloneMethod, refsMethod}, method)
+func validDiffRemoteMethod(method string) error {
+	if method == "" {
+		return fmt.Errorf("diff remote method missing")
+	}
+
+	if !slices.Contains([]string{cloneMethod, refsMethod}, method) {
+		return fmt.Errorf("invalid diff remote method: %s", method)
+	}
+
+	return nil
+}
+
+func setLoggerPrefix(prefix string) {
+	if prefix != "" {
+		logger.SetPrefix(fmt.Sprintf("%s: ", prefix))
+	}
 }

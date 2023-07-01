@@ -20,6 +20,7 @@ const (
 )
 
 type NewGitHubHostInput struct {
+	Caller           string
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
@@ -35,25 +36,19 @@ func (gh *GitHubHost) getAPIURL() string {
 }
 
 func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
+	setLoggerPrefix(input.Caller)
+
 	apiURL := githubAPIURL
 	if input.APIURL != "" {
 		apiURL = input.APIURL
 	}
 
-	diffRemoteMethod := cloneMethod
-	if input.DiffRemoteMethod != "" {
-		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
-			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
-		}
-
-		diffRemoteMethod = input.DiffRemoteMethod
-	}
-
 	return &GitHubHost{
+		Caller:           input.Caller,
 		httpClient:       getHTTPClient(),
 		Provider:         "GitHub",
 		APIURL:           apiURL,
-		DiffRemoteMethod: diffRemoteMethod,
+		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
 		BackupDir:        input.BackupDir,
 		SkipUserRepos:    input.SkipUserRepos,
 		BackupsToRetain:  input.BackupsToRetain,
@@ -64,6 +59,7 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 }
 
 type GitHubHost struct {
+	Caller           string
 	httpClient       *retryablehttp.Client
 	Provider         string
 	APIURL           string
