@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -241,21 +240,4 @@ func getHTTPClient() *retryablehttp.Client {
 
 func validDiffRemoteMethod(method string) bool {
 	return slices.Contains([]string{cloneMethod, refsMethod}, method)
-}
-
-func getBackupsToKeep(envVar string) int {
-	if os.Getenv(envVar) == "" {
-		logger.Printf("environment variable %s not set, using default of %d", envVar, defaultBackupsToKeep)
-
-		return defaultBackupsToKeep
-	}
-
-	backupsToKeep, err := strconv.Atoi(os.Getenv(envVar))
-	if err != nil {
-		logger.Printf("error converting environment variable %s to int so defaulting to: %d", envVar, defaultBackupsToKeep)
-
-		return defaultBackupsToKeep
-	}
-
-	return backupsToKeep
 }

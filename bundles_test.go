@@ -23,13 +23,13 @@ func TestRenameInvalidBundle(t *testing.T) {
 
 	_, err := os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
 	require.NoError(t, err)
-	require.NoError(t, os.Setenv(githubEnvVarBackups, "1"))
 	// run
 	gh, err := NewGitHubHost(NewGitHubHostInput{
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDir,
 		Token:            os.Getenv("GITHUB_TOKEN"),
+		BackupsToRetain:  1,
 	})
 	require.NoError(t, err)
 

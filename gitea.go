@@ -26,7 +26,6 @@ const (
 	giteaReposLimit                  = -1
 	giteaEnvVarAPIUrl                = "GITEA_APIURL"
 	// giteaEnvVarToken                 = "GITEA_TOKEN"
-	giteaEnvVarBackups    = "GITEA_BACKUPS"
 	giteaMatchByExact     = "exact"
 	giteaMatchByIfDefined = "anyDefined"
 	giteaProviderName     = "Gitea"
@@ -38,6 +37,7 @@ type NewGiteaHostInput struct {
 	BackupDir        string
 	Token            string
 	Orgs             []string
+	BackupsToRetain  int
 }
 
 type HostsConfig struct {
@@ -50,7 +50,7 @@ type GiteaHost struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
-	BackupsToKeep    int
+	BackupsToRetain  int
 	Token            string
 	Orgs             []string
 }
@@ -70,7 +70,7 @@ func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
 		APIURL:           input.APIURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
-		BackupsToKeep:    getBackupsToKeep(giteaEnvVarBackups),
+		BackupsToRetain:  input.BackupsToRetain,
 		Token:            input.Token,
 		Orgs:             input.Orgs,
 	}, nil
@@ -917,13 +917,8 @@ func (g *GiteaHost) Backup() {
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
 
-	backupsToKeep, err := strconv.Atoi(os.Getenv(giteaEnvVarBackups))
-	if err != nil {
-		backupsToKeep = 0
-	}
-
 	for w := 1; w <= maxConcurrent; w++ {
-		go giteaWorker(g.BackupDir, g.diffRemoteMethod(), backupsToKeep, jobs, results)
+		go giteaWorker(g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
