@@ -16,7 +16,6 @@ import (
 
 const (
 	gitHubCallSize       = 100
-	githubEnvVarBackups  = "GITHUB_BACKUPS"
 	githubEnvVarCallSize = "GITHUB_CALL_SIZE"
 )
 
@@ -27,6 +26,7 @@ type NewGitHubHostInput struct {
 	Token            string
 	SkipUserRepos    bool
 	Orgs             []string
+	BackupsToRetain  int
 }
 
 func (gh *GitHubHost) getAPIURL() string {
@@ -55,7 +55,7 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		SkipUserRepos:    input.SkipUserRepos,
-		BackupsToKeep:    getBackupsToKeep(githubEnvVarBackups),
+		BackupsToRetain:  input.BackupsToRetain,
 		Token:            input.Token,
 		Orgs:             input.Orgs,
 	}, nil
@@ -68,7 +68,7 @@ type GitHubHost struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	SkipUserRepos    bool
-	BackupsToKeep    int
+	BackupsToRetain  int
 	Token            string
 	Orgs             []string
 }
@@ -392,13 +392,8 @@ func (gh *GitHubHost) Backup() {
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan error, maxConcurrent)
 
-	backupsToKeep, err := strconv.Atoi(os.Getenv(githubEnvVarBackups))
-	if err != nil {
-		backupsToKeep = 0
-	}
-
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(gh.Token, gh.BackupDir, gh.DiffRemoteMethod, backupsToKeep, jobs, results)
+		go gitHubWorker(gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
