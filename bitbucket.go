@@ -21,6 +21,7 @@ const (
 )
 
 type NewBitBucketHostInput struct {
+	Caller           string
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
@@ -32,25 +33,18 @@ type NewBitBucketHostInput struct {
 }
 
 func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err error) {
+	setLoggerPrefix(input.Caller)
+
 	apiURL := bitbucketAPIURL
 	if input.APIURL != "" {
 		apiURL = input.APIURL
-	}
-
-	diffRemoteMethod := cloneMethod
-	if input.DiffRemoteMethod != "" {
-		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
-			return nil, errors.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
-		}
-
-		diffRemoteMethod = input.DiffRemoteMethod
 	}
 
 	return &BitbucketHost{
 		httpClient:       getHTTPClient(),
 		Provider:         BitbucketProviderName,
 		APIURL:           apiURL,
-		DiffRemoteMethod: diffRemoteMethod,
+		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
 		User:             input.User,
@@ -229,6 +223,7 @@ func (bb BitbucketHost) Backup() {
 }
 
 type BitbucketHost struct {
+	Caller           string
 	httpClient       *retryablehttp.Client
 	Provider         string
 	APIURL           string

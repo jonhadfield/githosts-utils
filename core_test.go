@@ -122,17 +122,16 @@ func TestCreateHost(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, bitbucketAPIURL, bbHost.getAPIURL())
 
-	ghHost, err := NewGitHubHost(NewGitHubHostInput{
-		APIURL: githubAPIURL,
-	})
+	ghHost, err := NewGitHubHost(NewGitHubHostInput{APIURL: githubAPIURL})
 	require.NoError(t, err)
 	require.Equal(t, githubAPIURL, ghHost.getAPIURL())
 
-	glHost, err := NewGitLabHost(NewGitLabHostInput{
-		APIURL: gitlabAPIURL,
-	})
+	glHost, err := NewGitLabHost(NewGitLabHostInput{APIURL: gitlabAPIURL})
 	require.NoError(t, err)
 	require.Equal(t, gitlabAPIURL, glHost.getAPIURL())
+
+	_, err = NewGiteaHost(NewGiteaHostInput{})
+	require.Error(t, err)
 }
 
 func TestGetLatestBundlePath(t *testing.T) {

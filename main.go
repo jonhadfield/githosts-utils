@@ -25,7 +25,7 @@ var logger *log.Logger
 func init() {
 	// allow for tests to override
 	if logger == nil {
-		logger = log.New(os.Stdout, "soba: ", log.Lshortfile|log.LstdFlags)
+		logger = log.New(os.Stdout, logEntryPrefix, log.Lshortfile|log.LstdFlags)
 	}
 }
 
