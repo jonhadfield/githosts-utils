@@ -144,7 +144,7 @@ func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
 	}
 }
 
-func createBundle(workingPath, backupPath string, repo repository) error {
+func createBundle(logLevel int, workingPath, backupPath string, repo repository) error {
 	objectsPath := filepath.Join(workingPath, "objects")
 
 	dirs, err := os.ReadDir(objectsPath)
@@ -183,7 +183,7 @@ func createBundle(workingPath, backupPath string, repo repository) error {
 	if bundleErr := bundleCmd.Run(); bundleErr != nil {
 		logger.Fatal(bundleErr)
 	}
-	if strings.ToLower(os.Getenv(envVarGitHostsLog)) == "trace" {
+	if logLevel > 0 {
 		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
 	}
 

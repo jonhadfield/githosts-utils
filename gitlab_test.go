@@ -8,6 +8,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	gitlabEnvVarToken                 = "GITLAB_TOKEN"
+	gitlabEnvVarProjectMinAccessLevel = "GITLAB_PROJECT_MIN_ACCESS_LEVEL"
+	gitlabEnvVarAPIUrl                = "GITLAB_APIURL"
+)
+
 func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	resetBackups()
 	resetGlobals()
@@ -19,6 +25,7 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 		APIURL:           gitlabAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        backupDIR,
+		Token:            os.Getenv(gitlabEnvVarToken),
 	})
 	require.NoError(t, err)
 
@@ -53,6 +60,8 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 		APIURL:           gitlabAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDIR,
+		Token:            os.Getenv(gitlabEnvVarToken),
+		LogLevel:         1,
 	})
 	require.NoError(t, err)
 

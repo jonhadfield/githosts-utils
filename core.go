@@ -16,7 +16,6 @@ import (
 
 const (
 	envVarGitBackupDir = "GIT_BACKUP_DIR"
-	envVarGitHostsLog  = "GITHOSTS_LOG"
 )
 
 type repository struct {
@@ -153,7 +152,7 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
-func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) error {
+func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) error {
 	// create backup path
 	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
 	backupPath := filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
@@ -195,7 +194,7 @@ func processBackup(repo repository, backupDIR string, backupsToKeep int, diffRem
 	}
 
 	// create bundle
-	if err := createBundle(workingPath, backupPath, repo); err != nil {
+	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
 		if strings.HasSuffix(err.Error(), "is empty") {
 			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
 			return nil
