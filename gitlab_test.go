@@ -15,7 +15,7 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	gl, err := NewGitlabHost(NewGitlabHostInput{
+	gl, err := NewGitLabHost(NewGitLabHostInput{
 		APIURL:           gitlabAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        backupDIR,
@@ -49,7 +49,7 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
-	gl, err := NewGitlabHost(NewGitlabHostInput{
+	gl, err := NewGitLabHost(NewGitLabHostInput{
 		APIURL:           gitlabAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDIR,

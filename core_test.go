@@ -44,7 +44,7 @@ func TestHostsImplementGitHostsInterface(t *testing.T) {
 	require.Implements(t, (*gitProvider)(nil), new(GiteaHost))
 	require.Implements(t, (*gitProvider)(nil), new(GitHubHost))
 	require.Implements(t, (*gitProvider)(nil), new(BitbucketHost))
-	require.Implements(t, (*gitProvider)(nil), new(GitlabHost))
+	require.Implements(t, (*gitProvider)(nil), new(GitLabHost))
 }
 
 func TestGetLatestBundleRefs(t *testing.T) {
@@ -128,7 +128,7 @@ func TestCreateHost(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, githubAPIURL, ghHost.getAPIURL())
 
-	glHost, err := NewGitlabHost(NewGitlabHostInput{
+	glHost, err := NewGitLabHost(NewGitLabHostInput{
 		APIURL: gitlabAPIURL,
 	})
 	require.NoError(t, err)

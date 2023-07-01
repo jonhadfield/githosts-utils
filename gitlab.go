@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	// GitlabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
-	GitlabDefaultMinimumProjectAccessLevel = 20
+	// GitLabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
+	GitLabDefaultMinimumProjectAccessLevel = 20
 	gitlabEnvVarToken                      = "GITLAB_TOKEN"
 	gitlabEnvVarProjectMinAccessLevel      = "GITLAB_PROJECT_MIN_ACCESS_LEVEL"
 	gitlabEnvVarAPIUrl                     = "GITLAB_APIURL"
@@ -32,7 +32,7 @@ type gitlabUser struct {
 	UserName string `json:"username"`
 }
 
-type GitlabHost struct {
+type GitLabHost struct {
 	httpClient       *retryablehttp.Client
 	APIURL           string
 	DiffRemoteMethod string
@@ -42,31 +42,7 @@ type GitlabHost struct {
 	User             gitlabUser
 }
 
-func NewGitLabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
-	apiURL := gitlabAPIURL
-	if input.APIURL != "" {
-		apiURL = input.APIURL
-	}
-
-	diffRemoteMethod := cloneMethod
-	if input.DiffRemoteMethod != "" {
-		if !validDiffRemoteMethod(input.DiffRemoteMethod) {
-			return nil, fmt.Errorf("invalid diff remote method: %s", input.DiffRemoteMethod)
-		}
-
-		diffRemoteMethod = input.DiffRemoteMethod
-	}
-
-	return &GitlabHost{
-		httpClient:       getHTTPClient(),
-		APIURL:           apiURL,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupDir:        input.BackupDir,
-		BackupsToRetain:  input.BackupsToRetain,
-	}, nil
-}
-
-func (gl *GitlabHost) getAuthenticatedGitlabUser() (user gitlabUser) {
+func (gl *GitLabHost) getAuthenticatedGitLabUser() (user gitlabUser) {
 	gitlabToken := strings.TrimSpace(os.Getenv(gitlabEnvVarToken))
 	if gitlabToken == "" {
 		logger.Print("env var GITLAB_TOKEN not set")
@@ -153,7 +129,7 @@ var validAccessLevels = map[int]string{
 	50: "Owner",
 }
 
-func (gl *GitlabHost) getAllProjectRepositories(client http.Client) (repos []repository) {
+func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []repository) {
 	var sortedLevels []int
 	for k := range validAccessLevels {
 		sortedLevels = append(sortedLevels, k)
@@ -186,7 +162,7 @@ func (gl *GitlabHost) getAllProjectRepositories(client http.Client) (repos []rep
 			logger.Printf("%s '%s' is not a number so using default",
 				gitlabEnvVarProjectMinAccessLevel, minAccessLevelEnvVar)
 
-			minAccessLevel = GitlabDefaultMinimumProjectAccessLevel
+			minAccessLevel = GitLabDefaultMinimumProjectAccessLevel
 		}
 	}
 
@@ -196,7 +172,7 @@ func (gl *GitlabHost) getAllProjectRepositories(client http.Client) (repos []rep
 				strings.Join(validMinimumProjectAccessLevels, ", "))
 		}
 
-		minAccessLevel = GitlabDefaultMinimumProjectAccessLevel
+		minAccessLevel = GitLabDefaultMinimumProjectAccessLevel
 	}
 
 	logger.Printf("project minimum access level set to %s (%d)",
@@ -311,7 +287,7 @@ func makeGitLabRequest(c *http.Client, reqUrl string) (resp *http.Response, body
 	return resp, body, err
 }
 
-type NewGitlabHostInput struct {
+type NewGitLabHostInput struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
@@ -319,7 +295,7 @@ type NewGitlabHostInput struct {
 	BackupsToRetain  int
 }
 
-func NewGitlabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
+func NewGitLabHost(input NewGitLabHostInput) (host *GitLabHost, err error) {
 	apiURL := gitlabAPIURL
 	if input.APIURL != "" {
 		apiURL = input.APIURL
@@ -334,7 +310,7 @@ func NewGitlabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
 		diffRemoteMethod = input.DiffRemoteMethod
 	}
 
-	return &GitlabHost{
+	return &GitLabHost{
 		httpClient:       getHTTPClient(),
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
@@ -343,7 +319,7 @@ func NewGitlabHost(input NewGitlabHostInput) (host *GitlabHost, err error) {
 	}, nil
 }
 
-func (gl *GitlabHost) auth(key, secret string) (token string, err error) {
+func (gl *GitLabHost) auth(key, secret string) (token string, err error) {
 	b, _, _, err := httpRequest(httpRequestInput{
 		client: gl.httpClient,
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
@@ -374,7 +350,7 @@ func (gl *GitlabHost) auth(key, secret string) (token string, err error) {
 	return respObj.AccessToken, err
 }
 
-func (gl *GitlabHost) describeRepos() describeReposOutput {
+func (gl *GitLabHost) describeRepos() describeReposOutput {
 	logger.Println("listing repositories")
 
 	tr := &http.Transport{
@@ -392,7 +368,7 @@ func (gl *GitlabHost) describeRepos() describeReposOutput {
 	}
 }
 
-func (gl *GitlabHost) getAPIURL() string {
+func (gl *GitLabHost) getAPIURL() string {
 	return gl.APIURL
 }
 
@@ -404,7 +380,7 @@ func gitlabWorker(userName, backupDIR, diffRemoteMethod string, backupsToKeep in
 	}
 }
 
-func (gl *GitlabHost) Backup() {
+func (gl *GitLabHost) Backup() {
 	if gl.BackupDir == "" {
 		logger.Printf("backup skipped as backup directory not specified")
 
@@ -413,7 +389,7 @@ func (gl *GitlabHost) Backup() {
 
 	maxConcurrent := 5
 
-	gl.User = gl.getAuthenticatedGitlabUser()
+	gl.User = gl.getAuthenticatedGitLabUser()
 	if gl.User.ID == 0 {
 		// skip backup if user is not authenticated
 		return
@@ -444,7 +420,7 @@ func (gl *GitlabHost) Backup() {
 }
 
 // return normalised method
-func (gl *GitlabHost) diffRemoteMethod() string {
+func (gl *GitLabHost) diffRemoteMethod() string {
 	switch strings.ToLower(gl.DiffRemoteMethod) {
 	case refsMethod:
 		return refsMethod
