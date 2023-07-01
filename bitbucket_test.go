@@ -32,6 +32,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 		User:             os.Getenv(bitbucketEnvVarUser),
 		Key:              os.Getenv(bitbucketEnvVarKey),
 		Secret:           os.Getenv(bitbucketEnvVarSecret),
+		LogLevel:         1,
 	})
 	require.NoError(t, err)
 
@@ -59,10 +60,16 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	logger.SetOutput(os.Stdout)
 
 	for x := range logLines {
+		if strings.TrimSpace(logLines[x]) == "" {
+			continue
+		}
+
 		logger.Print(logLines[x])
+
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
+
 		if reRepo1.MatchString(logLines[x]) {
 			matches++
 		}
