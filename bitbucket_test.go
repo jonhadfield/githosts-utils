@@ -22,6 +22,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
@@ -74,8 +75,6 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	}
 
 	require.Equal(t, 2, matches)
-
-	restoreEnvironmentVariables(envBackup)
 }
 
 func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
@@ -91,6 +90,7 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
@@ -138,6 +138,4 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	}
 
 	require.Equal(t, 2, matches)
-
-	restoreEnvironmentVariables(envBackup)
 }

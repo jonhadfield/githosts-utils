@@ -35,6 +35,7 @@ func TestGiteaGetUsers(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
@@ -55,8 +56,6 @@ func TestGiteaGetUsers(t *testing.T) {
 		login:    "soba-test-rod",
 		email:    "soba-test-rod@example.com",
 	}))
-
-	restoreEnvironmentVariables(envBackup)
 }
 
 func TestGiteaGetOrganisations(t *testing.T) {
@@ -75,6 +74,7 @@ func TestGiteaGetOrganisations(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
@@ -106,8 +106,6 @@ func TestGiteaGetOrganisations(t *testing.T) {
 		name:          "soba-org-two",
 		fullName:      "soba org two",
 	}))
-
-	restoreEnvironmentVariables(envBackup)
 }
 
 // getOrganizationsRepos
@@ -179,6 +177,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
@@ -236,8 +235,6 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 		name:          "soba-org-two",
 		fullName:      "soba org two",
 	}))
-
-	restoreEnvironmentVariables(envBackup)
 }
 
 func TestGetAllUserRepos(t *testing.T) {
@@ -256,6 +253,7 @@ func TestGetAllUserRepos(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
 
@@ -282,9 +280,6 @@ func TestGetAllUserRepos(t *testing.T) {
 		owner:    "soba-test-rod",
 		httpsUrl: "https://gitea.lessknown.co.uk/soba-test-rod/soba-test-rod-repo-one.git",
 	}))
-
-	restoreEnvironmentVariables(envBackup)
-
 }
 
 func TestGetAPIURL(t *testing.T) {
@@ -343,12 +338,11 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN"})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
-
-	// extract domain from API URL to use for unique backup directory
 
 	ghHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           giteaAPIURL,
@@ -374,8 +368,42 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 
 	expectedPathThree := filepath.Join(backupDIR, "gitea.lessknown.co.uk", "gitea_admin", "soba-repo-two")
 	require.NoDirExists(t, expectedPathThree)
+}
 
-	restoreEnvironmentVariables(envBackup)
+func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
+	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
+
+	if giteaToken == "" {
+		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+	}
+
+	if giteaAPIURL == "" {
+		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
+	}
+
+	resetBackups()
+
+	resetGlobals()
+	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
+
+	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN"})
+
+	// backupDIR := os.Getenv(envVarGitBackupDir)
+
+	ghHost, err := NewGiteaHost(NewGiteaHostInput{
+		APIURL:           giteaAPIURL,
+		DiffRemoteMethod: cloneMethod,
+		Token:            giteaToken,
+	})
+	// no error expected as backup dir not required for all usage
+	require.NoError(t, err)
+
+	ghHost.Backup()
+	// check we don't backup to current path if no backup dir is set
+	path := filepath.Join("gitea.lessknown.co.uk", "gitea_admin", "soba-repo-one")
+	require.NoDirExists(t, path)
 }
 
 func TestGiteaRepositoryExistsWithoutRepos(t *testing.T) {
@@ -481,5 +509,160 @@ func TestGiteaRepositoryExistsWithoutMatch(t *testing.T) {
 		httpsUrl:     "https://gitea.example.com/go-soba/repo0.git",
 		sshUrl:       "",
 		urlWithToken: "",
+	}))
+}
+
+func TestRepoExists1(t *testing.T) {
+	require.True(t, repoExists(repoExistsInput{
+		matchBy: giteaMatchByExact,
+		repos: []repository{
+			{
+				Name:              "repo1",
+				Owner:             "owner1",
+				PathWithNameSpace: "pwns1",
+				Domain:            "domain1",
+				HTTPSUrl:          "httpsUrl1",
+				SSHUrl:            "sshUrl1",
+				URLWithToken:      "urlWithToken1",
+				URLWithBasicAuth:  "urlWithBasicAuth1",
+			},
+		},
+		name:              "repo1",
+		owner:             "owner1",
+		pathWithNamespace: "pwns1",
+		domain:            "domain1",
+		httpsUrl:          "httpsUrl1",
+		sshUrl:            "sshUrl1",
+		urlWithToken:      "urlWithToken1",
+		urlWithBasicAuth:  "urlWithBasicAuth1",
+	}))
+
+}
+
+func TestRepoExists2(t *testing.T) {
+	require.False(t, repoExists(repoExistsInput{
+		matchBy: giteaMatchByExact,
+		repos: []repository{
+			{
+				Name:              "repo2",
+				Owner:             "owner1",
+				PathWithNameSpace: "pwns1",
+				Domain:            "domain1",
+				HTTPSUrl:          "httpsUrl1",
+				SSHUrl:            "sshUrl1",
+				URLWithToken:      "urlWithToken1",
+				URLWithBasicAuth:  "urlWithBasicAuth1",
+			},
+		},
+		name:              "repo1",
+		owner:             "owner1",
+		pathWithNamespace: "pwns1",
+		domain:            "domain1",
+		httpsUrl:          "httpsUrl1",
+		sshUrl:            "sshUrl1",
+		urlWithToken:      "urlWithToken1",
+		urlWithBasicAuth:  "urlWithBasicAuth1",
+	}))
+}
+
+func TestRepoExists3(t *testing.T) {
+	require.True(t, repoExists(repoExistsInput{
+		matchBy: giteaMatchByIfDefined,
+		repos: []repository{
+			{
+				Name:              "repo1",
+				Owner:             "owner1",
+				PathWithNameSpace: "pwns1",
+				HTTPSUrl:          "httpsUrl1",
+				Domain:            "domain1",
+				SSHUrl:            "sshUrl1",
+				URLWithToken:      "urlWithToken1",
+				URLWithBasicAuth:  "urlWithBasicAuth1",
+			},
+		},
+		name:              "repo1",
+		owner:             "owner1",
+		pathWithNamespace: "pwns1",
+		domain:            "domain1",
+		sshUrl:            "sshUrl1",
+		urlWithToken:      "urlWithToken1",
+		urlWithBasicAuth:  "urlWithBasicAuth1",
+	}))
+}
+
+func TestUserExistsExactMatch(t *testing.T) {
+	require.True(t, userExists(userExistsInput{
+		matchBy: giteaMatchByExact,
+		users: []giteaUser{
+			{
+				ID:        10,
+				Login:     "userlogin1",
+				LoginName: "userloginname1",
+				FullName:  "fullname1",
+				Email:     "email1@example.com",
+				Username:  "username1",
+			},
+		},
+		id:        10,
+		login:     "userlogin1",
+		loginName: "userloginname1",
+		email:     "email1@example.com",
+		fullName:  "fullname1",
+	}))
+	require.False(t, userExists(userExistsInput{
+		matchBy: giteaMatchByExact,
+		users: []giteaUser{
+			{
+				ID:        10,
+				Login:     "userlogin2",
+				LoginName: "userloginname1",
+				FullName:  "fullname1",
+				Email:     "email1@example.com",
+				Username:  "username1",
+			},
+		},
+		id:        10,
+		login:     "userlogin1",
+		loginName: "userloginname1",
+		email:     "email1@example.com",
+		fullName:  "fullname1",
+	}))
+}
+
+func TestUserExistsIfDefinedMatch(t *testing.T) {
+	require.True(t, userExists(userExistsInput{
+		matchBy: giteaMatchByIfDefined,
+		users: []giteaUser{
+			{
+				ID:        10,
+				Login:     "userlogin1",
+				LoginName: "userloginname1",
+				FullName:  "fullname1",
+				Email:     "email1@example.com",
+				Username:  "username1",
+			},
+		},
+		id:        10,
+		login:     "userlogin1",
+		loginName: "userloginname1",
+		email:     "email1@example.com",
+		fullName:  "fullname1",
+	}))
+	require.False(t, userExists(userExistsInput{
+		matchBy: giteaMatchByIfDefined,
+		users: []giteaUser{
+			{
+				ID:        10,
+				LoginName: "userloginname1",
+				FullName:  "fullname1",
+				Email:     "email2@example.com",
+				Username:  "username1",
+			},
+		},
+		id:        10,
+		login:     "userlogin1",
+		loginName: "userloginname1",
+		email:     "email1@example.com",
+		fullName:  "fullname1",
 	}))
 }

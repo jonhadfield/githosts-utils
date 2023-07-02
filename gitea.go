@@ -83,27 +83,27 @@ func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
 }
 
 type giteaUser struct {
-	ID                int    `json:"id"`
-	Login             string `json:"login"`
-	LoginName         string `json:"login_name"`
-	FullName          string `json:"full_name"`
-	Email             string `json:"email"`
-	AvatarURL         string `json:"avatar_url"`
-	Language          string `json:"language"`
-	IsAdmin           bool   `json:"is_admin"`
-	LastLogin         string `json:"last_login"`
-	Created           string `json:"created"`
-	Restricted        bool   `json:"restricted"`
-	Active            bool   `json:"active"`
-	ProhibitLogin     bool   `json:"prohibit_login"`
-	Location          string `json:"location"`
-	Website           string `json:"website"`
-	Description       string `json:"description"`
-	Visibility        string `json:"visibility"`
-	FollowersCount    int    `json:"followers_count"`
-	FollowingCount    int    `json:"following_count"`
-	StarredReposCount int    `json:"starred_repos_count"`
-	Username          string `json:"username"`
+	ID        int    `json:"id"`
+	Login     string `json:"login"`
+	LoginName string `json:"login_name"`
+	FullName  string `json:"full_name"`
+	Email     string `json:"email"`
+	// AvatarURL         string `json:"avatar_url"`
+	// Language string `json:"language"`
+	// IsAdmin  bool   `json:"is_admin"`
+	// LastLogin         string `json:"last_login"`
+	// Created           string `json:"created"`
+	// Restricted    bool `json:"restricted"`
+	// Active        bool `json:"active"`
+	// ProhibitLogin bool `json:"prohibit_login"`
+	// Location          string `json:"location"`
+	// Website           string `json:"website"`
+	// Description string `json:"description"`
+	// Visibility  string `json:"visibility"`
+	// FollowersCount    int    `json:"followers_count"`
+	// FollowingCount    int    `json:"following_count"`
+	// StarredReposCount int    `json:"starred_repos_count"`
+	Username string `json:"username"`
 }
 
 type giteaOrganization struct {
@@ -178,16 +178,6 @@ type organisationExistsInput struct {
 	organisations []giteaOrganization
 	name          string
 	fullName      string
-}
-
-func allTrue(in ...bool) bool {
-	for _, v := range in {
-		if !v {
-			return false
-		}
-	}
-
-	return true
 }
 
 func repoExists(in repoExistsInput) bool {
