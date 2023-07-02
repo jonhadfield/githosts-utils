@@ -47,6 +47,11 @@ func TestHostsImplementGitHostsInterface(t *testing.T) {
 	require.Implements(t, (*gitProvider)(nil), new(GitLabHost))
 }
 
+func TestAllTrue(t *testing.T) {
+	assert.True(t, allTrue(true, true, true))
+	assert.False(t, allTrue(true, false, true))
+}
+
 func TestGetLatestBundleRefs(t *testing.T) {
 	refs, err := getLatestBundleRefs("testfiles/example-bundles")
 	require.NoError(t, err)

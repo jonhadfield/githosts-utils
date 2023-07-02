@@ -258,3 +258,13 @@ func setLoggerPrefix(prefix string) {
 		logger.SetPrefix(fmt.Sprintf("%s: ", prefix))
 	}
 }
+
+func allTrue(in ...bool) bool {
+	for _, v := range in {
+		if !v {
+			return false
+		}
+	}
+
+	return true
+}

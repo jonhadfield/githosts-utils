@@ -18,6 +18,8 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	resetBackups()
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
+
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
@@ -42,8 +44,6 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projectTwoEntries, 1)
 	require.Contains(t, projectTwoEntries[0].Name(), "soba-sub-project-two.")
-
-	restoreEnvironmentVariables(envBackup)
 }
 
 func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
@@ -53,6 +53,8 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	}
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
+
 	unsetEnvVars([]string{envVarGitBackupDir, gitlabEnvVarToken})
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
@@ -78,6 +80,4 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projectTwoEntries, 1)
 	require.Contains(t, projectTwoEntries[0].Name(), "soba-sub-project-two.")
-
-	restoreEnvironmentVariables(envBackup)
 }
