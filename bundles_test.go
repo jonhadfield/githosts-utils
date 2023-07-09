@@ -16,7 +16,7 @@ func TestRenameInvalidBundle(t *testing.T) {
 	resetBackups()
 
 	backupDir := os.Getenv(envVarGitBackupDir)
-	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
+	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	require.NoError(t, os.MkdirAll(dfDir, 0o755))
 	dfName := "repo0.20200401111111.bundle"
 	dfPath := path.Join(dfDir, dfName)

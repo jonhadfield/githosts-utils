@@ -13,6 +13,8 @@ import (
 
 var buf bytes.Buffer
 
+const msgSkipGitHubTokenMissing = "Skipping GitHub test as GITHUB_TOKEN is missing"
+
 func init() {
 	if logger == nil {
 		logger = log.New(os.Stdout, logEntryPrefix, log.Lshortfile|log.LstdFlags)
@@ -24,7 +26,7 @@ func init() {
 
 func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
 	resetBackups()
@@ -48,25 +50,25 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 
 	ghHost.Backup()
 
-	expectedPathOne := filepath.Join(backupDIR, "github.com", "go-soba", "repo0")
+	expectedPathOne := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(backupDIR, "github.com", "go-soba", "repo1")
+	expectedPathTwo := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo1")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo1\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
 
-	expectedPathThree := filepath.Join(backupDIR, "github.com", "go-soba", "repo2")
+	expectedPathThree := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo2")
 	require.NoDirExists(t, expectedPathThree)
 }
 
 func TestDescribeGithubOrgRepos(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
 	// need to set output to buffer in order to test output
@@ -94,7 +96,7 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 
 func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
 	// need to set output to buffer in order to test output
@@ -122,19 +124,19 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 
 	ghHost.Backup()
 
-	expectedPathOne := filepath.Join(backupDIR, "github.com", "go-soba", "repo0")
+	expectedPathOne := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(backupDIR, "github.com", "go-soba", "repo1")
+	expectedPathTwo := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo1")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo1\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
 
-	expectedPathThree := filepath.Join(backupDIR, "github.com", "Nudelmesse", "public1")
+	expectedPathThree := filepath.Join(backupDIR, gitHubDomain, "Nudelmesse", "public1")
 	require.DirExists(t, expectedPathThree)
 	dirThreeEntries, err := dirContents(expectedPathThree)
 	require.NoError(t, err)
@@ -168,7 +170,7 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 
 func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
 	// need to set output to buffer in order to test output
@@ -196,13 +198,13 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 
 	ghHost.Backup()
 
-	expectedPathOne := filepath.Join(backupDIR, "github.com", "go-soba", "repo0")
+	expectedPathOne := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(backupDIR, "github.com", "go-soba", "repo1")
+	expectedPathTwo := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo1")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
@@ -237,7 +239,7 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 
 func TestDescribeGithubReposWithWildcard(t *testing.T) {
 	if os.Getenv("GITHUB_TOKEN") == "" {
-		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
+		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
 	// need to set output to buffer in order to test output

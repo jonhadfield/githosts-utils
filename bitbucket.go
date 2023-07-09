@@ -18,6 +18,7 @@ const (
 	bitbucketEnvVarKey    = "BITBUCKET_KEY"
 	bitbucketEnvVarSecret = "BITBUCKET_SECRET"
 	bitbucketEnvVarUser   = "BITBUCKET_USER"
+	bitbucketDomain       = "bitbucket.com"
 )
 
 type NewBitBucketHostInput struct {
@@ -147,7 +148,7 @@ func (bb BitbucketHost) describeRepos() (dRO describeReposOutput) {
 					Name:              r.Name,
 					HTTPSUrl:          "https://bitbucket.org/" + r.FullName + ".git",
 					PathWithNameSpace: r.FullName,
-					Domain:            "bitbucket.com",
+					Domain:            bitbucketDomain,
 				}
 
 				repos = append(repos, repo)

@@ -32,8 +32,8 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	require.NoError(t, err)
 
 	gl.Backup()
-	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")
-	expectedSubProjectTwoPath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-two")
+	expectedSubProjectOnePath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-one")
+	expectedSubProjectTwoPath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-two")
 	require.DirExists(t, expectedSubProjectOnePath)
 	require.DirExists(t, expectedSubProjectTwoPath)
 	projectOneEntries, err := dirContents(expectedSubProjectOnePath)
@@ -68,8 +68,8 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	require.NoError(t, err)
 
 	gl.Backup()
-	expectedSubProjectOnePath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-one")
-	expectedSubProjectTwoPath := filepath.Join(backupDIR, "gitlab.com", "soba-test", "soba-sub", "soba-sub-project-two")
+	expectedSubProjectOnePath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-one")
+	expectedSubProjectTwoPath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-two")
 	require.DirExists(t, expectedSubProjectOnePath)
 	require.DirExists(t, expectedSubProjectTwoPath)
 	projectOneEntries, err := dirContents(expectedSubProjectOnePath)

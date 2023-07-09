@@ -17,6 +17,7 @@ import (
 const (
 	gitHubCallSize       = 100
 	githubEnvVarCallSize = "GITHUB_CALL_SIZE"
+	gitHubDomain         = "github.com"
 )
 
 type NewGitHubHostInput struct {
@@ -221,7 +222,7 @@ func (gh *GitHubHost) describeGithubUserRepos() []repository {
 				SSHUrl:            repo.Node.SSHURL,
 				HTTPSUrl:          repo.Node.URL,
 				PathWithNameSpace: repo.Node.NameWithOwner,
-				Domain:            "github.com",
+				Domain:            gitHubDomain,
 			})
 		}
 
@@ -316,7 +317,7 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 				SSHUrl:            repo.Node.SSHURL,
 				HTTPSUrl:          repo.Node.URL,
 				PathWithNameSpace: repo.Node.NameWithOwner,
-				Domain:            "github.com",
+				Domain:            gitHubDomain,
 			})
 		}
 

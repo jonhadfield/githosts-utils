@@ -38,13 +38,13 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	require.NoError(t, err)
 
 	bbHost.Backup()
-	expectedPathOne := filepath.Join(bbHost.BackupDir, "bitbucket.com", "go-soba", "repo0")
+	expectedPathOne := filepath.Join(bbHost.BackupDir, bitbucketDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(bbHost.BackupDir, "bitbucket.com", "teamsoba", "teamsobarepoone")
+	expectedPathTwo := filepath.Join(bbHost.BackupDir, bitbucketDomain, "teamsoba", "teamsobarepoone")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
@@ -106,13 +106,13 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 
 	bbHost.Backup()
 
-	expectedPathOne := filepath.Join(bbHost.BackupDir, "bitbucket.com", "go-soba", "repo0")
+	expectedPathOne := filepath.Join(bbHost.BackupDir, bitbucketDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
-	expectedPathTwo := filepath.Join(bbHost.BackupDir, "bitbucket.com", "teamsoba", "teamsobarepoone")
+	expectedPathTwo := filepath.Join(bbHost.BackupDir, bitbucketDomain, "teamsoba", "teamsobarepoone")
 	require.DirExists(t, expectedPathTwo)
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
