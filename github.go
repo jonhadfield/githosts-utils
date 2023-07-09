@@ -18,6 +18,7 @@ const (
 	gitHubCallSize       = 100
 	githubEnvVarCallSize = "GITHUB_CALL_SIZE"
 	gitHubDomain         = "github.com"
+	gitHubProviderName   = "GitHub"
 )
 
 type NewGitHubHostInput struct {
@@ -47,7 +48,7 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 	return &GitHubHost{
 		Caller:           input.Caller,
 		httpClient:       getHTTPClient(),
-		Provider:         "GitHub",
+		Provider:         gitHubProviderName,
 		APIURL:           apiURL,
 		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
 		BackupDir:        input.BackupDir,
