@@ -2,14 +2,18 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/jonhadfield/githost-utils)](https://goreportcard.com/report/github.com/jonhadfield/githost-utils)
 
+#### About
+This is the Go library used by [soba](https://github.com/jonhadfield/soba), a tool for backing up repositories from popular hosted and self-hosted providers.
+With a focus on simplicity, dependencies are kept to a minimum and no external libraries are used for interacting with the git providers.
+
 #### Supported OSes
 
-Tested on Windows 10, MacOS, and Linux (amd64).   
-Not tested, but should also work on builds for: Linux (386, arm386 and arm64), FreeBSD, NetBSD, and OpenBSD.
+Tested on Windows 10 and 11, MacOS, and Linux, but should work on all OSes/architectures.
 
 #### Supported Providers
 
 - BitBucket
 - GitHub
 - GitLab
+- Gitea
 
