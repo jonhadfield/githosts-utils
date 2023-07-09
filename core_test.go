@@ -14,6 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	txtSomeContent          = "some content"
+	txtRepo01TestBundleName = "repo0.20200401011111.bundle"
+	txtRepo02TestBundleName = "repo0.20200201010111.bundle"
+)
+
 func deleteBackupsDir(path string) error {
 	return os.RemoveAll(path)
 }
@@ -75,7 +81,7 @@ func TestGetLatestBundleRefs(t *testing.T) {
 }
 
 func TestGetSHA2Hash(t *testing.T) {
-	pathOne := createTestTextFile("one", "some content")
+	pathOne := createTestTextFile("one", txtSomeContent)
 	sha, err := getSHA2Hash(pathOne)
 	require.NoError(t, err)
 
@@ -94,11 +100,11 @@ func TestGetSHA2Hash(t *testing.T) {
 }
 
 func TestFilesIdentical(t *testing.T) {
-	pathOne := createTestTextFile("one", "some content")
-	pathTwo := createTestTextFile("two", "some content")
+	pathOne := createTestTextFile("one", txtSomeContent)
+	pathTwo := createTestTextFile("two", txtSomeContent)
 	require.True(t, filesIdentical(pathOne, pathTwo))
 
-	pathOne = createTestTextFile("one", "some content")
+	pathOne = createTestTextFile("one", txtSomeContent)
 	pathTwo = createTestTextFile("two", "some other content")
 	require.False(t, filesIdentical(pathOne, pathTwo))
 }
@@ -170,7 +176,7 @@ func TestPruneBackups(t *testing.T) {
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
 
-	dummyFiles := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200501010111.bundle", "repo0.20200401011111.bundle", "repo0.20200601011111.bundle"}
+	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle"}
 	var err error
 	for _, df := range dummyFiles {
 		dfPath := path.Join(dfDir, df)
@@ -181,7 +187,7 @@ func TestPruneBackups(t *testing.T) {
 	files, err := os.ReadDir(dfDir)
 	assert.NoError(t, err)
 	var found int
-	notExpectedPostPrune := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200401011111.bundle"}
+	notExpectedPostPrune := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, txtRepo01TestBundleName}
 	expectedPostPrune := []string{"repo0.20200501010111.bundle", "repo0.20200601011111.bundle"}
 
 	for _, f := range files {
@@ -206,7 +212,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
 
-	dummyFiles := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200501010111.bundle", "repo0.20200401011111.bundle", "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
+	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
 	var err error
 	for _, df := range dummyFiles {
 		dfPath := path.Join(dfDir, df)
