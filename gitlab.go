@@ -20,6 +20,7 @@ import (
 const (
 	// GitLabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
 	GitLabDefaultMinimumProjectAccessLevel = 20
+	gitLabDomain                           = "gitlab.com"
 )
 
 type gitlabUser struct {
@@ -221,7 +222,7 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []rep
 				PathWithNameSpace: project.PathWithNameSpace,
 				HTTPSUrl:          project.HTTPSURL,
 				SSHUrl:            project.SSHURL,
-				Domain:            "gitlab.com",
+				Domain:            gitLabDomain,
 			}
 
 			repos = append(repos, repo)

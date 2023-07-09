@@ -167,7 +167,7 @@ func TestPruneBackups(t *testing.T) {
 		}
 	}()
 
-	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
+	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
 
 	dummyFiles := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200501010111.bundle", "repo0.20200401011111.bundle", "repo0.20200601011111.bundle"}
@@ -203,7 +203,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 		}
 	}()
 
-	dfDir := path.Join(backupDir, "github.com", "go-soba", "repo0")
+	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
 
 	dummyFiles := []string{"repo0.20200401111111.bundle", "repo0.20200201010111.bundle", "repo0.20200501010111.bundle", "repo0.20200401011111.bundle", "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
