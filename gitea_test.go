@@ -1,12 +1,13 @@
 package githosts
 
 import (
-	"github.com/stretchr/testify/require"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func init() {
@@ -417,7 +418,6 @@ func TestGiteaRepositoryExistsWithoutRepos(t *testing.T) {
 		sshUrl:       "",
 		urlWithToken: "",
 	}))
-
 }
 
 func TestGiteaRepositoryExistsWithMatch(t *testing.T) {
@@ -536,7 +536,6 @@ func TestRepoExists1(t *testing.T) {
 		urlWithToken:      "urlWithToken1",
 		urlWithBasicAuth:  "urlWithBasicAuth1",
 	}))
-
 }
 
 func TestRepoExists2(t *testing.T) {
