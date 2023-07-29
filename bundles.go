@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"os"
 	"os/exec"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 const (
@@ -28,7 +29,6 @@ const (
 func getLatestBundlePath(backupPath string) (path string, err error) {
 	bFiles, err := getBundleFiles(backupPath)
 	if err != nil {
-
 		return
 	}
 
@@ -72,7 +72,6 @@ func getBundleRefs(bundlePath string) (refs gitRefs, err error) {
 	bundleRefsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
 	out, bundleRefsCmdErr := bundleRefsCmd.CombinedOutput()
 	if bundleRefsCmdErr != nil {
-
 		return refs, errors.New(string(out))
 	}
 
@@ -196,7 +195,6 @@ func getBundleFiles(backupPath string) (bfs bundleFiles, err error) {
 
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), ".bundle") {
-
 			continue
 		}
 

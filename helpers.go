@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pkg/errors"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/pkg/errors"
 )
 
 const (

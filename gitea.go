@@ -5,15 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/peterhellberg/link"
-	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/peterhellberg/link"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -119,8 +120,10 @@ type giteaOrganization struct {
 	Username                 string `json:"username"`
 }
 
-type giteaGetUsersResponse []giteaUser
-type giteaGetOrganizationsResponse []giteaOrganization
+type (
+	giteaGetUsersResponse         []giteaUser
+	giteaGetOrganizationsResponse []giteaOrganization
+)
 
 func (g *GiteaHost) makeGiteaRequest(reqUrl string) (resp *http.Response, body []byte, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
@@ -208,7 +211,6 @@ func repoExists(in repoExistsInput) bool {
 	}
 
 	if len(in.repos) == 0 {
-
 		return false
 	}
 
@@ -954,5 +956,4 @@ func (g *GiteaHost) getAllUserRepositories() []repository {
 	}
 
 	return repositories
-
 }

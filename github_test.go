@@ -2,13 +2,14 @@ package githosts
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var buf bytes.Buffer
@@ -146,9 +147,9 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 	ghHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
-	var reRepo0 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
-	var reRepo1 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
-	var reRepo2 = regexp.MustCompile(`skipping clone of github\.com repo 'Nudelmesse/public1'`)
+	reRepo0 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
+	reRepo1 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
+	reRepo2 := regexp.MustCompile(`skipping clone of github\.com repo 'Nudelmesse/public1'`)
 	var matches int
 
 	logger.SetOutput(os.Stdout)
@@ -214,8 +215,8 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	ghHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
-	var reRepo0 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
-	var reRepo1 = regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
+	reRepo0 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
+	reRepo1 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
 	var matches int
 
 	logger.SetOutput(os.Stdout)

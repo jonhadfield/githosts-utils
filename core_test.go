@@ -3,13 +3,14 @@ package githosts
 import (
 	b64 "encoding/base64"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"log"
 	"os"
 	"path"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -168,7 +169,6 @@ func TestPruneBackups(t *testing.T) {
 	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
-
 			return
 		}
 	}()
@@ -204,7 +204,6 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
-
 			return
 		}
 	}()

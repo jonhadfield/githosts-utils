@@ -2,10 +2,11 @@ package githosts
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenameInvalidBundle(t *testing.T) {

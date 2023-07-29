@@ -34,6 +34,7 @@ var httpTransport = &http.Transport{
 	IdleConnTimeout:    idleConnTimeout,
 	DisableCompression: true,
 }
+
 var httpClient = &http.Client{
 	Transport: httpTransport,
 	Timeout:   defaultHttpClientTimeout,
