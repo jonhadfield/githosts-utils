@@ -2,9 +2,6 @@ package githosts
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
 	"net/http"
 	"os"
 	"os/exec"
@@ -12,6 +9,10 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/pkg/errors"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -131,7 +132,6 @@ func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs, err error) {
 		// git bundle list-heads returns pseudo-refs but not peeled tags
 		// this is required for comparison with remote references
 		if slices.Contains([]string{"HEAD", "FETCH_HEAD", "ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD"}, ref) {
-
 			continue
 		}
 

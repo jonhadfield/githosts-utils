@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"golang.org/x/exp/slices"
 )
 
 const (

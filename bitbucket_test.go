@@ -1,12 +1,13 @@
 package githosts
 
 import (
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
@@ -54,8 +55,8 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	bbHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
-	var reRepo0 = regexp.MustCompile(`skipping.*go-soba/repo0`)
-	var reRepo1 = regexp.MustCompile(`skipping.*teamsoba/teamsobarepoone`)
+	reRepo0 := regexp.MustCompile(`skipping.*go-soba/repo0`)
+	reRepo1 := regexp.MustCompile(`skipping.*teamsoba/teamsobarepoone`)
 	var matches int
 
 	logger.SetOutput(os.Stdout)
@@ -122,8 +123,8 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	bbHost.Backup()
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
-	var reRepo0 = regexp.MustCompile(`skipping.*go-soba/repo0`)
-	var reRepo1 = regexp.MustCompile(`skipping.*teamsoba/teamsobarepoone`)
+	reRepo0 := regexp.MustCompile(`skipping.*go-soba/repo0`)
+	reRepo1 := regexp.MustCompile(`skipping.*teamsoba/teamsobarepoone`)
 	var matches int
 
 	logger.SetOutput(os.Stdout)
