@@ -315,6 +315,62 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 	}))
 }
 
+func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
+	if os.Getenv("GITHUB_TOKEN") == "" {
+		t.Skip(msgSkipGitHubTokenMissing)
+	}
+
+	// need to set output to buffer in order to test output
+	logger.SetOutput(&buf)
+	defer logger.SetOutput(os.Stdout)
+
+	resetBackups()
+
+	resetGlobals()
+	envBackup := backupEnvironmentVariables()
+	defer restoreEnvironmentVariables(envBackup)
+
+	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+
+	gh, err := NewGitHubHost(NewGitHubHostInput{
+		APIURL:           githubAPIURL,
+		DiffRemoteMethod: refsMethod,
+		SkipUserRepos:    true,
+		Token:            os.Getenv("GITHUB_TOKEN"),
+		Orgs:             []string{"*"},
+	})
+	require.NoError(t, err)
+
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             gh.describeRepos().Repos,
+		name:              "private1",
+		pathWithNamespace: "Nudelmesse/private1",
+		httpsUrl:          "https://github.com/Nudelmesse/private1",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             gh.describeRepos().Repos,
+		name:              "private2",
+		pathWithNamespace: "Nudelmesse/private2",
+		httpsUrl:          "https://github.com/Nudelmesse/private2",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             gh.describeRepos().Repos,
+		name:              "public1",
+		pathWithNamespace: "Nudelmesse/public1",
+		httpsUrl:          "https://github.com/Nudelmesse/public1",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             gh.describeRepos().Repos,
+		name:              "public2",
+		pathWithNamespace: "Nudelmesse/public2",
+		httpsUrl:          "https://github.com/Nudelmesse/public2",
+	}))
+}
+
 func TestRemove(t *testing.T) {
 	s := []string{"a", "b", "c", "d", "e"}
 	r := "c"
