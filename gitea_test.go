@@ -154,7 +154,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 		matchBy:           giteaMatchByIfDefined,
 		repos:             repos,
 		name:              "soba-org-two-repo-two",
-		pathWithNamespace: "soba-org-teo/soba-org-two-repo-two",
+		pathWithNamespace: "soba-org-two/soba-org-two-repo-two",
 		httpsUrl:          "https://gitea.lessknown.co.uk/soba-org-two/soba-org-two-repo-two.git",
 		// sshUrl:            "TODO",
 	}))
