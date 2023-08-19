@@ -42,11 +42,23 @@ func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err err
 		apiURL = input.APIURL
 	}
 
+	diffRemoteMethod, err := getDiffRemoteMethod(input.DiffRemoteMethod)
+	if err != nil {
+		return nil, err
+	}
+
+	if diffRemoteMethod == "" {
+		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		diffRemoteMethod = defaultRemoteMethod
+	} else {
+		logger.Print("using diff remote method: " + diffRemoteMethod)
+	}
+
 	return &BitbucketHost{
 		httpClient:       getHTTPClient(),
 		Provider:         BitbucketProviderName,
 		APIURL:           apiURL,
-		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
+		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
 		User:             input.User,

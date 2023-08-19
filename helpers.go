@@ -168,3 +168,25 @@ func httpRequest(in httpRequestInput) (body []byte, headers http.Header, status 
 
 	return body, resp.Header, resp.StatusCode, err
 }
+
+func getDiffRemoteMethod(input string) (method string, err error) {
+	if input == "" {
+		return input, nil
+	}
+
+	if err = validDiffRemoteMethod(input); err != nil {
+
+		return input, err
+	}
+
+	return input, err
+}
+
+func remove(s []string, r string) []string {
+	for i, v := range s {
+		if v == r {
+			return append(s[:i], s[i+1:]...)
+		}
+	}
+	return s
+}
