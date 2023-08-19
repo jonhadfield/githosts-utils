@@ -319,8 +319,7 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 		DiffRemoteMethod: "invalid",
 		Token:            os.Getenv("GITEA_TOKEN"),
 	})
-	require.NoError(t, err)
-	require.Equal(t, defaultRemoteMethod, gh.diffRemoteMethod())
+	require.Error(t, err)
 }
 
 func TestGiteaRepositoryBackup(t *testing.T) {

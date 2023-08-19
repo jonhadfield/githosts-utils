@@ -53,17 +53,6 @@ type GiteaHost struct {
 	LogLevel         int
 }
 
-func getDiffRemoteMethod(input string) (method string) {
-	if err := validDiffRemoteMethod(input); err != nil {
-		logger.Print(err.Error())
-		logger.Print("using default diff remote method: " + defaultRemoteMethod)
-
-		return defaultRemoteMethod
-	}
-
-	return input
-}
-
 func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
 	setLoggerPrefix(input.Caller)
 
@@ -71,10 +60,22 @@ func NewGiteaHost(input NewGiteaHostInput) (host *GiteaHost, err error) {
 		return nil, fmt.Errorf("%s API URL missing", giteaProviderName)
 	}
 
+	diffRemoteMethod, err := getDiffRemoteMethod(input.DiffRemoteMethod)
+	if err != nil {
+		return nil, err
+	}
+
+	if diffRemoteMethod == "" {
+		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		diffRemoteMethod = defaultRemoteMethod
+	} else {
+		logger.Print("using diff remote method: " + diffRemoteMethod)
+	}
+
 	return &GiteaHost{
 		httpClient:       getHTTPClient(),
 		APIURL:           input.APIURL,
-		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
+		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
 		Token:            input.Token,
