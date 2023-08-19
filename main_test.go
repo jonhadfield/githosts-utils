@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"golang.org/x/exp/slices"
 	"log"
 	"os"
 	"strings"
@@ -11,16 +12,6 @@ func TestMain(m *testing.M) {
 	preflight()
 	code := m.Run()
 	os.Exit(code)
-}
-
-func stringInStrings(single string, group []string) bool {
-	for _, item := range group {
-		if single == item {
-			return true
-		}
-	}
-
-	return false
 }
 
 var sobaEnvVarKeys = []string{
@@ -71,7 +62,7 @@ func restoreEnvironmentVariables(input map[string]string) {
 
 func unsetEnvVars(exceptionList []string) {
 	for _, sobaVar := range sobaEnvVarKeys {
-		if !stringInStrings(sobaVar, exceptionList) {
+		if !slices.Contains(exceptionList, sobaVar) {
 			_ = os.Unsetenv(sobaVar)
 		}
 	}
