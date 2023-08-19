@@ -46,12 +46,24 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 		apiURL = input.APIURL
 	}
 
+	diffRemoteMethod, err := getDiffRemoteMethod(input.DiffRemoteMethod)
+	if err != nil {
+		return nil, err
+	}
+
+	if diffRemoteMethod == "" {
+		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		diffRemoteMethod = defaultRemoteMethod
+	} else {
+		logger.Print("using diff remote method: " + diffRemoteMethod)
+	}
+
 	return &GitHubHost{
 		Caller:           input.Caller,
 		httpClient:       getHTTPClient(),
 		Provider:         gitHubProviderName,
 		APIURL:           apiURL,
-		DiffRemoteMethod: getDiffRemoteMethod(input.DiffRemoteMethod),
+		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		SkipUserRepos:    input.SkipUserRepos,
 		BackupsToRetain:  input.BackupsToRetain,
@@ -331,15 +343,6 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 	}
 
 	return repos
-}
-
-func remove(s []string, r string) []string {
-	for i, v := range s {
-		if v == r {
-			return append(s[:i], s[i+1:]...)
-		}
-	}
-	return s
 }
 
 func (gh *GitHubHost) describeRepos() describeReposOutput {

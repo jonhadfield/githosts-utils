@@ -294,11 +294,23 @@ func NewGitLabHost(input NewGitLabHostInput) (host *GitLabHost, err error) {
 		apiURL = input.APIURL
 	}
 
+	diffRemoteMethod, err := getDiffRemoteMethod(input.DiffRemoteMethod)
+	if err != nil {
+		return nil, err
+	}
+
+	if diffRemoteMethod == "" {
+		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		diffRemoteMethod = defaultRemoteMethod
+	} else {
+		logger.Print("using diff remote method: " + diffRemoteMethod)
+	}
+
 	return &GitLabHost{
 		Caller:                input.Caller,
 		httpClient:            getHTTPClient(),
 		APIURL:                apiURL,
-		DiffRemoteMethod:      getDiffRemoteMethod(input.DiffRemoteMethod),
+		DiffRemoteMethod:      diffRemoteMethod,
 		BackupDir:             input.BackupDir,
 		BackupsToRetain:       input.BackupsToRetain,
 		Token:                 input.Token,

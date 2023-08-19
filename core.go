@@ -242,10 +242,6 @@ func getHTTPClient() *retryablehttp.Client {
 }
 
 func validDiffRemoteMethod(method string) error {
-	if method == "" {
-		return fmt.Errorf("diff remote method missing")
-	}
-
 	if !slices.Contains([]string{cloneMethod, refsMethod}, method) {
 		return fmt.Errorf("invalid diff remote method: %s", method)
 	}
