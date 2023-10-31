@@ -14,7 +14,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 const (

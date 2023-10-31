@@ -12,7 +12,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 const (
