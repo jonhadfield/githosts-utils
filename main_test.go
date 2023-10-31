@@ -1,9 +1,9 @@
 package githosts
 
 import (
-	"golang.org/x/exp/slices"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 )
