@@ -3,7 +3,7 @@ module github.com/jonhadfield/githosts-utils
 go 1.21
 
 require (
-	github.com/hashicorp/go-retryablehttp v0.7.4
+	github.com/hashicorp/go-retryablehttp v0.7.5
 	github.com/peterhellberg/link v1.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
