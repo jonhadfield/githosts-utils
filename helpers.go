@@ -29,12 +29,17 @@ func getTimestamp() string {
 	return t.Format(timeStampFormat)
 }
 
-func timeStampToTime(s string) (t time.Time, err error) {
+func timeStampToTime(s string) (time.Time, error) {
 	if len(s) != bundleTimestampChars {
 		return time.Time{}, errors.New("invalid timestamp")
 	}
 
-	return time.Parse(timeStampFormat, s)
+	ptime, err := time.Parse(timeStampFormat, s)
+	if err != nil {
+		return time.Time{}, errors.Wrap(err, "failed to parse timestamp")
+	}
+
+	return ptime, nil
 }
 
 func stripTrailing(input string, toStrip string) string {
@@ -48,24 +53,31 @@ func stripTrailing(input string, toStrip string) string {
 func isEmpty(clonedRepoPath string) (bool, error) {
 	remoteHeadsCmd := exec.Command("git", "count-objects", "-v")
 	remoteHeadsCmd.Dir = clonedRepoPath
+
 	out, err := remoteHeadsCmd.CombinedOutput()
 	if err != nil {
 		return true, errors.Wrapf(err, "failed to count objects in %s", clonedRepoPath)
 	}
 
 	cmdOutput := strings.Split(string(out), "\n")
+
 	var looseObjects bool
+
 	var inPackObjects bool
+
 	var matchingLinesFound int
+
 	for _, line := range cmdOutput {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 {
 			switch fields[0] {
 			case "count:":
 				matchingLinesFound++
+
 				looseObjects = fields[1] != "0"
 			case "in-pack:":
 				matchingLinesFound++
+
 				inPackObjects = fields[1] != "0"
 			}
 		}
@@ -82,34 +94,26 @@ func isEmpty(clonedRepoPath string) (bool, error) {
 	return false, nil
 }
 
-func getResponseBody(resp *http.Response) (body []byte, err error) {
+func getResponseBody(resp *http.Response) ([]byte, error) {
 	var output io.ReadCloser
 
-	switch resp.Header.Get("Content-Encoding") {
-	case "gzip":
+	var err error
+
+	if resp.Header.Get("Content-Encoding") == "gzip" {
 		output, err = gzip.NewReader(resp.Body)
-
 		if err != nil {
-			return
+			return nil, fmt.Errorf("failed to get response body: %w", err)
 		}
-	default:
+	} else {
 		output = resp.Body
-
-		if err != nil {
-			return
-		}
 	}
 
 	buf := new(bytes.Buffer)
-
-	_, err = buf.ReadFrom(output)
-	if err != nil {
-		return
+	if _, err = buf.ReadFrom(output); err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	body = buf.Bytes()
-
-	return
+	return buf.Bytes(), nil
 }
 
 func maskSecrets(content string, secret []string) string {
@@ -132,18 +136,14 @@ type httpRequestInput struct {
 	timeout           time.Duration
 }
 
-func httpRequest(in httpRequestInput) (body []byte, headers http.Header, status int, err error) {
+func httpRequest(in httpRequestInput) ([]byte, http.Header, int, error) {
 	if in.method == "" {
-		err = fmt.Errorf("HTTP method not specified")
-
-		return
+		return nil, nil, 0, errors.New("HTTP method not specified")
 	}
 
 	req, err := retryablehttp.NewRequest(in.method, in.url, in.reqBody)
 	if err != nil {
-		err = fmt.Errorf("failed to request %s: %w", maskSecrets(in.url, in.secrets), err)
-
-		return
+		return nil, nil, 0, fmt.Errorf("failed to request %s: %w", maskSecrets(in.url, in.secrets), err)
 	}
 
 	req.Header = in.headers
@@ -152,34 +152,34 @@ func httpRequest(in httpRequestInput) (body []byte, headers http.Header, status 
 
 	resp, err = in.client.Do(req)
 	if err != nil {
-		return
+		return nil, nil, 0, fmt.Errorf("request failed: %w", err)
 	}
 
-	headers = resp.Header
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+			fmt.Printf("failed to close response body: %s\n", err.Error())
+		}
+	}(resp.Body)
 
-	body, err = getResponseBody(resp)
+	body, err := getResponseBody(resp)
 	if err != nil {
-		err = fmt.Errorf("%w", err)
-
-		return
+		return nil, nil, 0, fmt.Errorf("%w", err)
 	}
-
-	defer resp.Body.Close()
 
 	return body, resp.Header, resp.StatusCode, err
 }
 
-func getDiffRemoteMethod(input string) (method string, err error) {
+func getDiffRemoteMethod(input string) (string, error) {
 	if input == "" {
 		return input, nil
 	}
 
-	if err = validDiffRemoteMethod(input); err != nil {
-
+	if err := validDiffRemoteMethod(input); err != nil {
 		return input, err
 	}
 
-	return input, err
+	return input, nil
 }
 
 func remove(s []string, r string) []string {

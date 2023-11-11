@@ -34,7 +34,7 @@ type NewBitBucketHostInput struct {
 	LogLevel         int
 }
 
-func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err error) {
+func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 	setLoggerPrefix(input.Caller)
 
 	apiURL := bitbucketAPIURL
@@ -67,7 +67,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (host *BitbucketHost, err err
 	}, nil
 }
 
-func (bb BitbucketHost) auth(key, secret string) (token string, err error) {
+func (bb BitbucketHost) auth(key, secret string) (string, error) {
 	b, _, _, err := httpRequest(httpRequestInput{
 		client: bb.httpClient,
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
@@ -84,7 +84,7 @@ func (bb BitbucketHost) auth(key, secret string) (token string, err error) {
 		timeout:           defaultHttpRequestTimeout,
 	})
 	if err != nil {
-		return
+		return "", errors.Wrap(err, "failed to get bitbucket auth token")
 	}
 
 	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
@@ -106,7 +106,7 @@ type bitbucketAuthResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
-func (bb BitbucketHost) describeRepos() (dRO describeReposOutput) {
+func (bb BitbucketHost) describeRepos() describeReposOutput {
 	logger.Println("listing BitBucket repositories")
 
 	var err error
@@ -206,6 +206,7 @@ func (bb BitbucketHost) Backup() {
 	var err error
 
 	var token string
+
 	token, err = bb.auth(bb.Key, bb.Secret)
 	if err != nil {
 		logger.Fatal(err)
@@ -278,7 +279,7 @@ type bitbucketGetProjectsResponse struct {
 	Next    string             `json:"next"`
 }
 
-// return normalised method
+// return normalised method.
 func (bb BitbucketHost) diffRemoteMethod() string {
 	switch strings.ToLower(bb.DiffRemoteMethod) {
 	case refsMethod:
