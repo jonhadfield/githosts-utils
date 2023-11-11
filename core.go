@@ -7,12 +7,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/pkg/errors"
-	"slices"
 )
 
 const (
@@ -45,7 +45,7 @@ type gitProvider interface {
 	diffRemoteMethod() string
 }
 
-// gitRefs is a mapping of references to SHAs
+// gitRefs is a mapping of references to SHAs.
 type gitRefs map[string]string
 
 func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {

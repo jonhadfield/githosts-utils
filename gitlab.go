@@ -12,9 +12,10 @@ import (
 	"strconv"
 	"strings"
 
+	"slices"
+
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
-	"slices"
 )
 
 const (
@@ -128,7 +129,7 @@ var validAccessLevels = map[int]string{
 	50: "Owner",
 }
 
-func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []repository) {
+func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository {
 	var sortedLevels []int
 	for k := range validAccessLevels {
 		sortedLevels = append(sortedLevels, k)
@@ -170,7 +171,9 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []rep
 	// Initial request
 	u, err := url.Parse(getProjectsURL)
 	if err != nil {
-		return
+		logger.Print(err)
+
+		return []repository{}
 	}
 
 	q := u.Query()
@@ -178,14 +181,21 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []rep
 	q.Set("per_page", strconv.Itoa(gitlabProjectsPerPageDefault))
 	q.Set("min_access_level", strconv.Itoa(gl.ProjectMinAccessLevel))
 	u.RawQuery = q.Encode()
+
 	var body []byte
 
 	reqUrl := u.String()
+
+	var repos []repository
+
 	for {
 		var resp *http.Response
+
 		resp, body, err = makeGitLabRequest(&client, reqUrl, gl.Token)
 		if err != nil {
-			return
+			logger.Print(err)
+
+			return []repository{}
 		}
 
 		if gl.LogLevel > 0 {
@@ -200,11 +210,11 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []rep
 		case http.StatusForbidden:
 			logger.Println("failed to get projects due to invalid missing permissions (HTTP 403)")
 
-			return repos
+			return []repository{}
 		default:
 			logger.Printf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return repos
+			return []repository{}
 		}
 
 		var respObj gitLabGetProjectsResponse
@@ -231,6 +241,7 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []rep
 		// if we got a link response then
 		// reset request url
 		reqUrl = ""
+
 		for _, l := range link.ParseResponse(resp) {
 			if l.Rel == "next" {
 				reqUrl = l.URI
@@ -245,34 +256,34 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) (repos []rep
 	return repos
 }
 
-func makeGitLabRequest(c *http.Client, reqUrl, token string) (resp *http.Response, body []byte, err error) {
+func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
-	var req *http.Request
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("failed to request %s: %w", reqUrl, err)
 	}
 
 	req.Header.Set("Private-Token", token)
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
-	resp, err = c.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	body, err = io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return
+		return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 	}
+
 	body = bytes.ReplaceAll(body, []byte("\r"), []byte("\r\n"))
+
 	_ = resp.Body.Close()
 
-	return resp, body, err
+	return resp, body, nil
 }
 
 type NewGitLabHostInput struct {
@@ -286,7 +297,7 @@ type NewGitLabHostInput struct {
 	LogLevel              int
 }
 
-func NewGitLabHost(input NewGitLabHostInput) (host *GitLabHost, err error) {
+func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 	setLoggerPrefix(input.Caller)
 
 	apiURL := gitlabAPIURL
@@ -296,7 +307,7 @@ func NewGitLabHost(input NewGitLabHostInput) (host *GitLabHost, err error) {
 
 	diffRemoteMethod, err := getDiffRemoteMethod(input.DiffRemoteMethod)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get diff remote method: %w", err)
 	}
 
 	if diffRemoteMethod == "" {
@@ -420,7 +431,7 @@ func (gl *GitLabHost) Backup() {
 	}
 }
 
-// return normalised method
+// return normalised method.
 func (gl *GitLabHost) diffRemoteMethod() string {
 	switch strings.ToLower(gl.DiffRemoteMethod) {
 	case refsMethod:

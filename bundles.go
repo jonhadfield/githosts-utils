@@ -20,7 +20,7 @@ import (
 const (
 	bundleExtension = ".bundle"
 	// invalidBundleStringCheck checks for a portion of the following in the command output
-	// to determine if valid: "does not look like a v2 or v3 bundle file"
+	// to determine if valid: "does not look like a v2 or v3 bundle file".
 	invalidBundleStringCheck = "does not look like"
 	bundleTimestampChars     = 14
 	minBundleFileNameTokens  = 3
@@ -103,7 +103,7 @@ func dirHasBundles(dir string) bool {
 	}
 
 	for _, name := range names {
-		if strings.HasSuffix(name, ".bundle") {
+		if strings.HasSuffix(name, bundleExtension) {
 			return true
 		}
 	}
@@ -177,9 +177,11 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 	bundleCmd.Stderr = &bundleOut
 
 	startBundle := time.Now()
+
 	if bundleErr := bundleCmd.Run(); bundleErr != nil {
 		logger.Fatal(bundleErr)
 	}
+
 	if logLevel > 0 {
 		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
 	}
@@ -187,14 +189,16 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 	return nil
 }
 
-func getBundleFiles(backupPath string) (bfs bundleFiles, err error) {
+func getBundleFiles(backupPath string) (bundleFiles, error) {
 	files, err := os.ReadDir(backupPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "backup path read failed")
 	}
 
+	var bfs bundleFiles
+
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".bundle") {
+		if !strings.HasSuffix(f.Name(), bundleExtension) {
 			continue
 		}
 
@@ -236,7 +240,7 @@ func pruneBackups(backupPath string, keep int) error {
 	var bfs bundleFiles
 
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), ".bundle") {
+		if !strings.HasSuffix(f.Name(), bundleExtension) {
 			logger.Printf("skipping non bundle file '%s'", f.Name())
 
 			continue
@@ -299,7 +303,7 @@ func (b bundleFiles) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func timeStampFromBundleName(i string) (t time.Time, err error) {
+func timeStampFromBundleName(i string) (time.Time, error) {
 	tokens := strings.Split(i, ".")
 	if len(tokens) < minBundleFileNameTokens {
 		return time.Time{}, errors.New("invalid bundle name")
@@ -313,12 +317,13 @@ func timeStampFromBundleName(i string) (t time.Time, err error) {
 	return timeStampToTime(sTime)
 }
 
-func getTimeStampPartFromFileName(name string) (timeStamp int, err error) {
+func getTimeStampPartFromFileName(name string) (int, error) {
 	if strings.Count(name, ".") >= minBundleFileNameTokens-1 {
 		parts := strings.Split(name, ".")
-		strTimestamp := parts[len(parts)-2]
-		return strconv.Atoi(strTimestamp)
 
+		strTimestamp := parts[len(parts)-2]
+
+		return strconv.Atoi(strTimestamp)
 	}
 
 	return 0, fmt.Errorf("filename '%s' does not match bundle format <repo-name>.<timestamp>.bundle",
@@ -390,6 +395,7 @@ func removeBundleIfDuplicate(dir string) {
 
 	latestBundleFilePath := filepath.Join(dir, ss[0].Key)
 	previousBundleFilePath := filepath.Join(dir, ss[1].Key)
+
 	if filesIdentical(latestBundleFilePath, previousBundleFilePath) {
 		logger.Printf("no change since previous bundle: %s", ss[1].Key)
 		logger.Printf("deleting duplicate bundle: %s", ss[0].Key)

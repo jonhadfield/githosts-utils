@@ -5,14 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/hashicorp/go-retryablehttp"
-	"slices"
 )
 
 const (
@@ -206,11 +205,12 @@ func (gh *GitHubHost) makeGithubRequest(payload string) string {
 	return bodyStr
 }
 
-// describeGithubUserRepos returns a list of repositories owned by authenticated user
+// describeGithubUserRepos returns a list of repositories owned by authenticated user.
 func (gh *GitHubHost) describeGithubUserRepos() []repository {
 	logger.Println("listing GitHub user's owned repositories")
 
 	gcs := gitHubCallSize
+
 	envCallSize := os.Getenv(githubEnvVarCallSize)
 	if envCallSize != "" {
 		if callSize, err := strconv.Atoi(envCallSize); err != nil {
@@ -258,6 +258,7 @@ func (gh *GitHubHost) describeGithubUserOrganizations() []githubOrganization {
 	reqBody := "{\"query\": \"{ viewer { organizations(first:100) { edges { node { name } } } } }\""
 
 	bodyStr := gh.makeGithubRequest(reqBody)
+
 	var respObj githubQueryOrgsResponse
 	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 		logger.Fatal(err)
@@ -294,9 +295,10 @@ func createGithubRequestPayload(body string) string {
 }
 
 func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
-	logger.Printf("listing GitHub organisation %s's repositories", orgName)
+	logger.Printf("listing GitHub organization %s's repositories", orgName)
 
 	gcs := gitHubCallSize
+
 	envCallSize := os.Getenv(githubEnvVarCallSize)
 	if envCallSize != "" {
 		if callSize, err := strconv.Atoi(envCallSize); err != nil {
@@ -310,7 +312,9 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 
 	for {
 		bodyStr := gh.makeGithubRequest(createGithubRequestPayload(reqBody))
+
 		var respObj githubQueryOrgResponse
+
 		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
 			logger.Fatal(err)
 		}
@@ -416,7 +420,7 @@ func (gh *GitHubHost) Backup() {
 	}
 }
 
-// return normalised method
+// return normalised method.
 func (gh *GitHubHost) diffRemoteMethod() string {
 	switch strings.ToLower(gh.DiffRemoteMethod) {
 	case refsMethod:
