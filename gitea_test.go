@@ -94,22 +94,22 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	gHost.Orgs = []string{"soba-org-two"}
 	organizations = gHost.getOrganizations()
 
-	require.False(t, organisationExists(organisationExistsInput{
+	require.False(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-one",
 		fullName:      "soba org one",
 	}))
 
-	require.True(t, organisationExists(organisationExistsInput{
+	require.True(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-two",
 		fullName:      "soba org two",
 	}))
 }
 
-// getOrganizationsRepos
+// getOrganizationsRepos.
 func TestGetOrganizationsRepos(t *testing.T) {
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
@@ -192,9 +192,9 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 
 	organizations := gHost.getOrganizations()
 	require.GreaterOrEqual(t, len(organizations), 0)
-	require.False(t, organisationExists(organisationExistsInput{
+	require.False(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-one",
 		fullName:      "soba org one",
 	}))
@@ -204,16 +204,16 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	organizations = gHost.getOrganizations()
 
 	require.GreaterOrEqual(t, len(organizations), 1)
-	require.False(t, organisationExists(organisationExistsInput{
+	require.False(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-one",
 		fullName:      "soba org one",
 	}))
 
-	require.True(t, organisationExists(organisationExistsInput{
+	require.True(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-two",
 		fullName:      "soba org two",
 	}))
@@ -223,16 +223,16 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	organizations = gHost.getOrganizations()
 
 	require.GreaterOrEqual(t, len(organizations), 2)
-	require.True(t, organisationExists(organisationExistsInput{
+	require.True(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-one",
 		fullName:      "soba org one",
 	}))
 
-	require.True(t, organisationExists(organisationExistsInput{
+	require.True(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
-		organisations: organizations,
+		organizations: organizations,
 		name:          "soba-org-two",
 		fullName:      "soba org two",
 	}))

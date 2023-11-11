@@ -8,13 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
-	"slices"
 )
 
 const (
@@ -177,9 +177,9 @@ type userExistsInput struct {
 	email     string
 	fullName  string
 }
-type organisationExistsInput struct {
+type organizationExistsInput struct {
 	matchBy       string // anyDefined, allDefined, exact
-	organisations []giteaOrganization
+	organizations []giteaOrganization
 	name          string
 	fullName      string
 }
@@ -229,7 +229,6 @@ func repoExists(in repoExistsInput) bool {
 		case giteaMatchByExact:
 			if allTrue(nameMatch, domainMatch, ownerMatch, cloneUrlMatch, sshUrlMatch, urlWithTokenMatch,
 				urlWithBasicAuthMatch, pathWithNamespaceMatch) {
-
 				return true
 			}
 
@@ -307,8 +306,8 @@ func userExists(in userExistsInput) bool {
 	return false
 }
 
-func organisationExists(in organisationExistsInput) bool {
-	for _, o := range in.organisations {
+func organisationExists(in organizationExistsInput) bool {
+	for _, o := range in.organizations {
 		nameMatch := in.name == o.Name
 		fullNameMatch := in.fullName == o.FullName
 
@@ -518,14 +517,14 @@ func (g *GiteaHost) getOrganization(orgName string) (organization giteaOrganizat
 	switch resp.StatusCode {
 	case http.StatusOK:
 		if g.LogLevel > 0 {
-			logger.Println("organisations retrieved successfully")
+			logger.Println("organizations retrieved successfully")
 		}
 	case http.StatusForbidden:
-		logger.Println("failed to get organisations due to invalid or missing credentials (HTTP 403)")
+		logger.Println("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 
 		return organization
 	default:
-		logger.Printf("failed to get organisations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
+		logger.Printf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
 		return organization
 	}
@@ -581,14 +580,14 @@ func (g *GiteaHost) getAllOrganizations() (organizations []giteaOrganization) {
 		switch resp.StatusCode {
 		case http.StatusOK:
 			if g.LogLevel > 0 {
-				logger.Println("organisations retrieved successfully")
+				logger.Println("organizations retrieved successfully")
 			}
 		case http.StatusForbidden:
-			logger.Println("failed to get organisations due to invalid or missing credentials (HTTP 403)")
+			logger.Println("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 
 			return organizations
 		default:
-			logger.Printf("failed to get organisations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
+			logger.Printf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
 			return organizations
 		}
@@ -880,7 +879,7 @@ func (g *GiteaHost) getAPIURL() string {
 	return g.APIURL
 }
 
-// return normalised method
+// return normalised method.
 func (g *GiteaHost) diffRemoteMethod() string {
 	switch strings.ToLower(g.DiffRemoteMethod) {
 	case refsMethod:

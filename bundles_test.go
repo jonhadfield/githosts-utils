@@ -51,7 +51,6 @@ func TestRenameInvalidBundle(t *testing.T) {
 		if dfRenamed == f.Name() {
 			renamedFound++
 		}
-
 	}
 
 	require.Zero(t, originalFound)

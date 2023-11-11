@@ -2,6 +2,7 @@ package githosts
 
 import (
 	"bytes"
+	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ func init() {
 	if logger == nil {
 		logger = log.New(os.Stdout, logEntryPrefix, log.Lshortfile|log.LstdFlags)
 	}
+
 	defer func() {
 		log.SetOutput(os.Stderr)
 	}()
@@ -33,7 +35,9 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
@@ -79,7 +83,9 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
@@ -107,7 +113,9 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
@@ -158,9 +166,11 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 		if reRepo0.MatchString(logLines[x]) {
 			matches++
 		}
+
 		if reRepo1.MatchString(logLines[x]) {
 			matches++
 		}
+
 		if reRepo2.MatchString(logLines[x]) {
 			matches++
 		}
@@ -177,12 +187,15 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 	// need to set output to buffer in order to test output
 	buf = bytes.Buffer{}
 	logger.SetOutput(&buf)
+
 	defer logger.SetOutput(os.Stdout)
 
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
@@ -213,10 +226,12 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 
 	// backup once more so we have bundles to compare and skip
 	ghHost.Backup()
+
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	reRepo0 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
 	reRepo1 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
+
 	var matches int
 
 	logger.SetOutput(os.Stdout)
@@ -250,7 +265,9 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
@@ -316,6 +333,8 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 }
 
 func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
+	t.Parallel()
+
 	if os.Getenv("GITHUB_TOKEN") == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
@@ -327,7 +346,9 @@ func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
@@ -372,9 +393,51 @@ func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
+	t.Parallel()
+
 	s := []string{"a", "b", "c", "d", "e"}
 	r := "c"
 	expected := []string{"a", "b", "d", "e"}
 
 	require.Equal(t, expected, remove(s, r))
+}
+
+func TestDiffRemoteMethodReturnsRefsMethodWhenInputIsRefs(t *testing.T) {
+	t.Parallel()
+
+	gh := GitHubHost{DiffRemoteMethod: "refs"}
+
+	result := gh.diffRemoteMethod()
+
+	assert.Equal(t, "refs", result)
+}
+
+func TestDiffRemoteMethodReturnsCloneMethodWhenInputIsClone(t *testing.T) {
+	t.Parallel()
+
+	gh := GitHubHost{DiffRemoteMethod: "clone"}
+
+	result := gh.diffRemoteMethod()
+
+	assert.Equal(t, "clone", result)
+}
+
+func TestDiffRemoteMethodReturnsCloneMethodWhenInputIsUnexpected(t *testing.T) {
+	t.Parallel()
+
+	gh := GitHubHost{DiffRemoteMethod: "unexpected"}
+
+	result := gh.diffRemoteMethod()
+
+	assert.Equal(t, "clone", result)
+}
+
+func TestDiffRemoteMethodReturnsCloneMethodWhenInputIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	gh := GitHubHost{DiffRemoteMethod: ""}
+
+	result := gh.diffRemoteMethod()
+
+	assert.Equal(t, "clone", result)
 }
