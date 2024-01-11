@@ -15,7 +15,10 @@ import (
 
 var buf bytes.Buffer
 
-const msgSkipGitHubTokenMissing = "Skipping GitHub test as GITHUB_TOKEN is missing"
+const (
+	envGithubToken            = "GITHUB_TOKEN" //nolint:gosec
+	msgSkipGitHubTokenMissing = "Skipping GitHub test as " + envGithubToken + " is missing"
+)
 
 func init() {
 	if logger == nil {
@@ -28,7 +31,7 @@ func init() {
 }
 
 func TestPublicGitHubRepositoryBackup(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
@@ -40,7 +43,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
@@ -48,7 +51,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        backupDIR,
-		Token:            os.Getenv("GITHUB_TOKEN"),
+		Token:            os.Getenv(envGithubToken),
 		SkipUserRepos:    false,
 	})
 	require.NoError(t, err)
@@ -72,7 +75,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 }
 
 func TestDescribeGithubOrgRepos(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
@@ -88,12 +91,12 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
 
 	gh, err := NewGitHubHost(NewGitHubHostInput{
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
-		Token:            os.Getenv("GITHUB_TOKEN"),
+		Token:            os.Getenv(envGithubToken),
 	})
 	require.NoError(t, err)
 
@@ -102,7 +105,7 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 }
 
 func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
@@ -118,7 +121,7 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
@@ -126,7 +129,7 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDIR,
-		Token:            os.Getenv("GITHUB_TOKEN"),
+		Token:            os.Getenv(envGithubToken),
 		Orgs:             []string{"Nudelmesse"},
 	})
 	require.NoError(t, err)
@@ -180,7 +183,7 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 }
 
 func TestPublicGitHubOrgRepoBackups(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
@@ -198,7 +201,7 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
@@ -206,7 +209,7 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDIR,
-		Token:            os.Getenv("GITHUB_TOKEN"),
+		Token:            os.Getenv(envGithubToken),
 	})
 	require.NoError(t, err)
 
@@ -254,7 +257,7 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 }
 
 func TestDescribeGithubReposWithWildcard(t *testing.T) {
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
@@ -270,12 +273,12 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
 
 	gh, err := NewGitHubHost(NewGitHubHostInput{
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
-		Token:            os.Getenv("GITHUB_TOKEN"),
+		Token:            os.Getenv(envGithubToken),
 		Orgs:             []string{"*"},
 	})
 	require.NoError(t, err)
@@ -335,7 +338,7 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
 	t.Parallel()
 
-	if os.Getenv("GITHUB_TOKEN") == "" {
+	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
 
@@ -351,13 +354,13 @@ func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITHUB_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
 
 	gh, err := NewGitHubHost(NewGitHubHostInput{
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
 		SkipUserRepos:    true,
-		Token:            os.Getenv("GITHUB_TOKEN"),
+		Token:            os.Getenv(envGithubToken),
 		Orgs:             []string{"*"},
 	})
 	require.NoError(t, err)

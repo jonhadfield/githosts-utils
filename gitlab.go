@@ -243,7 +243,7 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository
 		reqUrl = ""
 
 		for _, l := range link.ParseResponse(resp) {
-			if l.Rel == "next" {
+			if l.Rel == txtNext {
 				reqUrl = l.URI
 			}
 		}
