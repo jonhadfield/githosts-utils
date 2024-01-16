@@ -88,14 +88,22 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 	}
 
 	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
-
-	var respObj bitbucketAuthResponse
-
-	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+	var authResp bitbucketAuthResponse
+	if err = json.Unmarshal([]byte(bodyStr), &authResp); err != nil {
 		return "", errors.Wrap(err, "failed to unmarshall bitbucket json response")
 	}
 
-	return respObj.AccessToken, err
+	// check for any errors
+	if authResp.AccessToken == "" {
+		var authErrResp bitbucketAuthErrorResponse
+
+		if err = json.Unmarshal([]byte(bodyStr), &authErrResp); err != nil {
+			return "", errors.Wrap(err, "failed to unmarshall bitbucket json error response")
+		}
+		return "", errors.New(fmt.Sprintf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription))
+	}
+
+	return authResp.AccessToken, nil
 }
 
 type bitbucketAuthResponse struct {
@@ -104,6 +112,11 @@ type bitbucketAuthResponse struct {
 	ExpiresIn    int    `json:"expires_in"`
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
+}
+
+type bitbucketAuthErrorResponse struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 func (bb BitbucketHost) describeRepos() describeReposOutput {
@@ -148,6 +161,7 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 		bodyB, _ := io.ReadAll(resp.Body)
 
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
+
 		_ = resp.Body.Close()
 
 		var respObj bitbucketGetProjectsResponse
