@@ -22,12 +22,15 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
 
 	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{
+		Caller:           "TestPublicBitbucketRepositoryRefsCompare",
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        os.Getenv(envVarGitBackupDir),
@@ -53,10 +56,12 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 
 	// backup once more so we have bundles to compare and skip
 	bbHost.Backup()
+
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	reRepo0 := regexp.MustCompile(`skipping.*go-soba/repo0`)
 	reRepo1 := regexp.MustCompile(`skipping.*teamsoba/teamsobarepoone`)
+
 	var matches int
 
 	logger.SetOutput(os.Stdout)
