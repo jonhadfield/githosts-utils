@@ -189,12 +189,13 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
+
 	if cloneErr != nil {
 		if os.Getenv("GITHOSTS_LOG") == "debug" {
 			return errors.Wrapf(cloneErr, "cloning failed: %s", strings.Join(cloneOutLines, ", "))
 		}
 
-		return fmt.Errorf("cloning failed for repository: %s", repo.Name)
+		return fmt.Errorf("cloning failed for repository: %s - %w", repo.Name, cloneErr)
 	}
 
 	// create bundle
