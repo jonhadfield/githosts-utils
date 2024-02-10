@@ -384,19 +384,33 @@ func (gl *GitLabHost) getAPIURL() string {
 	return gl.APIURL
 }
 
-func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = repo.HTTPSUrl[:firstPos+2] + userName + ":" + stripTrailing(token, "\n") + "@" + repo.HTTPSUrl[firstPos+2:]
-		results <- processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+
+		backupResult := RepoBackupResults{
+			Repo: repo.PathWithNameSpace,
+		}
+
+		status := statusOk
+		if err != nil {
+			status = statusFailed
+			backupResult.Error = &err
+		}
+
+		backupResult.Status = status
+
+		results <- backupResult
 	}
 }
 
-func (gl *GitLabHost) Backup() {
+func (gl *GitLabHost) Backup() ProviderBackupResult {
 	if gl.BackupDir == "" {
 		logger.Printf("backup skipped as backup directory not specified")
 
-		return
+		return ProviderBackupResult{}
 	}
 
 	maxConcurrent := 5
@@ -404,17 +418,19 @@ func (gl *GitLabHost) Backup() {
 	gl.User = gl.getAuthenticatedGitLabUser()
 	if gl.User.ID == 0 {
 		// skip backup if user is not authenticated
-		return
+		return ProviderBackupResult{}
 	}
 
 	repoDesc := gl.describeRepos()
 
 	jobs := make(chan repository, len(repoDesc.Repos))
-	results := make(chan error, maxConcurrent)
+	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
 		go gitlabWorker(gl.LogLevel, gl.User.UserName, gl.Token, gl.BackupDir, gl.diffRemoteMethod(), gl.BackupsToRetain, jobs, results)
 	}
+
+	var providerBackupResults ProviderBackupResult
 
 	for x := range repoDesc.Repos {
 		repo := repoDesc.Repos[x]
@@ -425,10 +441,14 @@ func (gl *GitLabHost) Backup() {
 
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
-		if res != nil {
-			logger.Printf("backup failed: %+v\n", res)
+		if res.Error != nil {
+			logger.Printf("backup failed: %+v\n", *res.Error)
 		}
+
+		providerBackupResults = append(providerBackupResults, res)
 	}
+
+	return providerBackupResults
 }
 
 // return normalised method.

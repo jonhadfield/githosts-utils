@@ -934,26 +934,40 @@ func (g *GiteaHost) diffRemoteMethod() string {
 	}
 }
 
-func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], token, repo.HTTPSUrl[firstPos+2:])
-		results <- processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+
+		backupResult := RepoBackupResults{
+			Repo: repo.PathWithNameSpace,
+		}
+
+		status := statusOk
+		if err != nil {
+			status = statusFailed
+			backupResult.Error = &err
+		}
+
+		backupResult.Status = status
+
+		results <- backupResult
 	}
 }
 
-func (g *GiteaHost) Backup() {
+func (g *GiteaHost) Backup() ProviderBackupResult {
 	if g.BackupDir == "" {
 		logger.Printf("backup skipped as backup directory not specified")
 
-		return
+		return ProviderBackupResult{}
 	}
 
 	maxConcurrent := 5
 	repoDesc := g.describeRepos()
 
 	jobs := make(chan repository, len(repoDesc.Repos))
-	results := make(chan error, maxConcurrent)
+	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
 		go giteaWorker(g.Token, g.LogLevel, g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, jobs, results)
@@ -966,12 +980,18 @@ func (g *GiteaHost) Backup() {
 
 	close(jobs)
 
+	var providerBackupResults ProviderBackupResult
+
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
-		if res != nil {
-			logger.Printf("backup failed: %+v\n", res)
+		if res.Error != nil {
+			logger.Printf("backup failed: %+v\n", *res.Error)
 		}
+
+		providerBackupResults = append(providerBackupResults, res)
 	}
+
+	return providerBackupResults
 }
 
 func (g *GiteaHost) getAllUserRepositories() []repository {
