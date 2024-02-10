@@ -200,19 +200,33 @@ func (bb BitbucketHost) getAPIURL() string {
 	return bb.APIURL
 }
 
-func bitBucketWorker(logLevel int, user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func bitBucketWorker(logLevel int, user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		parts := strings.Split(repo.HTTPSUrl, "//")
 		repo.URLWithBasicAuth = parts[0] + "//" + user + ":" + token + "@" + parts[1]
-		results <- processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+
+		backupResult := RepoBackupResults{
+			Repo: repo.PathWithNameSpace,
+		}
+
+		status := statusOk
+		if err != nil {
+			status = statusFailed
+			backupResult.Error = &err
+		}
+
+		backupResult.Status = status
+
+		results <- backupResult
 	}
 }
 
-func (bb BitbucketHost) Backup() {
+func (bb BitbucketHost) Backup() ProviderBackupResult {
 	if bb.BackupDir == "" {
 		logger.Printf("backup skipped as backup directory not specified")
 
-		return
+		return ProviderBackupResult{}
 	}
 
 	maxConcurrent := 5
@@ -230,7 +244,7 @@ func (bb BitbucketHost) Backup() {
 
 	jobs := make(chan repository, len(drO.Repos))
 
-	results := make(chan error, maxConcurrent)
+	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
 		go bitBucketWorker(bb.LogLevel, bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, jobs, results)
@@ -243,12 +257,18 @@ func (bb BitbucketHost) Backup() {
 
 	close(jobs)
 
+	var providerBackupResults ProviderBackupResult
+
 	for a := 1; a <= len(drO.Repos); a++ {
 		res := <-results
-		if res != nil {
-			logger.Printf("backup failed: %+v\n", res)
+		if res.Error != nil {
+			logger.Printf("backup failed: %+v\n", *res.Error)
 		}
+
+		providerBackupResults = append(providerBackupResults, res)
 	}
+
+	return providerBackupResults
 }
 
 type BitbucketHost struct {

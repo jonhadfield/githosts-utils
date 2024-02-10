@@ -365,7 +365,6 @@ func (gh *GitHubHost) describeRepos() describeReposOutput {
 		orgs = remove(orgs, "*")
 		// get a list of orgs the authenticated user belongs to
 		githubOrgs := gh.describeGithubUserOrganizations()
-
 		for _, gho := range githubOrgs {
 			orgs = append(orgs, gho.Name)
 		}
@@ -376,30 +375,62 @@ func (gh *GitHubHost) describeRepos() describeReposOutput {
 		repos = append(repos, gh.describeGithubOrgRepos(org)...)
 	}
 
+	// remove any duplicate repos
+	// this can happen if the authenticated user is a member of an org and also has their own repos
+	repos = removeDuplicates(repos)
+
 	return describeReposOutput{
 		Repos: repos,
 	}
 }
 
-func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- error) {
+func removeDuplicates(repos []repository) []repository {
+	var uniqueRepos []repository
+	keys := make(map[string]bool)
+
+	for _, repo := range repos {
+		if _, value := keys[repo.PathWithNameSpace]; !value {
+			keys[repo.PathWithNameSpace] = true
+			uniqueRepos = append(uniqueRepos, repo)
+		}
+	}
+
+	return uniqueRepos
+}
+
+func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		firstPos := strings.Index(repo.HTTPSUrl, "//")
 		repo.URLWithToken = fmt.Sprintf("%s%s@%s", repo.HTTPSUrl[:firstPos+2], stripTrailing(token, "\n"), repo.HTTPSUrl[firstPos+2:])
-		results <- processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+
+		backupResult := RepoBackupResults{
+			Repo: repo.PathWithNameSpace,
+		}
+
+		status := statusOk
+		if err != nil {
+			status = statusFailed
+			backupResult.Error = &err
+		}
+
+		backupResult.Status = status
+
+		results <- backupResult
 	}
 }
 
-func (gh *GitHubHost) Backup() {
+func (gh *GitHubHost) Backup() ProviderBackupResult {
 	if gh.BackupDir == "" {
 		logger.Printf("backup skipped as backup directory not specified")
 
-		return
+		return nil
 	}
 
 	maxConcurrent := 10
 	repoDesc := gh.describeRepos()
 	jobs := make(chan repository, len(repoDesc.Repos))
-	results := make(chan error, maxConcurrent)
+	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
 		go gitHubWorker(gh.LogLevel, gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, jobs, results)
@@ -412,12 +443,18 @@ func (gh *GitHubHost) Backup() {
 
 	close(jobs)
 
+	var providerBackupResults ProviderBackupResult
+
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
-		if res != nil {
-			logger.Printf("backup failed: %+v\n", res)
+		if res.Error != nil {
+			logger.Printf("backup failed: %+v\n", *res.Error)
 		}
+
+		providerBackupResults = append(providerBackupResults, res)
 	}
+
+	return providerBackupResults
 }
 
 // return normalised method.

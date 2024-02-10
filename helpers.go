@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pkg/errors"
+	"gitlab.com/tozd/go/errors"
 )
 
 const (
@@ -29,7 +29,7 @@ func getTimestamp() string {
 	return t.Format(timeStampFormat)
 }
 
-func timeStampToTime(s string) (time.Time, error) {
+func timeStampToTime(s string) (time.Time, errors.E) {
 	if len(s) != bundleTimestampChars {
 		return time.Time{}, errors.New("invalid timestamp")
 	}
@@ -50,7 +50,7 @@ func stripTrailing(input string, toStrip string) string {
 	return input
 }
 
-func isEmpty(clonedRepoPath string) (bool, error) {
+func isEmpty(clonedRepoPath string) (bool, errors.E) {
 	remoteHeadsCmd := exec.Command("git", "count-objects", "-v")
 	remoteHeadsCmd.Dir = clonedRepoPath
 
@@ -84,7 +84,7 @@ func isEmpty(clonedRepoPath string) (bool, error) {
 	}
 
 	if matchingLinesFound != 2 {
-		return false, fmt.Errorf("failed to get object counts from %s", clonedRepoPath)
+		return false, errors.Errorf("failed to get object counts from %s", clonedRepoPath)
 	}
 
 	if !looseObjects && !inPackObjects {

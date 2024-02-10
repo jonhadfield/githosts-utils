@@ -12,15 +12,18 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pkg/errors"
+	"gitlab.com/tozd/go/errors"
 )
 
 const (
 	envVarGitBackupDir  = "GIT_BACKUP_DIR"
+	envVarGitHostsLog   = "GITHOSTS_LOG"
 	refsMethod          = "refs"
 	cloneMethod         = "clone"
 	defaultRemoteMethod = cloneMethod
 	logEntryPrefix      = "githosts-utils: "
+	statusOk            = "ok"
+	statusFailed        = "failed"
 )
 
 type repository struct {
@@ -38,10 +41,17 @@ type describeReposOutput struct {
 	Repos []repository
 }
 
+type RepoBackupResults struct {
+	Repo   string    `json:"repo,omitempty"`
+	Status string    `json:"status,omitempty"` // ok, failed
+	Error  *errors.E `json:"error,omitempty"`
+}
+type ProviderBackupResult []RepoBackupResults
+
 type gitProvider interface {
 	getAPIURL() string
 	describeRepos() describeReposOutput
-	Backup()
+	Backup() ProviderBackupResult
 	diffRemoteMethod() string
 }
 
@@ -60,6 +70,7 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
 	}
 
 	var rHeads, lHeads gitRefs
+
 	var err error
 
 	lHeads, err = getLatestBundleRefs(backupPath)
@@ -91,6 +102,7 @@ func cutBySpaceAndTrimOutput(in string) (before, after string, found bool) {
 	if f {
 		b = strings.TrimSpace(b)
 		a = strings.TrimSpace(a)
+
 		if len(a) > 0 && len(b) > 0 {
 			return b, a, true
 		}
@@ -156,7 +168,7 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
-func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) error {
+func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) errors.E {
 	// create backup path
 	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
 	backupPath := filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
@@ -165,7 +177,9 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	if delErr != nil {
 		logger.Fatal(delErr)
 	}
+
 	var cloneURL string
+
 	if repo.URLWithToken != "" {
 		cloneURL = repo.URLWithToken
 	} else if repo.URLWithBasicAuth != "" {
@@ -184,18 +198,23 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	// clone repo
 	logger.Printf("cloning: %s to: %s", repo.HTTPSUrl, workingPath)
+
 	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	cloneCmd.Dir = backupDIR
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
+	if cloneErr != nil {
+		fmt.Printf("cloning failed for repository: %s - %s\n", repo.Name, cloneErr)
+	}
+
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
 
 	if cloneErr != nil {
-		if os.Getenv("GITHOSTS_LOG") == "debug" {
+		if os.Getenv(envVarGitHostsLog) == "debug" {
 			return errors.Wrapf(cloneErr, "cloning failed: %s", strings.Join(cloneOutLines, ", "))
 		}
 
-		return fmt.Errorf("cloning failed for repository: %s - %w", repo.Name, cloneErr)
+		return errors.Errorf("cloning failed for repository: %s - %s", repo.Name, cloneErr)
 	}
 
 	// create bundle
