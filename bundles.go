@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"gitlab.com/tozd/go/errors"
 )
 
 const (
@@ -141,12 +141,12 @@ func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
 	}
 }
 
-func createBundle(logLevel int, workingPath, backupPath string, repo repository) error {
+func createBundle(logLevel int, workingPath, backupPath string, repo repository) errors.E {
 	objectsPath := filepath.Join(workingPath, "objects")
 
-	dirs, err := os.ReadDir(objectsPath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to read objectsPath: %s", objectsPath)
+	dirs, readErr := os.ReadDir(objectsPath)
+	if readErr != nil {
+		return errors.Wrapf(readErr, "failed to read objectsPath: %s", objectsPath)
 	}
 
 	emptyClone, err := isEmpty(workingPath)
@@ -155,7 +155,7 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 	}
 
 	if len(dirs) == 2 && emptyClone {
-		return fmt.Errorf("%s is empty", repo.PathWithNameSpace)
+		return errors.Errorf("%s is empty", repo.PathWithNameSpace)
 	}
 
 	backupFile := repo.Name + "." + getTimestamp() + bundleExtension
@@ -227,10 +227,10 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 	return bfs, err
 }
 
-func pruneBackups(backupPath string, keep int) error {
-	files, err := os.ReadDir(backupPath)
-	if err != nil {
-		return errors.Wrap(err, "backup path read failed")
+func pruneBackups(backupPath string, keep int) errors.E {
+	files, readErr := os.ReadDir(backupPath)
+	if readErr != nil {
+		return errors.Wrap(readErr, "backup path read failed")
 	}
 
 	if len(files) > 0 {
@@ -248,16 +248,16 @@ func pruneBackups(backupPath string, keep int) error {
 
 		var ts time.Time
 
-		ts, err = timeStampFromBundleName(f.Name())
+		ts, err := timeStampFromBundleName(f.Name())
 		if err != nil {
 			return err
 		}
 
 		var info os.FileInfo
 
-		info, err = f.Info()
-		if err != nil {
-			return err
+		info, infoErr := f.Info()
+		if infoErr != nil {
+			return errors.Wrap(infoErr, "failed to get file info")
 		}
 
 		bfs = append(bfs, bundleFile{
@@ -269,10 +269,12 @@ func pruneBackups(backupPath string, keep int) error {
 	sort.Sort(bfs)
 
 	firstFilesToDelete := len(bfs) - keep
+	var err errors.E
 	for x, f := range files {
+
 		if x < firstFilesToDelete {
-			if err = os.Remove(filepath.Join(backupPath, f.Name())); err != nil {
-				return err
+			if removeErr := os.Remove(filepath.Join(backupPath, f.Name())); err != nil {
+				return errors.Wrap(removeErr, "failed to remove file")
 			}
 
 			continue
@@ -281,7 +283,7 @@ func pruneBackups(backupPath string, keep int) error {
 		break
 	}
 
-	return err
+	return nil
 }
 
 type bundleFile struct {
@@ -303,7 +305,7 @@ func (b bundleFiles) Swap(i, j int) {
 	b[i], b[j] = b[j], b[i]
 }
 
-func timeStampFromBundleName(i string) (time.Time, error) {
+func timeStampFromBundleName(i string) (time.Time, errors.E) {
 	tokens := strings.Split(i, ".")
 	if len(tokens) < minBundleFileNameTokens {
 		return time.Time{}, errors.New("invalid bundle name")
@@ -311,7 +313,7 @@ func timeStampFromBundleName(i string) (time.Time, error) {
 
 	sTime := tokens[len(tokens)-2]
 	if len(sTime) != bundleTimestampChars {
-		return time.Time{}, fmt.Errorf("bundle '%s' has an invalid timestamp", i)
+		return time.Time{}, errors.Errorf("bundle '%s' has an invalid timestamp", i)
 	}
 
 	return timeStampToTime(sTime)

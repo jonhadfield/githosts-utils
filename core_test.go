@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,6 +46,7 @@ func createTestTextFile(fileName, content string) string {
 }
 
 func TestHostsImplementGitHostsInterface(t *testing.T) {
+	t.Parallel()
 	require.Implements(t, (*gitProvider)(nil), new(GiteaHost))
 	require.Implements(t, (*gitProvider)(nil), new(GitHubHost))
 	require.Implements(t, (*gitProvider)(nil), new(BitbucketHost))
@@ -54,11 +54,13 @@ func TestHostsImplementGitHostsInterface(t *testing.T) {
 }
 
 func TestAllTrue(t *testing.T) {
-	assert.True(t, allTrue(true, true, true))
-	assert.False(t, allTrue(true, false, true))
+	t.Parallel()
+	require.True(t, allTrue(true, true, true))
+	require.False(t, allTrue(true, false, true))
 }
 
 func TestGetLatestBundleRefs(t *testing.T) {
+	t.Parallel()
 	refs, err := getLatestBundleRefs("testfiles/example-bundles")
 	require.NoError(t, err)
 	var found int
@@ -81,6 +83,8 @@ func TestGetLatestBundleRefs(t *testing.T) {
 }
 
 func TestGetSHA2Hash(t *testing.T) {
+	t.Parallel()
+
 	pathOne := createTestTextFile("one", txtSomeContent)
 	sha, err := getSHA2Hash(pathOne)
 	require.NoError(t, err)
@@ -129,6 +133,8 @@ func TestGetTimeStampPartFromFileName(t *testing.T) {
 }
 
 func TestCreateHost(t *testing.T) {
+	t.Parallel()
+
 	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{})
 	require.NoError(t, err)
 	require.Equal(t, bitbucketAPIURL, bbHost.getAPIURL())
@@ -146,6 +152,8 @@ func TestCreateHost(t *testing.T) {
 }
 
 func TestGetLatestBundlePath(t *testing.T) {
+	t.Parallel()
+
 	// invalid directory
 	bundlePath, err := getLatestBundlePath("invalid-directory")
 	require.Empty(t, bundlePath)
@@ -165,6 +173,8 @@ func TestGetLatestBundlePath(t *testing.T) {
 }
 
 func TestPruneBackups(t *testing.T) {
+	t.Parallel()
+
 	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
@@ -173,25 +183,27 @@ func TestPruneBackups(t *testing.T) {
 	}()
 
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
-	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
+	require.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
 
 	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle"}
+
 	var err error
+
 	for _, df := range dummyFiles {
 		dfPath := path.Join(dfDir, df)
 		_, err = os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
-		assert.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
+		require.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
 	}
-	assert.NoError(t, pruneBackups(dfDir, 2))
+	require.NoError(t, pruneBackups(dfDir, 2))
 	files, err := os.ReadDir(dfDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	var found int
 	notExpectedPostPrune := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, txtRepo01TestBundleName}
 	expectedPostPrune := []string{"repo0.20200501010111.bundle", "repo0.20200601011111.bundle"}
 
 	for _, f := range files {
-		assert.NotContains(t, notExpectedPostPrune, f.Name())
-		assert.Contains(t, expectedPostPrune, f.Name())
+		require.NotContains(t, notExpectedPostPrune, f.Name())
+		require.Contains(t, expectedPostPrune, f.Name())
 		found++
 	}
 	if found != 2 {
@@ -200,6 +212,8 @@ func TestPruneBackups(t *testing.T) {
 }
 
 func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
+	t.Parallel()
+
 	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
@@ -208,42 +222,54 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	}()
 
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
-	assert.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
+	require.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
 
 	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
+
 	var err error
+
 	for _, df := range dummyFiles {
 		dfPath := path.Join(dfDir, df)
 		_, err = os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
-		assert.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
+		require.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
 	}
 
-	assert.NoError(t, pruneBackups(dfDir, 2))
+	require.NoError(t, pruneBackups(dfDir, 2))
 }
 
 func TestTimeStampFromBundleName(t *testing.T) {
+	t.Parallel()
+
 	timestamp, err := timeStampFromBundleName("reponame.20200401111111.bundle")
-	assert.NoError(t, err)
-	expected, err := time.Parse(timeStampFormat, "20200401111111")
-	assert.NoError(t, err)
-	assert.Equal(t, expected, timestamp)
+	require.NoError(t, err)
+
+	expected, pErr := time.Parse(timeStampFormat, "20200401111111")
+	require.NoError(t, pErr)
+	require.Equal(t, expected, timestamp)
 }
 
 func TestTimeStampFromBundleNameWithPeriods(t *testing.T) {
+	t.Parallel()
+
 	timestamp, err := timeStampFromBundleName("repo.name.20200401111111.bundle")
-	assert.NoError(t, err)
-	expected, err := time.Parse(timeStampFormat, "20200401111111")
-	assert.NoError(t, err)
-	assert.Equal(t, expected, timestamp)
+	require.NoError(t, err)
+
+	expected, pErr := time.Parse(timeStampFormat, "20200401111111")
+	require.NoError(t, pErr)
+	require.Equal(t, expected, timestamp)
 }
 
 func TestTimeStampFromBundleNameReturnsErrorWithInvalidTimestamp(t *testing.T) {
+	t.Parallel()
+
 	_, err := timeStampFromBundleName("reponame.2020.0401111111.bundle")
-	assert.Error(t, err)
-	assert.Equal(t, "bundle 'reponame.2020.0401111111.bundle' has an invalid timestamp", err.Error())
+	require.Error(t, err)
+	require.Equal(t, "bundle 'reponame.2020.0401111111.bundle' has an invalid timestamp", err.Error())
 }
 
 func TestGenerateMapFromRefsCmdOutput(t *testing.T) {
+	t.Parallel()
+
 	// use a mixture of spaces and tabs to separate the sha from the ref
 	// include tag ref with leading space
 	// include invalid line with only a single entry
