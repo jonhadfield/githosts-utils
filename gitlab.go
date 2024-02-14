@@ -42,12 +42,12 @@ type GitLabHost struct {
 	LogLevel              int
 }
 
-func (gl *GitLabHost) getAuthenticatedGitLabUser() (user gitlabUser) {
+func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 	gitlabToken := strings.TrimSpace(gl.Token)
 	if gitlabToken == "" {
 		logger.Print("GitLab token not provided")
 
-		return
+		return gitlabUser{}
 	}
 
 	var err error
@@ -97,8 +97,10 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() (user gitlabUser) {
 	default:
 		logger.Printf("failed to authenticate due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-		return
+		return gitlabUser{}
 	}
+
+	var user gitlabUser
 
 	if err = json.Unmarshal([]byte(bodyStr), &user); err != nil {
 		logger.Fatal(err)
