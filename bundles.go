@@ -26,10 +26,10 @@ const (
 	minBundleFileNameTokens  = 3
 )
 
-func getLatestBundlePath(backupPath string) (path string, err error) {
+func getLatestBundlePath(backupPath string) (string, error) {
 	bFiles, err := getBundleFiles(backupPath)
 	if err != nil {
-		return
+		return "", fmt.Errorf("failed to get bundle files: %w", err)
 	}
 
 	if len(bFiles) == 0 {
@@ -68,16 +68,19 @@ func getLatestBundlePath(backupPath string) (path string, err error) {
 	return filepath.Join(backupPath, ss[0].Key), nil
 }
 
-func getBundleRefs(bundlePath string) (refs gitRefs, err error) {
+func getBundleRefs(bundlePath string) (gitRefs, error) {
 	bundleRefsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
 	out, bundleRefsCmdErr := bundleRefsCmd.CombinedOutput()
 	if bundleRefsCmdErr != nil {
-		return refs, errors.New(string(out))
+		return nil, errors.New(string(out))
 	}
 
-	refs, err = generateMapFromRefsCmdOutput(out)
+	refs, err := generateMapFromRefsCmdOutput(out)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate map from refs cmd output: %w", err)
+	}
 
-	return
+	return refs, nil
 }
 
 func dirHasBundles(dir string) bool {
@@ -94,7 +97,7 @@ func dirHasBundles(dir string) bool {
 
 	// TODO: why limit to 1?
 	names, err := f.Readdirnames(1)
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return false
 	}
 
@@ -111,22 +114,25 @@ func dirHasBundles(dir string) bool {
 	return false
 }
 
-func getLatestBundleRefs(backupPath string) (refs gitRefs, err error) {
+func getLatestBundleRefs(backupPath string) (gitRefs, error) {
 	// if we encounter an invalid bundle, then we need to repeat until we find a valid one or run out
 	for {
-		var path string
-		path, err = getLatestBundlePath(backupPath)
+		path, err := getLatestBundlePath(backupPath)
 		if err != nil {
 			return nil, err
 		}
 
 		// get refs for bundle
+		var refs gitRefs
+
 		if refs, err = getBundleRefs(path); err != nil {
 			// failed to get refs
 			if strings.Contains(err.Error(), invalidBundleStringCheck) {
 				// rename the invalid bundle
-				logger.Printf("renaming invalid bundle to %s.invalid", path)
-				if err = os.Rename(path, fmt.Sprintf("%s.invalid", path)); err != nil {
+				logger.Printf("renaming invalid bundle to %s.invalid",
+					path)
+				if err = os.Rename(path,
+					fmt.Sprintf("%s.invalid", path)); err != nil {
 					// failed to rename, meaning a filesystem or permissions issue
 					return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
 				}

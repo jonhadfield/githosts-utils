@@ -142,7 +142,7 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 	defer cancel()
 
 	for {
-		req, errNewReq := http.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
+		req, errNewReq := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
 		if errNewReq != nil {
 			logger.Fatal(errNewReq)
 		}
@@ -153,7 +153,7 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 
 		var resp *http.Response
 
-		resp, err = httpClient.Do(req)
+		resp, err = bb.httpClient.Do(req)
 		if err != nil {
 			logger.Fatal(err)
 		}
