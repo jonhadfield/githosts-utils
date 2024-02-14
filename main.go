@@ -2,7 +2,6 @@ package githosts
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 )
@@ -27,15 +26,4 @@ func init() {
 	if logger == nil {
 		logger = log.New(os.Stdout, logEntryPrefix, log.Lshortfile|log.LstdFlags)
 	}
-}
-
-var httpTransport = &http.Transport{
-	MaxIdleConns:       maxIdleConns,
-	IdleConnTimeout:    idleConnTimeout,
-	DisableCompression: true,
-}
-
-var httpClient = &http.Client{
-	Transport: httpTransport,
-	Timeout:   defaultHttpClientTimeout,
 }
