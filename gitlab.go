@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -66,7 +67,9 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 
 	req, err = retryablehttp.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Println(err)
+
+		return gitlabUser{}
 	}
 
 	req.Header.Set("Private-Token", gl.Token)
@@ -77,7 +80,9 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 
 	resp, err = gl.httpClient.Do(req)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Println(err)
+
+		return gitlabUser{}
 	}
 
 	bodyB, _ := io.ReadAll(resp.Body)
@@ -91,9 +96,9 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 			logger.Println("authentication successful")
 		}
 	case http.StatusForbidden:
-		logger.Fatal("failed to authenticate (HTTP 403)")
+		logger.Println("failed to authenticate (HTTP 403)")
 	case http.StatusUnauthorized:
-		logger.Fatal("failed to authenticate due to invalid credentials (HTTP 401)")
+		logger.Println("failed to authenticate due to invalid credentials (HTTP 401)")
 	default:
 		logger.Printf("failed to authenticate due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
@@ -103,7 +108,9 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 	var user gitlabUser
 
 	if err = json.Unmarshal([]byte(bodyStr), &user); err != nil {
-		logger.Fatal(err)
+		logger.Println(err)
+
+		return gitlabUser{}
 	}
 
 	return user
@@ -131,7 +138,7 @@ var validAccessLevels = map[int]string{
 	50: "Owner",
 }
 
-func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository {
+func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repository, errors.E) {
 	var sortedLevels []int
 	for k := range validAccessLevels {
 		sortedLevels = append(sortedLevels, k)
@@ -153,8 +160,6 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository
 
 	getProjectsURL := gl.APIURL + "/projects"
 
-	var err error
-
 	if gl.ProjectMinAccessLevel == 0 {
 		gl.ProjectMinAccessLevel = GitLabDefaultMinimumProjectAccessLevel
 	}
@@ -175,7 +180,7 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository
 	if err != nil {
 		logger.Print(err)
 
-		return []repository{}
+		return []repository{}, errors.Wrap(err, "failed to parse url")
 	}
 
 	q := u.Query()
@@ -193,11 +198,13 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository
 	for {
 		var resp *http.Response
 
-		resp, body, err = makeGitLabRequest(&client, reqUrl, gl.Token)
-		if err != nil {
-			logger.Print(err)
+		var rErr errors.E
 
-			return []repository{}
+		resp, body, rErr = makeGitLabRequest(&client, reqUrl, gl.Token)
+		if rErr != nil {
+			logger.Print(rErr)
+
+			return []repository{}, rErr
 		}
 
 		if gl.LogLevel > 0 {
@@ -212,17 +219,19 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository
 		case http.StatusForbidden:
 			logger.Println("failed to get projects due to invalid missing permissions (HTTP 403)")
 
-			return []repository{}
+			return []repository{}, errors.New("failed to get projects due to invalid missing permissions (HTTP 403)")
 		default:
 			logger.Printf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return []repository{}
+			return []repository{}, errors.Errorf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 		}
 
 		var respObj gitLabGetProjectsResponse
 
 		if err = json.Unmarshal(body, &respObj); err != nil {
-			logger.Fatal(err)
+			logger.Println(err)
+
+			return []repository{}, errors.Errorf("failed to unmarshall gitlab json response: %s", err.Error())
 		}
 
 		for _, project := range respObj {
@@ -255,16 +264,16 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) []repository
 		}
 	}
 
-	return repos
+	return repos, nil
 }
 
-func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []byte, error) {
+func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []byte, errors.E) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to request %s: %w", reqUrl, err)
+		return nil, nil, errors.Errorf("failed to request %s: %s", reqUrl, err.Error())
 	}
 
 	req.Header.Set("Private-Token", token)
@@ -273,12 +282,12 @@ func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("request failed: %w", err)
+		return nil, nil, errors.Errorf("request failed: %s", err.Error())
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, nil, errors.Errorf("failed to read response body: %s", err.Error())
 	}
 
 	body = bytes.ReplaceAll(body, []byte("\r"), []byte("\r\n"))
@@ -332,39 +341,7 @@ func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 	}, nil
 }
 
-//
-// func (gl *GitLabHost) auth(key, secret string) (token string, err error) {
-// 	b, _, _, err := httpRequest(httpRequestInput{
-// 		client: gl.httpClient,
-// 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
-// 		method: http.MethodPost,
-// 		headers: http.Header{
-// 			"Host":         []string{"bitbucket.org"},
-// 			"Content-Type": []string{"application/x-www-form-urlencoded"},
-// 			"Accept":       []string{"*/*"},
-// 		},
-// 		reqBody:           []byte("grant_type=client_credentials"),
-// 		basicAuthUser:     key,
-// 		basicAuthPassword: secret,
-// 		secrets:           []string{key, secret},
-// 		timeout:           defaultHttpRequestTimeout,
-// 	})
-// 	if err != nil {
-// 		return
-// 	}
-//
-// 	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
-//
-// 	var respObj bitbucketAuthResponse
-//
-// 	if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-// 		return "", errors.New("failed to unmarshall bitbucket json response")
-// 	}
-//
-// 	return respObj.AccessToken, err
-// }
-
-func (gl *GitLabHost) describeRepos() describeReposOutput {
+func (gl *GitLabHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing repositories")
 
 	tr := &http.Transport{
@@ -375,11 +352,14 @@ func (gl *GitLabHost) describeRepos() describeReposOutput {
 
 	client := &http.Client{Transport: tr}
 
-	userRepos := gl.getAllProjectRepositories(*client)
+	userRepos, err := gl.getAllProjectRepositories(*client)
+	if err != nil {
+		return describeReposOutput{}, err
+	}
 
 	return describeReposOutput{
 		Repos: userRepos,
-	}
+	}, nil
 }
 
 func (gl *GitLabHost) getAPIURL() string {
@@ -399,7 +379,7 @@ func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod str
 		status := statusOk
 		if err != nil {
 			status = statusFailed
-			backupResult.Error = &err
+			backupResult.Error = err
 		}
 
 		backupResult.Status = status
@@ -423,7 +403,12 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	repoDesc := gl.describeRepos()
+	repoDesc, err := gl.describeRepos()
+	if err != nil {
+		return ProviderBackupResult{
+			Error: errors.Wrap(err, "failed to describe repos"),
+		}
+	}
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan RepoBackupResults, maxConcurrent)
@@ -444,10 +429,10 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
 		if res.Error != nil {
-			logger.Printf("backup failed: %+v\n", *res.Error)
+			logger.Printf("backup failed: %+v\n", res.Error)
 		}
 
-		providerBackupResults = append(providerBackupResults, res)
+		providerBackupResults.BackupResults = append(providerBackupResults.BackupResults, res)
 	}
 
 	return providerBackupResults

@@ -49,7 +49,7 @@ func TestGiteaGetUsers(t *testing.T) {
 
 	gHost.Token = giteaToken
 
-	users := gHost.getAllUsers()
+	users, _ := gHost.getAllUsers()
 	require.True(t, userExists(userExistsInput{
 		matchBy:  giteaMatchByIfDefined,
 		users:    users,
@@ -265,13 +265,21 @@ func TestGetAllUserRepos(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	users := gHost.getAllUsers()
+	users, _ := gHost.getAllUsers()
 
 	var repos []repository
+
 	var userCount int
+
 	for _, user := range users {
 		userCount++
-		repos = append(repos, gHost.getAllUserRepos(user.Login)...)
+
+		var allUserRepos []repository
+		allUserRepos, err = gHost.getAllUserRepos(user.Login)
+
+		require.NoError(t, err)
+
+		repos = append(repos, allUserRepos...)
 	}
 
 	require.True(t, repoExists(repoExistsInput{

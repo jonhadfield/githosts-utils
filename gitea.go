@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -325,10 +326,15 @@ func organisationExists(in organizationExistsInput) bool {
 	return false
 }
 
-func (g *GiteaHost) describeRepos() describeReposOutput {
+func (g *GiteaHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing repositories")
 
-	userRepos := g.getAllUserRepositories()
+	userRepos, err := g.getAllUserRepositories()
+	if err != nil {
+		logger.Println(err)
+
+		return describeReposOutput{}, err
+	}
 
 	orgs := g.getOrganizations()
 
@@ -339,7 +345,7 @@ func (g *GiteaHost) describeRepos() describeReposOutput {
 
 	return describeReposOutput{
 		Repos: append(userRepos, orgsRepos...),
-	}
+	}, nil
 }
 
 func extractDomainFromAPIUrl(apiUrl string) string {
@@ -377,7 +383,7 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) []r
 	return repos
 }
 
-func (g *GiteaHost) getAllUsers() []giteaUser {
+func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 	if strings.TrimSpace(g.APIURL) == "" {
 		g.APIURL = gitlabAPIURL
 	}
@@ -392,7 +398,7 @@ func (g *GiteaHost) getAllUsers() []giteaUser {
 	if err != nil {
 		logger.Printf("failed to parse get users URL %s: %v", getUsersURL, err)
 
-		return nil
+		return nil, errors.Wrap(err, "failed to parse get users URL")
 	}
 
 	q := u.Query()
@@ -414,7 +420,7 @@ func (g *GiteaHost) getAllUsers() []giteaUser {
 		if err != nil {
 			logger.Printf("failed to get users: %v", err)
 
-			return nil
+			return nil, errors.Wrap(err, "failed to make Gitea request")
 		}
 
 		if g.LogLevel > 0 {
@@ -429,17 +435,19 @@ func (g *GiteaHost) getAllUsers() []giteaUser {
 		case http.StatusForbidden:
 			logger.Println("failed to get users due to invalid or missing credentials (HTTP 403)")
 
-			return nil
+			return nil, errors.Wrap(err, "forbidden response to Gitea request")
 		default:
 			logger.Printf("failed to get users with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return nil
+			return nil, errors.Wrap(err, "unexpected errors making Gitea request")
 		}
 
 		var respObj giteaGetUsersResponse
 
 		if err = json.Unmarshal(body, &respObj); err != nil {
-			logger.Fatal(err)
+			logger.Println(err)
+
+			return nil, errors.Wrap(err, "failed to unmarshal Gitea response")
 		}
 
 		users = append(users, respObj...)
@@ -457,7 +465,7 @@ func (g *GiteaHost) getAllUsers() []giteaUser {
 		}
 	}
 
-	return users
+	return users, nil
 }
 
 func (g *GiteaHost) getOrganizations() []giteaOrganization {
@@ -815,7 +823,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 	return repos
 }
 
-func (g *GiteaHost) getAllUserRepos(userName string) []repository {
+func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
 	logger.Printf("retrieving all repositories for user %s", userName)
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -832,7 +840,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) []repository {
 	if err != nil {
 		logger.Printf("failed to parse get %s user repos URL %s: %v", userName, getOrganizationReposURL, err)
 
-		return nil
+		return nil, errors.Wrap(err, "failed to parse get user repos URL")
 	}
 
 	q := u.Query()
@@ -852,7 +860,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) []repository {
 		if err != nil {
 			logger.Printf("failed to get repos: %v", err)
 
-			return nil
+			return nil, errors.Wrap(err, "failed to parse get user repos URL")
 		}
 
 		if g.LogLevel > 0 {
@@ -867,17 +875,17 @@ func (g *GiteaHost) getAllUserRepos(userName string) []repository {
 		case http.StatusForbidden:
 			logger.Println("failed to get repos due to invalid or missing credentials (HTTP 403)")
 
-			return nil
+			return nil, errors.Wrap(err, "failed to get repos due to invalid or missing credentials (HTTP 403)")
 		default:
 			logger.Printf("failed to get repos with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return nil
+			return nil, errors.Wrap(err, "failed to parse get user repos URL")
 		}
 
 		var respObj []giteaRepository
 
 		if err = json.Unmarshal(body, &respObj); err != nil {
-			logger.Fatal(err)
+			return nil, errors.Wrap(err, "failed to unmarshal user repos json response")
 		}
 
 		for _, r := range respObj {
@@ -887,7 +895,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) []repository {
 			if err != nil {
 				logger.Printf("failed to parse clone url for %s\n", r.Name)
 
-				continue
+				return nil, errors.Wrap(err, fmt.Sprintf("failed to parse clone url for: %s", r.CloneUrl))
 			}
 
 			repos = append(repos, repository{
@@ -913,7 +921,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) []repository {
 		}
 	}
 
-	return repos
+	return repos, nil
 }
 
 func (g *GiteaHost) getAPIURL() string {
@@ -947,7 +955,7 @@ func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string,
 		status := statusOk
 		if err != nil {
 			status = statusFailed
-			backupResult.Error = &err
+			backupResult.Error = err
 		}
 
 		backupResult.Status = status
@@ -964,7 +972,14 @@ func (g *GiteaHost) Backup() ProviderBackupResult {
 	}
 
 	maxConcurrent := 5
-	repoDesc := g.describeRepos()
+
+	repoDesc, err := g.describeRepos()
+	if err != nil {
+		return ProviderBackupResult{
+			BackupResults: nil,
+			Error:         err,
+		}
+	}
 
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan RepoBackupResults, maxConcurrent)
@@ -985,17 +1000,22 @@ func (g *GiteaHost) Backup() ProviderBackupResult {
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
 		if res.Error != nil {
-			logger.Printf("backup failed: %+v\n", *res.Error)
+			logger.Printf("backup failed: %+v\n", res.Error)
 		}
 
-		providerBackupResults = append(providerBackupResults, res)
+		providerBackupResults.BackupResults = append(providerBackupResults.BackupResults, res)
 	}
 
 	return providerBackupResults
 }
 
-func (g *GiteaHost) getAllUserRepositories() []repository {
-	users := g.getAllUsers()
+func (g *GiteaHost) getAllUserRepositories() ([]repository, errors.E) {
+	users, err := g.getAllUsers()
+	if err != nil {
+		logger.Print("failed to get all users")
+
+		return nil, errors.Wrap(err, "failed to get all users")
+	}
 
 	var repos []repository
 
@@ -1004,7 +1024,16 @@ func (g *GiteaHost) getAllUserRepositories() []repository {
 	for _, user := range users {
 		userCount++
 
-		repos = append(repos, g.getAllUserRepos(user.Login)...)
+		var userRepos []repository
+
+		userRepos, err = g.getAllUserRepos(user.Login)
+		if err != nil {
+			logger.Print("failed to get all user repositories")
+
+			return nil, errors.Wrap(err, "failed to get all user repositories")
+		}
+
+		repos = append(repos, userRepos...)
 	}
 
 	var repositories []repository
@@ -1019,5 +1048,5 @@ func (g *GiteaHost) getAllUserRepositories() []repository {
 		})
 	}
 
-	return repositories
+	return repositories, nil
 }

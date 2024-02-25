@@ -42,15 +42,20 @@ type describeReposOutput struct {
 }
 
 type RepoBackupResults struct {
-	Repo   string    `json:"repo,omitempty"`
-	Status string    `json:"status,omitempty"` // ok, failed
-	Error  *errors.E `json:"error,omitempty"`
+	Repo   string   `json:"repo,omitempty"`
+	Status string   `json:"status,omitempty"` // ok, failed
+	Error  errors.E `json:"error,omitempty"`
 }
-type ProviderBackupResult []RepoBackupResults
+
+// type ProviderBackupResult []RepoBackupResults
+type ProviderBackupResult struct {
+	BackupResults []RepoBackupResults
+	Error         errors.E
+}
 
 type gitProvider interface {
 	getAPIURL() string
-	describeRepos() describeReposOutput
+	describeRepos() (describeReposOutput, errors.E)
 	Backup() ProviderBackupResult
 	diffRemoteMethod() string
 }
@@ -283,4 +288,8 @@ func allTrue(in ...bool) bool {
 	}
 
 	return true
+}
+
+func ToPtr[T any](v T) *T {
+	return &v
 }
