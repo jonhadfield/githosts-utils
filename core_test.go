@@ -27,12 +27,16 @@ func createTestTextFile(fileName, content string) string {
 	tmpDir := os.TempDir()
 	dir, err := os.MkdirTemp(tmpDir, "soba-*")
 	if err != nil {
-		panic(err)
+		log.Println(err)
+
+		return ""
 	}
 
 	f, err := os.Create(filepath.Join(dir, fileName))
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+
+		return ""
 	}
 
 	defer f.Close()
@@ -40,6 +44,8 @@ func createTestTextFile(fileName, content string) string {
 	_, err = f.WriteString(content)
 	if err != nil {
 		log.Println(err)
+
+		return ""
 	}
 
 	return filepath.Clean(f.Name())
