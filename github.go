@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
+	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"os"
@@ -159,7 +160,7 @@ type graphQLRequest struct {
 	Variables string `json:"variables"`
 }
 
-func (gh *GitHubHost) makeGithubRequest(payload string) string {
+func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	contentReader := bytes.NewReader([]byte(payload))
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
@@ -168,45 +169,56 @@ func (gh *GitHubHost) makeGithubRequest(payload string) string {
 	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
 
 	if newReqErr != nil {
-		logger.Fatal(newReqErr)
+		logger.Println(newReqErr)
+
+		return "", errors.Wrap(newReqErr, "failed to create request")
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("bearer %s", gh.Token))
+	req.Header.Set("Authorization", "bearer "+gh.Token)
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
 	resp, reqErr := gh.httpClient.Do(req)
 	if reqErr != nil {
-		logger.Fatal(reqErr)
+		logger.Print(reqErr)
+
+		return "", errors.Wrap(reqErr, "failed to make request")
 	}
 
 	bodyB, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Print(err)
+
+		return "", errors.Wrap(err, "failed to read response body")
 	}
 
+	defer resp.Body.Close()
+
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-	_ = resp.Body.Close()
 
 	// check response for errors
 	switch resp.StatusCode {
 	case 401:
 		if strings.Contains(bodyStr, "Personal access tokens with fine grained access do not support the GraphQL API") {
-			logger.Fatal("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
+			logger.Println("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
+
+			return "", errors.New("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
 		}
 
-		logger.Fatalf("GitHub authorisation failed: %s", bodyStr)
+		logger.Printf("GitHub authorisation failed: %s", bodyStr)
+
+		return "", errors.Errorf("GitHub authorisation failed: %s", bodyStr)
 	case 200:
 		// authorisation successful
 	default:
-		logger.Fatalf("GitHub request failed: %s", bodyStr)
+		return "", errors.New("GitHub authorisation failed")
 	}
 
-	return bodyStr
+	return bodyStr, nil
 }
 
 // describeGithubUserRepos returns a list of repositories owned by authenticated user.
-func (gh *GitHubHost) describeGithubUserRepos() []repository {
+func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 	logger.Println("listing GitHub user's owned repositories")
 
 	gcs := gitHubCallSize
@@ -223,11 +235,17 @@ func (gh *GitHubHost) describeGithubUserRepos() []repository {
 	reqBody := "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
 
 	for {
-		bodyStr := gh.makeGithubRequest(reqBody)
+		bodyStr, err := gh.makeGithubRequest(reqBody)
+		if err != nil {
+
+			return nil, errors.Wrap(err, "GitHub request failed")
+		}
 
 		var respObj githubQueryNamesResponse
-		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-			logger.Fatal(err)
+		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+			logger.Print(uErr)
+
+			return nil, errors.Wrap(uErr, "failed to unmarshal response")
 		}
 
 		for _, repo := range respObj.Data.Viewer.Repositories.Edges {
@@ -247,21 +265,28 @@ func (gh *GitHubHost) describeGithubUserRepos() []repository {
 		}
 	}
 
-	return repos
+	return repos, nil
 }
 
-func (gh *GitHubHost) describeGithubUserOrganizations() []githubOrganization {
+func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, errors.E) {
 	logger.Println("listing GitHub user's related Organizations")
 
 	var orgs []githubOrganization
 
 	reqBody := "{\"query\": \"{ viewer { organizations(first:100) { edges { node { name } } } } }\""
 
-	bodyStr := gh.makeGithubRequest(reqBody)
+	bodyStr, err := gh.makeGithubRequest(reqBody)
+	if err != nil {
+		logger.Print(err)
+
+		return nil, errors.Wrap(err, "GitHub request failed")
+	}
 
 	var respObj githubQueryOrgsResponse
-	if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-		logger.Fatal(err)
+	if uErr := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		logger.Print(uErr)
+
+		return nil, errors.Wrap(uErr, "failed to unmarshal response")
 	}
 
 	if len(respObj.Errors) > 0 {
@@ -269,7 +294,7 @@ func (gh *GitHubHost) describeGithubUserOrganizations() []githubOrganization {
 			logger.Printf("failed to retrieve organizations user's a member of: %s", queryError.Message)
 		}
 
-		return nil
+		return nil, errors.New("failed to retrieve organizations user's a member of")
 	}
 
 	for _, org := range respObj.Data.Viewer.Organizations.Edges {
@@ -278,23 +303,25 @@ func (gh *GitHubHost) describeGithubUserOrganizations() []githubOrganization {
 		})
 	}
 
-	return orgs
+	return orgs, nil
 }
 
 type githubOrganization struct {
 	Name string `json:"name"`
 }
 
-func createGithubRequestPayload(body string) string {
+func createGithubRequestPayload(body string) (string, errors.E) {
 	gqlMarshalled, err := json.Marshal(graphQLRequest{Query: body})
 	if err != nil {
-		logger.Fatal(err)
+		logger.Print(err)
+
+		return "", errors.Wrap(err, "failed to marshal request")
 	}
 
-	return string(gqlMarshalled)
+	return string(gqlMarshalled), nil
 }
 
-func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
+func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, errors.E) {
 	logger.Printf("listing GitHub organization %s's repositories", orgName)
 
 	gcs := gitHubCallSize
@@ -311,20 +338,38 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 	reqBody := "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
 
 	for {
-		bodyStr := gh.makeGithubRequest(createGithubRequestPayload(reqBody))
+		payload, err := createGithubRequestPayload(reqBody)
+		if err != nil {
+			logger.Print(err)
+
+			return nil, errors.Wrap(err, "failed to create request payload")
+		}
+
+		bodyStr, err := gh.makeGithubRequest(payload)
+		if err != nil {
+			logger.Print(err)
+
+			return nil, nil
+		}
 
 		var respObj githubQueryOrgResponse
 
-		if err := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-			logger.Fatal(err)
+		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+			logger.Print(err)
+
+			return nil, errors.Wrap(uErr, "failed to unmarshal response")
 		}
 
 		if respObj.Errors != nil {
 			for _, gqlErr := range respObj.Errors {
 				if gqlErr.Type == "NOT_FOUND" {
 					logger.Printf("organization %s not found", orgName)
+
+					return nil, errors.Errorf("organization %s not found", orgName)
 				} else {
 					logger.Printf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
+
+					return nil, errors.Errorf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
 				}
 			}
 		}
@@ -346,14 +391,21 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) []repository {
 		}
 	}
 
-	return repos
+	return repos, nil
 }
 
-func (gh *GitHubHost) describeRepos() describeReposOutput {
+func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 	var repos []repository
 	if !gh.SkipUserRepos {
 		// get authenticated user's owned repos
-		repos = gh.describeGithubUserRepos()
+		var err errors.E
+
+		repos, err = gh.describeGithubUserRepos()
+		if err != nil {
+			logger.Print("failed to get GitHub user repos")
+
+			return describeReposOutput{}, err
+		}
 	}
 
 	// set orgs repos to retrieve to those specified when client constructed
@@ -364,7 +416,13 @@ func (gh *GitHubHost) describeRepos() describeReposOutput {
 		// delete the wildcard, leaving any existing specified orgs that may have been passed in
 		orgs = remove(orgs, "*")
 		// get a list of orgs the authenticated user belongs to
-		githubOrgs := gh.describeGithubUserOrganizations()
+		githubOrgs, err := gh.describeGithubUserOrganizations()
+		if err != nil {
+			logger.Print("failed to get user's GitHub organizations")
+
+			return describeReposOutput{}, err
+		}
+
 		for _, gho := range githubOrgs {
 			orgs = append(orgs, gho.Name)
 		}
@@ -372,7 +430,14 @@ func (gh *GitHubHost) describeRepos() describeReposOutput {
 
 	// append repos belonging to any orgs specified
 	for _, org := range orgs {
-		repos = append(repos, gh.describeGithubOrgRepos(org)...)
+		dRepos, err := gh.describeGithubOrgRepos(org)
+		if err != nil {
+			logger.Printf("failed to get GitHub organization %s repos", org)
+
+			return describeReposOutput{}, errors.Wrapf(err, "failed to get GitHub organization %s repos", org)
+		}
+
+		repos = append(repos, dRepos...)
 	}
 
 	// remove any duplicate repos
@@ -381,7 +446,7 @@ func (gh *GitHubHost) describeRepos() describeReposOutput {
 
 	return describeReposOutput{
 		Repos: repos,
-	}
+	}, nil
 }
 
 func removeDuplicates(repos []repository) []repository {
@@ -411,7 +476,7 @@ func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backu
 		status := statusOk
 		if err != nil {
 			status = statusFailed
-			backupResult.Error = &err
+			backupResult.Error = err
 		}
 
 		backupResult.Status = status
@@ -424,11 +489,21 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 	if gh.BackupDir == "" {
 		logger.Printf("backup skipped as backup directory not specified")
 
-		return nil
+		return ProviderBackupResult{
+			BackupResults: nil,
+			Error:         errors.New("backup directory not specified"),
+		}
 	}
 
 	maxConcurrent := 10
-	repoDesc := gh.describeRepos()
+	repoDesc, err := gh.describeRepos()
+	if err != nil {
+		return ProviderBackupResult{
+			BackupResults: nil,
+			Error:         err,
+		}
+	}
+
 	jobs := make(chan repository, len(repoDesc.Repos))
 	results := make(chan RepoBackupResults, maxConcurrent)
 
@@ -448,10 +523,10 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
 		if res.Error != nil {
-			logger.Printf("backup failed: %+v\n", *res.Error)
+			logger.Printf("backup failed: %+v\n", res.Error)
 		}
 
-		providerBackupResults = append(providerBackupResults, res)
+		providerBackupResults.BackupResults = append(providerBackupResults.BackupResults, res)
 	}
 
 	return providerBackupResults

@@ -100,7 +100,8 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	repos := gh.describeGithubOrgRepos("Nudelmesse")
+	repos, err := gh.describeGithubOrgRepos("Nudelmesse")
+	require.NoError(t, err)
 	require.Len(t, repos, 4)
 }
 
@@ -283,52 +284,54 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// repos := gh.describeRepos()
+	descReposResp, err := gh.describeRepos()
+	require.NoError(t, err)
+
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "repo0",
 		pathWithNamespace: "go-soba/repo0",
 		httpsUrl:          "https://github.com/go-soba/repo0",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		pathWithNamespace: "go-soba/repo1",
 		name:              "repo1",
 		httpsUrl:          "https://github.com/go-soba/repo1",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "repo2",
 		pathWithNamespace: "go-soba/repo2",
 		httpsUrl:          "https://github.com/go-soba/repo2",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "private1",
 		pathWithNamespace: "Nudelmesse/private1",
 		httpsUrl:          "https://github.com/Nudelmesse/private1",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "private2",
 		pathWithNamespace: "Nudelmesse/private2",
 		httpsUrl:          "https://github.com/Nudelmesse/private2",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "public1",
 		pathWithNamespace: "Nudelmesse/public1",
 		httpsUrl:          "https://github.com/Nudelmesse/public1",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "public2",
 		pathWithNamespace: "Nudelmesse/public2",
 		httpsUrl:          "https://github.com/Nudelmesse/public2",
@@ -365,30 +368,33 @@ func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	descReposResp, err := gh.describeRepos()
+	require.NoError(t, err)
+
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "private1",
 		pathWithNamespace: "Nudelmesse/private1",
 		httpsUrl:          "https://github.com/Nudelmesse/private1",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "private2",
 		pathWithNamespace: "Nudelmesse/private2",
 		httpsUrl:          "https://github.com/Nudelmesse/private2",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "public1",
 		pathWithNamespace: "Nudelmesse/public1",
 		httpsUrl:          "https://github.com/Nudelmesse/public1",
 	}))
 	require.True(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
-		repos:             gh.describeRepos().Repos,
+		repos:             descReposResp.Repos,
 		name:              "public2",
 		pathWithNamespace: "Nudelmesse/public2",
 		httpsUrl:          "https://github.com/Nudelmesse/public2",

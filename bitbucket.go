@@ -5,13 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -119,7 +119,7 @@ type bitbucketAuthErrorResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
-func (bb BitbucketHost) describeRepos() describeReposOutput {
+func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing BitBucket repositories")
 
 	var err error
@@ -131,7 +131,9 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 
 	token, err = bb.auth(key, secret)
 	if err != nil {
-		logger.Fatal(err)
+		logger.Println(err)
+
+		return describeReposOutput{}, errors.Wrap(err, "failed to get bitbucket auth token")
 	}
 
 	var repos []repository
@@ -144,7 +146,9 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 	for {
 		req, errNewReq := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
 		if errNewReq != nil {
-			logger.Fatal(errNewReq)
+			logger.Println(errNewReq)
+
+			return describeReposOutput{}, errors.Wrap(errNewReq, "failed to create new request")
 		}
 
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
@@ -155,7 +159,9 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 
 		resp, err = bb.httpClient.Do(req)
 		if err != nil {
-			logger.Fatal(err)
+			logger.Println(err)
+
+			return describeReposOutput{}, errors.Wrap(err, "failed to make request")
 		}
 
 		bodyB, _ := io.ReadAll(resp.Body)
@@ -166,7 +172,9 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 
 		var respObj bitbucketGetProjectsResponse
 		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
-			logger.Fatal(err)
+			logger.Println(err)
+
+			return describeReposOutput{}, errors.Wrap(err, "failed to unmarshall bitbucket json response")
 		}
 
 		for _, r := range respObj.Values {
@@ -193,7 +201,7 @@ func (bb BitbucketHost) describeRepos() describeReposOutput {
 
 	return describeReposOutput{
 		Repos: repos,
-	}
+	}, nil
 }
 
 func (bb BitbucketHost) getAPIURL() string {
@@ -213,7 +221,7 @@ func bitBucketWorker(logLevel int, user, token, backupDIR, diffRemoteMethod stri
 		status := statusOk
 		if err != nil {
 			status = statusFailed
-			backupResult.Error = &err
+			backupResult.Error = err
 		}
 
 		backupResult.Status = status
@@ -240,7 +248,10 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 		logger.Fatal(err)
 	}
 
-	drO := bb.describeRepos()
+	drO, err := bb.describeRepos()
+	if err != nil {
+		return ProviderBackupResult{}
+	}
 
 	jobs := make(chan repository, len(drO.Repos))
 
@@ -262,10 +273,14 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 	for a := 1; a <= len(drO.Repos); a++ {
 		res := <-results
 		if res.Error != nil {
-			logger.Printf("backup failed: %+v\n", *res.Error)
+			logger.Printf("backup failed: %+v\n", res.Error)
+
+			providerBackupResults.Error = res.Error
+
+			return providerBackupResults
 		}
 
-		providerBackupResults = append(providerBackupResults, res)
+		providerBackupResults.BackupResults = append(providerBackupResults.BackupResults, res)
 	}
 
 	return providerBackupResults
