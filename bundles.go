@@ -46,7 +46,6 @@ func getLatestBundlePath(backupPath string) (string, error) {
 
 			continue
 		}
-
 		// ignoring error output
 	}
 
@@ -70,6 +69,7 @@ func getLatestBundlePath(backupPath string) (string, error) {
 
 func getBundleRefs(bundlePath string) (gitRefs, error) {
 	bundleRefsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
+
 	out, bundleRefsCmdErr := bundleRefsCmd.CombinedOutput()
 	if bundleRefsCmdErr != nil {
 		return nil, errors.New(string(out))
@@ -131,8 +131,9 @@ func getLatestBundleRefs(backupPath string) (gitRefs, error) {
 				// rename the invalid bundle
 				logger.Printf("renaming invalid bundle to %s.invalid",
 					path)
+
 				if err = os.Rename(path,
-					fmt.Sprintf("%s.invalid", path)); err != nil {
+					path+".invalid"); err != nil {
 					// failed to rename, meaning a filesystem or permissions issue
 					return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
 				}
@@ -275,9 +276,10 @@ func pruneBackups(backupPath string, keep int) errors.E {
 	sort.Sort(bfs)
 
 	firstFilesToDelete := len(bfs) - keep
-	var err errors.E
-	for x, f := range files {
 
+	var err errors.E
+
+	for x, f := range files {
 		if x < firstFilesToDelete {
 			if removeErr := os.Remove(filepath.Join(backupPath, f.Name())); err != nil {
 				return errors.Wrap(removeErr, "failed to remove file")
@@ -414,10 +416,12 @@ func removeBundleIfDuplicate(dir string) {
 	}
 }
 
-func deleteFile(path string) (err error) {
-	err = os.Remove(path)
+func deleteFile(path string) error {
+	if err := os.Remove(path); err != nil {
+		return errors.Wrap(err, "failed to remove file")
+	}
 
-	return
+	return nil
 }
 
 func getSHA2Hash(filePath string) ([]byte, error) {
