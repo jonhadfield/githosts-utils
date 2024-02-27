@@ -122,7 +122,7 @@ func (g *GiteaHost) makeGiteaRequest(reqUrl string) (*http.Response, []byte, err
 		return nil, nil, fmt.Errorf("failed to request %s: %w", reqUrl, err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", g.Token))
+	req.Header.Set("Authorization", "token "+g.Token)
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	req.Header.Set("Accept", "application/json; charset=utf-8")
 
@@ -762,6 +762,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 	q.Set("per_page", strconv.Itoa(giteaReposPerPageDefault))
 	q.Set("limit", strconv.Itoa(giteaReposLimit))
 	u.RawQuery = q.Encode()
+
 	var body []byte
 
 	var repos []giteaRepository
@@ -770,6 +771,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 
 	for {
 		var resp *http.Response
+
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			logger.Printf("failed to get repos: %v", err)
