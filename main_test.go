@@ -10,6 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	preflight()
+	ß
 	code := m.Run()
 	os.Exit(code)
 }
@@ -45,6 +46,7 @@ func resetGlobals() {
 
 func backupEnvironmentVariables() map[string]string {
 	m := make(map[string]string)
+
 	for _, e := range os.Environ() {
 		if i := strings.Index(e, "="); i >= 0 {
 			m[e[:i]] = e[i+1:]
@@ -68,13 +70,19 @@ func unsetEnvVars(exceptionList []string) {
 	}
 }
 
-func dirContents(path string) (contents []os.DirEntry, err error) {
+func dirContents(path string) ([]os.DirEntry, error) {
 	return os.ReadDir(path)
 }
 
 func resetBackups() {
-	_ = os.RemoveAll(os.Getenv(envVarGitBackupDir))
-	if err := os.MkdirAll(os.Getenv(envVarGitBackupDir), 0o755); err != nil {
+	backupDir := os.Getenv(envVarGitBackupDir)
+	if backupDir == "" {
+		log.Fatalf("backup dir not set with env var %s", envVarGitBackupDir)
+	}
+
+	_ = os.RemoveAll(backupDir)
+
+	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		log.Fatal(err)
 	}
 }
