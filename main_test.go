@@ -10,7 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	preflight()
-	ß
+
 	code := m.Run()
 	os.Exit(code)
 }
