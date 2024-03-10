@@ -2,7 +2,6 @@ package githosts
 
 import (
 	b64 "encoding/base64"
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -25,6 +24,7 @@ func deleteBackupsDir(path string) error {
 
 func createTestTextFile(fileName, content string) string {
 	tmpDir := os.TempDir()
+
 	dir, err := os.MkdirTemp(tmpDir, "soba-*")
 	if err != nil {
 		log.Println(err)
@@ -67,9 +67,12 @@ func TestAllTrue(t *testing.T) {
 
 func TestGetLatestBundleRefs(t *testing.T) {
 	t.Parallel()
+
 	refs, err := getLatestBundleRefs("testfiles/example-bundles")
 	require.NoError(t, err)
+
 	var found int
+
 	for k, v := range refs {
 		switch k {
 		case "refs/heads/master":
@@ -110,6 +113,8 @@ func TestGetSHA2Hash(t *testing.T) {
 }
 
 func TestFilesIdentical(t *testing.T) {
+	t.Parallel()
+
 	pathOne := createTestTextFile("one", txtSomeContent)
 	pathTwo := createTestTextFile("two", txtSomeContent)
 	require.True(t, filesIdentical(pathOne, pathTwo))
@@ -120,6 +125,8 @@ func TestFilesIdentical(t *testing.T) {
 }
 
 func TestGetTimeStampPartFromFileName(t *testing.T) {
+	t.Parallel()
+
 	// test success
 	timeStamp, err := getTimeStampPartFromFileName("repoName.20221102153359.bundle")
 	require.NoError(t, err)
@@ -166,7 +173,7 @@ func TestGetLatestBundlePath(t *testing.T) {
 	require.Contains(t, err.Error(), "backup path read failed")
 
 	// empty directory
-	dir, err := os.MkdirTemp(os.TempDir(), "soba-*")
+	dir, err := os.MkdirTemp(t.TempDir(), "soba-*")
 	require.NoError(t, err)
 	bundlePath, err = getLatestBundlePath(dir)
 	require.Empty(t, bundlePath)
@@ -181,7 +188,7 @@ func TestGetLatestBundlePath(t *testing.T) {
 func TestPruneBackups(t *testing.T) {
 	t.Parallel()
 
-	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
+	backupDir := filepath.Join(t.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
 			return
@@ -189,7 +196,8 @@ func TestPruneBackups(t *testing.T) {
 	}()
 
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
-	require.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
+
+	require.NoError(t, os.MkdirAll(dfDir, 0o755), "failed to create dummy files dir: "+dfDir)
 
 	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle"}
 
@@ -198,12 +206,16 @@ func TestPruneBackups(t *testing.T) {
 	for _, df := range dummyFiles {
 		dfPath := path.Join(dfDir, df)
 		_, err = os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
-		require.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
+		require.NoError(t, err, "failed to open file: %s"+dfPath)
 	}
+
 	require.NoError(t, pruneBackups(dfDir, 2))
+
 	files, err := os.ReadDir(dfDir)
 	require.NoError(t, err)
+
 	var found int
+
 	notExpectedPostPrune := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, txtRepo01TestBundleName}
 	expectedPostPrune := []string{"repo0.20200501010111.bundle", "repo0.20200601011111.bundle"}
 
@@ -220,7 +232,7 @@ func TestPruneBackups(t *testing.T) {
 func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	t.Parallel()
 
-	backupDir := filepath.Join(os.TempDir(), "tmp_githosts-utils")
+	backupDir := filepath.Join(t.TempDir(), "tmp_githosts-utils")
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
 			return
@@ -228,7 +240,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	}()
 
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
-	require.NoError(t, os.MkdirAll(dfDir, 0o755), fmt.Sprintf("failed to create dummy files dir: %s", dfDir))
+	require.NoError(t, os.MkdirAll(dfDir, 0o755), "failed to create dummy files dir: "+dfDir)
 
 	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
 
@@ -237,7 +249,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	for _, df := range dummyFiles {
 		dfPath := path.Join(dfDir, df)
 		_, err = os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
-		require.NoError(t, err, fmt.Sprintf("failed to open file: %s", dfPath))
+		require.NoError(t, err, "failed to open file: ", dfPath)
 	}
 
 	require.NoError(t, pruneBackups(dfDir, 2))
