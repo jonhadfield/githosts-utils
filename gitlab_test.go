@@ -16,6 +16,10 @@ const (
 
 func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	resetBackups()
+	if os.Getenv(gitlabEnvVarToken) == "" {
+		t.Skip("Skipping GitLab test as GITLAB_TOKEN is missing")
+	}
+
 	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
