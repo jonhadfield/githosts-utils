@@ -396,6 +396,7 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 
 func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 	var repos []repository
+
 	if !gh.SkipUserRepos {
 		// get authenticated user's owned repos
 		var err errors.E
@@ -451,11 +452,13 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 
 func removeDuplicates(repos []repository) []repository {
 	var uniqueRepos []repository
+
 	keys := make(map[string]bool)
 
 	for _, repo := range repos {
 		if _, value := keys[repo.PathWithNameSpace]; !value {
 			keys[repo.PathWithNameSpace] = true
+
 			uniqueRepos = append(uniqueRepos, repo)
 		}
 	}
@@ -496,6 +499,7 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 	}
 
 	maxConcurrent := 10
+
 	repoDesc, err := gh.describeRepos()
 	if err != nil {
 		return ProviderBackupResult{
@@ -538,6 +542,11 @@ func (gh *GitHubHost) diffRemoteMethod() string {
 	case refsMethod:
 		return refsMethod
 	case cloneMethod:
+		return cloneMethod
+	case "":
+		logger.Printf("diff remote method not specified. defaulting to: %s", cloneMethod)
+
+		// default to bundle as safest
 		return cloneMethod
 	default:
 		logger.Printf("unexpected diff remote method: %s", gh.DiffRemoteMethod)
