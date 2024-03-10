@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.5
+	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/peterhellberg/link v1.2.0
 	github.com/stretchr/testify v1.8.4
 	gitlab.com/tozd/go/errors v0.8.1
@@ -11,6 +12,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/google/uuid v1.1.1 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
