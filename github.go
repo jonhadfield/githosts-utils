@@ -28,6 +28,7 @@ type NewGitHubHostInput struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	Token            string
+	LimitUserOwned   bool
 	SkipUserRepos    bool
 	Orgs             []string
 	BackupsToRetain  int
@@ -66,6 +67,7 @@ func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		SkipUserRepos:    input.SkipUserRepos,
+		LimitUserOwned:   input.LimitUserOwned,
 		BackupsToRetain:  input.BackupsToRetain,
 		Token:            input.Token,
 		Orgs:             input.Orgs,
@@ -81,6 +83,7 @@ type GitHubHost struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	SkipUserRepos    bool
+	LimitUserOwned   bool
 	BackupsToRetain  int
 	Token            string
 	Orgs             []string
@@ -232,7 +235,13 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 
 	var repos []repository
 
-	reqBody := "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
+	var reqBody string
+
+	if gh.LimitUserOwned {
+		reqBody = "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ", affiliations: OWNER, ownerAffiliations: OWNER) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
+	} else {
+		reqBody = "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
+	}
 
 	for {
 		bodyStr, err := gh.makeGithubRequest(reqBody)
@@ -261,7 +270,11 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 		if !respObj.Data.Viewer.Repositories.PageInfo.HasNextPage {
 			break
 		} else {
-			reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gcs) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
+			if gh.LimitUserOwned {
+				reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after, affiliations: OWNER, ownerAffiliations: OWNER) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gcs) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
+			} else {
+				reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gcs) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
+			}
 		}
 	}
 

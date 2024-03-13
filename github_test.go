@@ -72,6 +72,7 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 
 	expectedPathThree := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo2")
 	require.NoDirExists(t, expectedPathThree)
+
 }
 
 func TestDescribeGithubOrgRepos(t *testing.T) {
@@ -157,11 +158,13 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 
 	// backup once more so we have bundles to compare and skip
 	ghHost.Backup()
+
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	reRepo0 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo0'`)
 	reRepo1 := regexp.MustCompile(`skipping clone of github\.com repo 'go-soba/repo1'`)
 	reRepo2 := regexp.MustCompile(`skipping clone of github\.com repo 'Nudelmesse/public1'`)
+
 	var matches int
 
 	logger.SetOutput(os.Stdout)
@@ -330,6 +333,171 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 		httpsUrl:          "https://github.com/Nudelmesse/public1",
 	}))
 	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "public2",
+		pathWithNamespace: "Nudelmesse/public2",
+		httpsUrl:          "https://github.com/Nudelmesse/public2",
+	}))
+}
+
+func TestDescribeGithubReposWithWildcardAndLimitUserOwned(t *testing.T) {
+	if os.Getenv(envGithubToken) == "" {
+		t.Skip(msgSkipGitHubTokenMissing)
+	}
+
+	// need to set output to buffer in order to test output
+	logger.SetOutput(&buf)
+	defer logger.SetOutput(os.Stdout)
+
+	resetBackups()
+
+	resetGlobals()
+
+	envBackup := backupEnvironmentVariables()
+
+	defer restoreEnvironmentVariables(envBackup)
+
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
+
+	gh, err := NewGitHubHost(NewGitHubHostInput{
+		APIURL:           githubAPIURL,
+		LimitUserOwned:   true,
+		DiffRemoteMethod: refsMethod,
+		Token:            os.Getenv(envGithubToken),
+		// Orgs:             []string{"*"},
+	})
+	require.NoError(t, err)
+
+	descReposResp, err := gh.describeRepos()
+	require.NoError(t, err)
+
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "repo0",
+		pathWithNamespace: "go-soba/repo0",
+		httpsUrl:          "https://github.com/go-soba/repo0",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		pathWithNamespace: "go-soba/repo1",
+		name:              "repo1",
+		httpsUrl:          "https://github.com/go-soba/repo1",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "repo2",
+		pathWithNamespace: "go-soba/repo2",
+		httpsUrl:          "https://github.com/go-soba/repo2",
+	}))
+	require.False(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "private1",
+		pathWithNamespace: "Nudelmesse/private1",
+		httpsUrl:          "https://github.com/Nudelmesse/private1",
+	}))
+	require.False(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "private2",
+		pathWithNamespace: "Nudelmesse/private2",
+		httpsUrl:          "https://github.com/Nudelmesse/private2",
+	}))
+	require.False(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "public1",
+		pathWithNamespace: "Nudelmesse/public1",
+		httpsUrl:          "https://github.com/Nudelmesse/public1",
+	}))
+	require.False(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "public2",
+		pathWithNamespace: "Nudelmesse/public2",
+		httpsUrl:          "https://github.com/Nudelmesse/public2",
+	}))
+}
+
+func TestDescribeGithubReposWithWildcardAndNoLimitUserOwned(t *testing.T) {
+	// will return all user's repos and those they're affiliated with (collaborators on)
+	if os.Getenv(envGithubToken) == "" {
+		t.Skip(msgSkipGitHubTokenMissing)
+	}
+
+	// need to set output to buffer in order to test output
+	logger.SetOutput(&buf)
+	defer logger.SetOutput(os.Stdout)
+
+	resetBackups()
+
+	resetGlobals()
+
+	envBackup := backupEnvironmentVariables()
+
+	defer restoreEnvironmentVariables(envBackup)
+
+	unsetEnvVars([]string{envVarGitBackupDir, envGithubToken})
+
+	gh, err := NewGitHubHost(NewGitHubHostInput{
+		APIURL:           githubAPIURL,
+		LimitUserOwned:   false,
+		DiffRemoteMethod: refsMethod,
+		Token:            os.Getenv(envGithubToken),
+		// Orgs:             []string{"*"},
+	})
+	require.NoError(t, err)
+
+	descReposResp, err := gh.describeRepos()
+	require.NoError(t, err)
+
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "repo0",
+		pathWithNamespace: "go-soba/repo0",
+		httpsUrl:          "https://github.com/go-soba/repo0",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		pathWithNamespace: "go-soba/repo1",
+		name:              "repo1",
+		httpsUrl:          "https://github.com/go-soba/repo1",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "repo2",
+		pathWithNamespace: "go-soba/repo2",
+		httpsUrl:          "https://github.com/go-soba/repo2",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "private1",
+		pathWithNamespace: "Nudelmesse/private1",
+		httpsUrl:          "https://github.com/Nudelmesse/private1",
+	}))
+	require.True(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "private2",
+		pathWithNamespace: "Nudelmesse/private2",
+		httpsUrl:          "https://github.com/Nudelmesse/private2",
+	}))
+	require.False(t, repoExists(repoExistsInput{
+		matchBy:           giteaMatchByIfDefined,
+		repos:             descReposResp.Repos,
+		name:              "public1",
+		pathWithNamespace: "Nudelmesse/public1",
+		httpsUrl:          "https://github.com/Nudelmesse/public1",
+	}))
+	require.False(t, repoExists(repoExistsInput{
 		matchBy:           giteaMatchByIfDefined,
 		repos:             descReposResp.Repos,
 		name:              "public2",
