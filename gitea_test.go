@@ -87,12 +87,12 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	require.NoError(t, err)
 
 	// without org names we should get no orgs
-	organizations := gHost.getOrganizations()
+	organizations, _ := gHost.getOrganizations()
 	require.Len(t, organizations, 0)
 
 	// with single org name we should only get that org
 	gHost.Orgs = []string{"soba-org-two"}
-	organizations = gHost.getOrganizations()
+	organizations, _ = gHost.getOrganizations()
 
 	require.False(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
@@ -137,7 +137,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 	require.NoError(t, err)
 
 	// without env vars, we shouldn't get any orgs
-	repos := gHost.getOrganizationsRepos([]giteaOrganization{
+	repos, _ := gHost.getOrganizationsRepos([]giteaOrganization{
 		{Name: "soba-org-one", FullName: "soba org one"},
 	})
 
@@ -190,7 +190,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 
 	require.NoError(t, err)
 
-	organizations := gHost.getOrganizations()
+	organizations, _ := gHost.getOrganizations()
 	require.GreaterOrEqual(t, len(organizations), 0)
 	require.False(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
@@ -201,7 +201,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	// gHost.Orgs = []string{"soba-org-two"}
 
 	gHost.Orgs = []string{"soba-org-two"}
-	organizations = gHost.getOrganizations()
+	organizations, _ = gHost.getOrganizations()
 
 	require.GreaterOrEqual(t, len(organizations), 1)
 	require.False(t, organisationExists(organizationExistsInput{
@@ -220,7 +220,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 
 	// * should return all orgs
 	gHost.Orgs = []string{"*"}
-	organizations = gHost.getOrganizations()
+	organizations, _ = gHost.getOrganizations()
 
 	require.GreaterOrEqual(t, len(organizations), 2)
 	require.True(t, organisationExists(organizationExistsInput{

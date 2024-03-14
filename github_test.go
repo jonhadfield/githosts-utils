@@ -2,13 +2,14 @@ package githosts
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/stretchr/testify/require"
 )
@@ -72,7 +73,6 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 
 	expectedPathThree := filepath.Join(backupDIR, gitHubDomain, "go-soba", "repo2")
 	require.NoDirExists(t, expectedPathThree)
-
 }
 
 func TestDescribeGithubOrgRepos(t *testing.T) {

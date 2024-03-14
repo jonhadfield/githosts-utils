@@ -180,7 +180,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	// clean existing working directory
 	delErr := os.RemoveAll(workingPath)
 	if delErr != nil {
-		logger.Fatal(delErr)
+		return errors.Errorf("failed to remove working directory: %s: %s", workingPath, delErr)
 	}
 
 	var cloneURL string
@@ -216,7 +216,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	if cloneErr != nil {
 		if os.Getenv(envVarGitHostsLog) == "debug" {
-			return errors.Wrapf(cloneErr, "cloning failed: %s", strings.Join(cloneOutLines, ", "))
+			return errors.Errorf("cloning failed: %s: %s", strings.Join(cloneOutLines, ", "), cloneErr)
 		}
 
 		return errors.Errorf("cloning failed for repository: %s - %s", repo.Name, cloneErr)
@@ -226,6 +226,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
 		if strings.HasSuffix(err.Error(), "is empty") {
 			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
+
 			return nil
 		}
 
