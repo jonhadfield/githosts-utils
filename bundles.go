@@ -153,12 +153,12 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 
 	dirs, readErr := os.ReadDir(objectsPath)
 	if readErr != nil {
-		return errors.Wrapf(readErr, "failed to read objectsPath: %s", objectsPath)
+		return errors.Errorf("failed to read objectsPath: %s: %s", objectsPath, readErr)
 	}
 
 	emptyClone, err := isEmpty(workingPath)
 	if err != nil {
-		return err
+		return errors.Errorf("failed to check if clone is empty: %s", err)
 	}
 
 	if len(dirs) == 2 && emptyClone {
@@ -170,7 +170,7 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 
 	createErr := createDirIfAbsent(backupPath)
 	if createErr != nil {
-		logger.Fatal(createErr)
+		return errors.Errorf("failed to create backup path: %s: %s", backupPath, createErr)
 	}
 
 	logger.Printf("creating bundle for: %s", repo.Name)
@@ -186,7 +186,7 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 	startBundle := time.Now()
 
 	if bundleErr := bundleCmd.Run(); bundleErr != nil {
-		logger.Fatal(bundleErr)
+		return errors.Errorf("failed to create bundle: %s: %s", repo.Name, bundleErr)
 	}
 
 	if logLevel > 0 {

@@ -5,14 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"gitlab.com/tozd/go/errors"
 )
 
 const (
@@ -111,7 +112,7 @@ type githubQueryNamesResponse struct {
 				}
 			}
 		}
-	}
+	} `json:"data"`
 }
 
 type githubQueryOrgsResponse struct {
@@ -246,7 +247,6 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 	for {
 		bodyStr, err := gh.makeGithubRequest(reqBody)
 		if err != nil {
-
 			return nil, errors.Wrap(err, "GitHub request failed")
 		}
 

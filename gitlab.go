@@ -5,15 +5,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 
-	"slices"
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
@@ -43,12 +43,10 @@ type GitLabHost struct {
 	LogLevel              int
 }
 
-func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
+func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
 	gitlabToken := strings.TrimSpace(gl.Token)
 	if gitlabToken == "" {
-		logger.Print("GitLab token not provided")
-
-		return gitlabUser{}
+		return gitlabUser{}, errors.New("GitLab token not provided")
 	}
 
 	var err error
@@ -67,9 +65,7 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 
 	req, err = retryablehttp.NewRequestWithContext(ctx, http.MethodGet, getUserIDURL, nil)
 	if err != nil {
-		logger.Println(err)
-
-		return gitlabUser{}
+		return gitlabUser{}, errors.Errorf("failed to create request: %s", err)
 	}
 
 	req.Header.Set("Private-Token", gl.Token)
@@ -80,12 +76,16 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 
 	resp, err = gl.httpClient.Do(req)
 	if err != nil {
-		logger.Println(err)
-
-		return gitlabUser{}
+		return gitlabUser{}, errors.Errorf("request failed: %s", err)
 	}
 
-	bodyB, _ := io.ReadAll(resp.Body)
+	bodyB, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return gitlabUser{
+			UserName: "",
+		}, nil
+	}
+
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	_ = resp.Body.Close()
@@ -102,18 +102,16 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() gitlabUser {
 	default:
 		logger.Printf("failed to authenticate due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-		return gitlabUser{}
+		return gitlabUser{}, nil
 	}
 
 	var user gitlabUser
 
 	if err = json.Unmarshal([]byte(bodyStr), &user); err != nil {
-		logger.Println(err)
-
-		return gitlabUser{}
+		return gitlabUser{}, errors.Errorf("failed to unmarshall gitlab json response: %s", err.Error())
 	}
 
-	return user
+	return user, nil
 }
 
 type gitLabOwner struct {
@@ -397,7 +395,16 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 
 	maxConcurrent := 5
 
-	gl.User = gl.getAuthenticatedGitLabUser()
+	var err errors.E
+
+	gl.User, err = gl.getAuthenticatedGitLabUser()
+	if err != nil {
+		return ProviderBackupResult{
+			BackupResults: nil,
+			Error:         err,
+		}
+	}
+
 	if gl.User.ID == 0 {
 		// skip backup if user is not authenticated
 		return ProviderBackupResult{}

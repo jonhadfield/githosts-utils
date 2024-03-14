@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/peterhellberg/link"
@@ -129,7 +130,6 @@ func (g *GiteaHost) makeGiteaRequest(reqUrl string) (*http.Response, []byte, err
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to request %s: %w", reqUrl, err)
-
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -331,16 +331,20 @@ func (g *GiteaHost) describeRepos() (describeReposOutput, errors.E) {
 
 	userRepos, err := g.getAllUserRepositories()
 	if err != nil {
-		logger.Println(err)
-
-		return describeReposOutput{}, err
+		return describeReposOutput{}, errors.Errorf("failed to get user repositories: %s", err)
 	}
 
-	orgs := g.getOrganizations()
+	orgs, err := g.getOrganizations()
+	if err != nil {
+		return describeReposOutput{}, errors.Errorf("failed to get organizations: %s", err)
+	}
 
 	var orgsRepos []repository
 	if len(orgs) > 0 {
-		orgsRepos = g.getOrganizationsRepos(orgs)
+		orgsRepos, err = g.getOrganizationsRepos(orgs)
+		if err != nil {
+			return describeReposOutput{}, errors.Errorf("failed to get organizations repos: %s", err)
+		}
 	}
 
 	return describeReposOutput{
@@ -357,7 +361,7 @@ func extractDomainFromAPIUrl(apiUrl string) string {
 	return u.Hostname()
 }
 
-func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) []repository {
+func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) ([]repository, errors.E) {
 	domain := extractDomainFromAPIUrl(g.APIURL)
 
 	var repos []repository
@@ -367,7 +371,10 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) []r
 			logger.Printf("getting repositories from gitea organization %s", org.Name)
 		}
 
-		orgRepos := g.getOrganizationRepos(org.Name)
+		orgRepos, err := g.getOrganizationRepos(org.Name)
+		if err != nil {
+			return nil, errors.Errorf("failed to get organization %s repos: %s", org.Name, err)
+		}
 		for _, orgRepo := range orgRepos {
 			repos = append(repos, repository{
 				Name:              orgRepo.Name,
@@ -380,7 +387,7 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) []r
 		}
 	}
 
-	return repos
+	return repos, nil
 }
 
 func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
@@ -468,13 +475,13 @@ func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 	return users, nil
 }
 
-func (g *GiteaHost) getOrganizations() []giteaOrganization {
+func (g *GiteaHost) getOrganizations() ([]giteaOrganization, errors.E) {
 	if len(g.Orgs) == 0 {
 		if g.LogLevel > 0 {
 			logger.Print("no organizations specified")
 		}
 
-		return nil
+		return nil, nil
 	}
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -484,14 +491,19 @@ func (g *GiteaHost) getOrganizations() []giteaOrganization {
 	var organizations []giteaOrganization
 
 	if slices.Contains(g.Orgs, "*") {
-		organizations = g.getAllOrganizations()
+		var err errors.E
+
+		organizations, err = g.getAllOrganizations()
+		if err != nil {
+			return nil, errors.Errorf("failed to get all organizations: %s", err)
+		}
 	} else {
 		for _, orgName := range g.Orgs {
 			organizations = append(organizations, g.getOrganization(orgName))
 		}
 	}
 
-	return organizations
+	return organizations, nil
 }
 
 func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
@@ -564,7 +576,7 @@ func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
 	return organization
 }
 
-func (g *GiteaHost) getAllOrganizations() []giteaOrganization {
+func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	logger.Printf("retrieving organizations")
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -581,7 +593,7 @@ func (g *GiteaHost) getAllOrganizations() []giteaOrganization {
 	if err != nil {
 		logger.Printf("failed to parse get organizations URL %s: %v", getOrganizationsURL, err)
 
-		return nil
+		return nil, nil
 	}
 
 	q := u.Query()
@@ -603,7 +615,7 @@ func (g *GiteaHost) getAllOrganizations() []giteaOrganization {
 		if err != nil {
 			logger.Printf("failed to get organizations: %v", err)
 
-			return nil
+			return nil, nil
 		}
 
 		if g.LogLevel > 0 {
@@ -618,17 +630,17 @@ func (g *GiteaHost) getAllOrganizations() []giteaOrganization {
 		case http.StatusForbidden:
 			logger.Println("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 
-			return organizations
+			return organizations, nil
 		default:
 			logger.Printf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return organizations
+			return organizations, nil
 		}
 
 		var respObj giteaGetOrganizationsResponse
 
 		if err = json.Unmarshal(body, &respObj); err != nil {
-			logger.Fatal(err)
+			return nil, errors.Wrap(err, "failed to unmarshal Gitea response")
 		}
 
 		organizations = append(organizations, respObj...)
@@ -649,7 +661,7 @@ func (g *GiteaHost) getAllOrganizations() []giteaOrganization {
 		}
 	}
 
-	return organizations
+	return organizations, nil
 }
 
 type giteaRepository struct {
@@ -739,7 +751,7 @@ type giteaRepository struct {
 	RepoTransfer                  interface{} `json:"repo_transfer"`
 }
 
-func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaRepository {
+func (g *GiteaHost) getOrganizationRepos(organizationName string) ([]giteaRepository, errors.E) {
 	logger.Printf("retrieving repositories for organization %s", organizationName)
 
 	if strings.TrimSpace(g.APIURL) == "" {
@@ -754,7 +766,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 	// Initial request
 	u, err := url.Parse(getOrganizationReposURL)
 	if err != nil {
-		return nil
+		return nil, errors.Errorf("failed to parse get %s organization repos URL %s: %s", organizationName, getOrganizationReposURL, err)
 	}
 
 	q := u.Query()
@@ -774,9 +786,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
-			logger.Printf("failed to get repos: %v", err)
-
-			return nil
+			return nil, errors.Errorf("failed to make Gitea request: %s", err)
 		}
 
 		if g.LogLevel > 0 {
@@ -789,19 +799,17 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 				logger.Println("repos retrieved successfully")
 			}
 		case http.StatusForbidden:
-			logger.Println("failed to get repos due to invalid or missing credentials (HTTP 403)")
-
-			return nil
+			return nil, errors.Errorf("failed to get repos due to invalid or missing credentials (HTTP 403)")
 		default:
 			logger.Printf("failed to get repos with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return nil
+			return nil, nil
 		}
 
 		var respObj []giteaRepository
 
 		if err = json.Unmarshal(body, &respObj); err != nil {
-			logger.Fatal(err)
+			return nil, errors.Errorf("failed to unmarshal organization repos json response: %s", err)
 		}
 
 		repos = append(repos, respObj...)
@@ -822,7 +830,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) []giteaReposit
 		}
 	}
 
-	return repos
+	return repos, nil
 }
 
 func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
@@ -850,6 +858,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
 	q.Set("per_page", strconv.Itoa(giteaReposPerPageDefault))
 	q.Set("limit", strconv.Itoa(giteaReposLimit))
 	u.RawQuery = q.Encode()
+
 	var body []byte
 
 	var repos []repository
@@ -858,6 +867,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
 
 	for {
 		var resp *http.Response
+
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			logger.Printf("failed to get repos: %v", err)
