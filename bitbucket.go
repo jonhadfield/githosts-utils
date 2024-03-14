@@ -45,7 +45,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 
 	diffRemoteMethod, err := getDiffRemoteMethod(input.DiffRemoteMethod)
 	if err != nil {
-		return nil, err
+		return nil, errors.Errorf("failed to get diff remote method: %s", err)
 	}
 
 	if diffRemoteMethod == "" {
@@ -85,14 +85,15 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 		timeout:           defaultHttpRequestTimeout,
 	})
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get bitbucket auth token")
+		return "", errors.Errorf("failed to get bitbucket auth token: %s", err)
 	}
 
 	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
 
 	var authResp bitbucketAuthResponse
+
 	if err = json.Unmarshal([]byte(bodyStr), &authResp); err != nil {
-		return "", errors.Wrap(err, "failed to unmarshall bitbucket json response")
+		return "", errors.Errorf("failed to unmarshall bitbucket json response: %s", err)
 	}
 
 	// check for any errors
@@ -100,10 +101,10 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 		var authErrResp bitbucketAuthErrorResponse
 
 		if err = json.Unmarshal([]byte(bodyStr), &authErrResp); err != nil {
-			return "", errors.Wrap(err, "failed to unmarshall bitbucket json error response")
+			return "", errors.Errorf("failed to unmarshall bitbucket json error response: %s", err)
 		}
 
-		return "", errors.New(fmt.Sprintf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription))
+		return "", errors.Errorf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription)
 	}
 
 	return authResp.AccessToken, nil
@@ -134,8 +135,6 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 
 	token, err = bb.auth(key, secret)
 	if err != nil {
-		logger.Println(err)
-
 		return describeReposOutput{}, errors.Wrap(err, "failed to get bitbucket auth token")
 	}
 
