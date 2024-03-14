@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+
+	"gitlab.com/tozd/go/errors"
 
 	"github.com/hashicorp/go-retryablehttp"
 )
@@ -88,6 +89,7 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 	}
 
 	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
+
 	var authResp bitbucketAuthResponse
 	if err = json.Unmarshal([]byte(bodyStr), &authResp); err != nil {
 		return "", errors.Wrap(err, "failed to unmarshall bitbucket json response")
@@ -100,6 +102,7 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 		if err = json.Unmarshal([]byte(bodyStr), &authErrResp); err != nil {
 			return "", errors.Wrap(err, "failed to unmarshall bitbucket json error response")
 		}
+
 		return "", errors.New(fmt.Sprintf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription))
 	}
 
@@ -164,7 +167,12 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 			return describeReposOutput{}, errors.Wrap(err, "failed to make request")
 		}
 
-		bodyB, _ := io.ReadAll(resp.Body)
+		var bodyB []byte
+
+		bodyB, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return describeReposOutput{}, errors.Errorf("failed to read response body: %s", err)
+		}
 
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
@@ -245,7 +253,9 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 
 	token, err = bb.auth(bb.Key, bb.Secret)
 	if err != nil {
-		logger.Fatal(err)
+		return ProviderBackupResult{
+			Error: errors.Errorf("failed to get bitbucket auth token: %s", err),
+		}
 	}
 
 	drO, err := bb.describeRepos()

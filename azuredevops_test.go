@@ -1,12 +1,13 @@
 package githosts
 
 import (
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAzureDevOpsHostBackupWithEmptyBackupDir(t *testing.T) {

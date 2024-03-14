@@ -5,15 +5,16 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-retryablehttp"
-	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
-	"gitlab.com/tozd/go/errors"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/microsoft/azure-devops-go-api/azuredevops/v7"
+	"gitlab.com/tozd/go/errors"
 
 	azdevopscore "github.com/microsoft/azure-devops-go-api/azuredevops/v7/core"
 )
@@ -76,7 +77,8 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 }
 
 func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int,
-	jobs <-chan repository, results chan<- RepoBackupResults) {
+	jobs <-chan repository, results chan<- RepoBackupResults,
+) {
 	for repo := range jobs {
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
 
@@ -225,7 +227,7 @@ func (ad *AzureDevOpsHost) describeAzureDevOpsOrgsRepos(org string) ([]repositor
 
 	coreClient, err := azdevopscore.NewClient(ctx, connection)
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.Errorf("failed to create Azure DevOps core client: %s", err)
 	}
 
 	projects, err := listProjects(ctx, coreClient)
