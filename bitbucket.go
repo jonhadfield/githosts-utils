@@ -154,8 +154,8 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 		}
 
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-		req.Header.Set("Content-Type", "application/json; charset=utf-8")
-		req.Header.Set("Accept", "application/json; charset=utf-8")
+		req.Header.Set("Content-Type", contentTypeApplicationJSON)
+		req.Header.Set("Accept", contentTypeApplicationJSON)
 
 		var resp *http.Response
 

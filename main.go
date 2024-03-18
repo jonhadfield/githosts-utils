@@ -17,6 +17,7 @@ const (
 	githubAPIURL                 = "https://api.github.com/graphql"
 	gitlabAPIURL                 = "https://gitlab.com/api/v4"
 	gitlabProjectsPerPageDefault = 20
+	contentTypeApplicationJSON   = "application/json; charset=utf-8"
 )
 
 var logger *log.Logger

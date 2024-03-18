@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testBundleName1 = "repo0.20200401111111.bundle"
+)
+
 func TestRenameInvalidBundle(t *testing.T) {
 	if os.Getenv(envGithubToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
@@ -19,7 +23,8 @@ func TestRenameInvalidBundle(t *testing.T) {
 	backupDir := os.Getenv(envVarGitBackupDir)
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	require.NoError(t, os.MkdirAll(dfDir, 0o755))
-	dfName := "repo0.20200401111111.bundle"
+
+	dfName := testBundleName1
 	dfPath := path.Join(dfDir, dfName)
 
 	_, err := os.OpenFile(dfPath, os.O_RDONLY|os.O_CREATE, 0o666)
@@ -38,12 +43,16 @@ func TestRenameInvalidBundle(t *testing.T) {
 	// check only one bundle remains
 	files, err := os.ReadDir(dfDir)
 	require.NoError(t, err)
-	dfRenamed := "repo0.20200401111111.bundle.invalid"
+
+	dfRenamed := testBundleName1 + ".invalid"
 
 	var originalFound int
+
 	var renamedFound int
+
 	for _, f := range files {
 		require.NotEqual(t, f.Name(), dfName, fmt.Sprintf("unexpected bundle: %s", f.Name()))
+
 		if dfName == f.Name() {
 			originalFound++
 		}

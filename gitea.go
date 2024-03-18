@@ -124,8 +124,8 @@ func (g *GiteaHost) makeGiteaRequest(reqUrl string) (*http.Response, []byte, err
 	}
 
 	req.Header.Set("Authorization", "token "+g.Token)
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
+	req.Header.Set("Content-Type", contentTypeApplicationJSON)
+	req.Header.Set("Accept", contentTypeApplicationJSON)
 
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
@@ -375,6 +375,7 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) ([]
 		if err != nil {
 			return nil, errors.Errorf("failed to get organization %s repos: %s", org.Name, err)
 		}
+
 		for _, orgRepo := range orgRepos {
 			repos = append(repos, repository{
 				Name:              orgRepo.Name,
