@@ -69,8 +69,8 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
 	}
 
 	req.Header.Set("Private-Token", gl.Token)
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
+	req.Header.Set("Content-Type", contentTypeApplicationJSON)
+	req.Header.Set("Accept", contentTypeApplicationJSON)
 
 	var resp *http.Response
 
@@ -275,8 +275,8 @@ func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []
 	}
 
 	req.Header.Set("Private-Token", token)
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
+	req.Header.Set("Content-Type", contentTypeApplicationJSON)
+	req.Header.Set("Accept", contentTypeApplicationJSON)
 
 	resp, err := c.Do(req)
 	if err != nil {
