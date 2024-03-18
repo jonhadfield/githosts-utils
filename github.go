@@ -40,7 +40,7 @@ func (gh *GitHubHost) getAPIURL() string {
 	return gh.APIURL
 }
 
-func NewGitHubHost(input NewGitHubHostInput) (host *GitHubHost, err error) {
+func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
 	setLoggerPrefix(input.Caller)
 
 	apiURL := githubAPIURL
@@ -179,8 +179,8 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	}
 
 	req.Header.Set("Authorization", "bearer "+gh.Token)
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Accept", "application/json; charset=utf-8")
+	req.Header.Set("Content-Type", contentTypeApplicationJSON)
+	req.Header.Set("Accept", contentTypeApplicationJSON)
 
 	resp, reqErr := gh.httpClient.Do(req)
 	if reqErr != nil {
@@ -202,7 +202,7 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 
 	// check response for errors
 	switch resp.StatusCode {
-	case 401:
+	case http.StatusUnauthorized:
 		if strings.Contains(bodyStr, "Personal access tokens with fine grained access do not support the GraphQL API") {
 			logger.Println("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
 
@@ -212,7 +212,7 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 		logger.Printf("GitHub authorisation failed: %s", bodyStr)
 
 		return "", errors.Errorf("GitHub authorisation failed: %s", bodyStr)
-	case 200:
+	case http.StatusOK:
 		// authorisation successful
 	default:
 		return "", errors.New("GitHub authorisation failed")

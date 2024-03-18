@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	txtSomeContent          = "some content"
-	txtRepo01TestBundleName = "repo0.20200401011111.bundle"
-	txtRepo02TestBundleName = "repo0.20200201010111.bundle"
+	txtSomeContent                = "some content"
+	txtRepo01TestBundleName       = "repo0.20200401011111.bundle"
+	txtRepo02TestBundleName       = "repo0.20200201010111.bundle"
+	txtRepo03TestBundleName       = "repo0.20200601011111.bundle"
+	txtRepo03LockedTestBundleName = "repo0.20200601011111.bundle.lock"
+	txtRepo04TestBundleName       = "repo0.20200501010111.bundle"
 )
 
 func deleteBackupsDir(path string) error {
@@ -199,7 +202,7 @@ func TestPruneBackups(t *testing.T) {
 
 	require.NoError(t, os.MkdirAll(dfDir, 0o755), "failed to create dummy files dir: "+dfDir)
 
-	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle"}
+	dummyFiles := []string{testBundleName1, txtRepo02TestBundleName, txtRepo04TestBundleName, txtRepo01TestBundleName, txtRepo03TestBundleName}
 
 	var err error
 
@@ -216,14 +219,16 @@ func TestPruneBackups(t *testing.T) {
 
 	var found int
 
-	notExpectedPostPrune := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, txtRepo01TestBundleName}
-	expectedPostPrune := []string{"repo0.20200501010111.bundle", "repo0.20200601011111.bundle"}
+	notExpectedPostPrune := []string{testBundleName1, txtRepo02TestBundleName, txtRepo01TestBundleName}
+	expectedPostPrune := []string{txtRepo04TestBundleName, txtRepo03TestBundleName}
 
 	for _, f := range files {
 		require.NotContains(t, notExpectedPostPrune, f.Name())
 		require.Contains(t, expectedPostPrune, f.Name())
+
 		found++
 	}
+
 	if found != 2 {
 		t.Errorf("three backup files were expected")
 	}
@@ -242,7 +247,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")
 	require.NoError(t, os.MkdirAll(dfDir, 0o755), "failed to create dummy files dir: "+dfDir)
 
-	dummyFiles := []string{"repo0.20200401111111.bundle", txtRepo02TestBundleName, "repo0.20200501010111.bundle", txtRepo01TestBundleName, "repo0.20200601011111.bundle", "repo0.20200601011111.bundle.lock"}
+	dummyFiles := []string{testBundleName1, txtRepo02TestBundleName, txtRepo04TestBundleName, txtRepo01TestBundleName, txtRepo03TestBundleName, txtRepo03LockedTestBundleName}
 
 	var err error
 

@@ -335,8 +335,8 @@ type repoListBody struct {
 	Value []AzureDevOpsRepo `json:"value"`
 }
 
-func generateBasicAuth(userName string, PAT string) string {
-	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", userName, PAT)))
+func generateBasicAuth(userName string, pat string) string {
+	return base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", userName, pat)))
 }
 
 func ListAllRepositories(httpClient *retryablehttp.Client, basicAuth, projectName, orgName string) ([]AzureDevOpsRepo, error) {
