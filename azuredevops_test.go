@@ -11,6 +11,8 @@ import (
 )
 
 func TestAzureDevOpsHostBackupWithEmptyBackupDir(t *testing.T) {
+	t.Parallel()
+
 	host, err := NewAzureDevOpsHost(NewAzureDevOpsHostInput{
 		Caller:           "test",
 		BackupDir:        "",
@@ -26,6 +28,8 @@ func TestAzureDevOpsHostBackupWithEmptyBackupDir(t *testing.T) {
 }
 
 func TestNewAzureDevOpsHostWithEmptyUserName(t *testing.T) {
+	t.Parallel()
+
 	_, err := NewAzureDevOpsHost(NewAzureDevOpsHostInput{
 		UserName: "",
 	})
@@ -34,12 +38,16 @@ func TestNewAzureDevOpsHostWithEmptyUserName(t *testing.T) {
 }
 
 func TestAddBasicAuthToURLWithInvalidURL(t *testing.T) {
+	t.Parallel()
+
 	_, err := AddBasicAuthToURL("::", "username", "password")
 
 	require.Error(t, err)
 }
 
 func TestAzureDevOpsBackupWithMissingOrg(t *testing.T) {
+	t.Parallel()
+
 	host := AzureDevOpsHost{}
 
 	backup := host.Backup()
@@ -48,12 +56,16 @@ func TestAzureDevOpsBackupWithMissingOrg(t *testing.T) {
 }
 
 func TestAddBasicAuthToURLWithValidURL(t *testing.T) {
+	t.Parallel()
+
 	g, err := AddBasicAuthToURL("https://example.com", "bob", "batteryhorsestaple")
 	require.NoError(t, err)
 	require.Equal(t, "https://bob:batteryhorsestaple@example.com", g)
 }
 
 func TestDescribeAzureDevOpsOrgsReposWithInvalidOrg(t *testing.T) {
+	t.Parallel()
+
 	azureDevOpsHost := AzureDevOpsHost{
 		Caller:           "test",
 		Provider:         "",
