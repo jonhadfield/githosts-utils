@@ -291,7 +291,7 @@ func listProjects(ctx context.Context, cClient azdevopscore.Client) ([]azdevopsc
 			return nil, fmt.Errorf("failed to get projects: %w", err)
 		}
 
-		projects = append(projects, (*responseValue).Value...)
+		projects = append(projects, (responseValue).Value...)
 
 		if responseValue.ContinuationToken == "" {
 			break
@@ -353,12 +353,12 @@ func ListAllRepositories(httpClient *retryablehttp.Client, basicAuth, projectNam
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer func(Body io.ReadCloser) {
-		err = Body.Close()
-		if err != nil {
+
+	defer func() {
+		if err = resp.Body.Close(); err != nil {
 			return
 		}
-	}(resp.Body)
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
