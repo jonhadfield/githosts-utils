@@ -74,7 +74,9 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	resetBackups()
 
 	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
+
 	defer restoreEnvironmentVariables(envBackup)
 
 	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
@@ -87,12 +89,15 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	require.NoError(t, err)
 
 	// without org names we should get no orgs
-	organizations, _ := gHost.getOrganizations()
-	require.Len(t, organizations, 0)
+	organizations, err := gHost.getOrganizations()
+	require.NoError(t, err)
+
+	require.Empty(t, organizations)
 
 	// with single org name we should only get that org
 	gHost.Orgs = []string{"soba-org-two"}
-	organizations, _ = gHost.getOrganizations()
+	organizations, err = gHost.getOrganizations()
+	require.NoError(t, err)
 
 	require.False(t, organisationExists(organizationExistsInput{
 		matchBy:       giteaMatchByIfDefined,
