@@ -496,18 +496,23 @@ func (g *GiteaHost) getOrganizations() ([]giteaOrganization, errors.E) {
 
 		organizations, err = g.getAllOrganizations()
 		if err != nil {
-			return nil, errors.Errorf("failed to get all organizations: %s", err)
+			return nil, errors.Errorf("failed to get all organizations: %s", err.Error())
 		}
 	} else {
 		for _, orgName := range g.Orgs {
-			organizations = append(organizations, g.getOrganization(orgName))
+			org, err := g.getOrganization(orgName)
+			if err != nil {
+				return nil, errors.Errorf("failed to get organization %s: %s", orgName, err.Error())
+			}
+
+			organizations = append(organizations, org)
 		}
 	}
 
 	return organizations, nil
 }
 
-func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
+func (g *GiteaHost) getOrganization(orgName string) (giteaOrganization, errors.E) {
 	if g.LogLevel > 0 {
 		logger.Printf("retrieving organization %s", orgName)
 	}
@@ -517,6 +522,7 @@ func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
 	}
 
 	getOrganizationsURL := fmt.Sprintf("%s%s", g.APIURL+"/orgs/", orgName)
+
 	if g.LogLevel > 0 {
 		logger.Printf("get organization url: %s", getOrganizationsURL)
 	}
@@ -526,7 +532,7 @@ func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
 	if err != nil {
 		logger.Printf("failed to parse get organization URL %s: %v", getOrganizationsURL, err)
 
-		return giteaOrganization{}
+		return giteaOrganization{}, errors.Errorf("failed to parse get organization URL: %s", err.Error())
 	}
 
 	// u.RawQuery = q.Encode()
@@ -538,9 +544,7 @@ func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
 
 	resp, body, err = g.makeGiteaRequest(reqUrl)
 	if err != nil {
-		logger.Printf("failed to get organization: %v", err)
-
-		return giteaOrganization{}
+		return giteaOrganization{}, errors.Wrap(err, fmt.Sprintf("failed to get organization: %s", orgName))
 	}
 
 	if g.LogLevel > 0 {
@@ -557,24 +561,24 @@ func (g *GiteaHost) getOrganization(orgName string) giteaOrganization {
 	case http.StatusForbidden:
 		logger.Println("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 
-		return giteaOrganization{}
+		return giteaOrganization{}, errors.Errorf("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 	default:
 		logger.Printf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-		return giteaOrganization{}
+		return giteaOrganization{}, errors.Errorf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 	}
 
 	if err = json.Unmarshal(body, &organization); err != nil {
-		logger.Printf("failed to unmarshal organization json response: %v", err)
+		logger.Printf("failed to unmarshal organization json response: %v", err.Error())
 
-		return giteaOrganization{}
+		return giteaOrganization{}, errors.Errorf("failed to unmarshal organization json response: %s", err.Error())
 	}
 
 	// if we got a link response then
 	// reset request url
 	// link: <https://gitea.lessknown.co.uk/api/v1/admin/organisations?limit=2&page=2>; rel="next",<https://gitea.lessknown.co.uk/api/v1/admin/organisations?limit=2&page=2>; rel="last"
 
-	return organization
+	return organization, nil
 }
 
 func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
@@ -614,7 +618,7 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
-			logger.Printf("failed to get organizations: %v", err)
+			logger.Printf("failed to get organizations: %v", err.Error())
 
 			return nil, nil
 		}
@@ -633,7 +637,8 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 
 			return organizations, nil
 		default:
-			logger.Printf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
+			logger.Printf("failed to get organizations with unexpected response: %d (%s)",
+				resp.StatusCode, resp.Status)
 
 			return organizations, nil
 		}
