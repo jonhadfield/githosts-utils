@@ -12,8 +12,9 @@ Tested on Windows 10 and 11, MacOS, and Linux, but should work on all OSes/archi
 
 #### Supported Providers
 
+- Azure DevOps
 - BitBucket
+- Gitea
 - GitHub
 - GitLab
-- Gitea
 
