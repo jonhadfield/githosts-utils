@@ -3,7 +3,7 @@ module github.com/jonhadfield/githosts-utils
 go 1.21
 
 require (
-	github.com/hashicorp/go-retryablehttp v0.7.5
+	github.com/hashicorp/go-retryablehttp v0.7.6
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/peterhellberg/link v1.2.0
 	github.com/stretchr/testify v1.9.0
