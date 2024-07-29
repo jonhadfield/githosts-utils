@@ -35,6 +35,7 @@ const (
 
 type NewGiteaHostInput struct {
 	Caller           string
+	HTTPClient       *retryablehttp.Client
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
@@ -75,8 +76,13 @@ func NewGiteaHost(input NewGiteaHostInput) (*GiteaHost, error) {
 		logger.Print("using diff remote method: " + diffRemoteMethod)
 	}
 
+	httpClient := input.HTTPClient
+	if httpClient == nil {
+		httpClient = getHTTPClient()
+	}
+
 	return &GiteaHost{
-		httpClient:       getHTTPClient(),
+		httpClient:       httpClient,
 		APIURL:           input.APIURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,

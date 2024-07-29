@@ -297,6 +297,7 @@ func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []
 
 type NewGitLabHostInput struct {
 	Caller                string
+	HTTPClient            *retryablehttp.Client
 	APIURL                string
 	DiffRemoteMethod      string
 	BackupDir             string
@@ -326,9 +327,14 @@ func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 		logger.Print("using diff remote method: " + diffRemoteMethod)
 	}
 
+	httpClient := input.HTTPClient
+	if httpClient == nil {
+		httpClient = getHTTPClient()
+	}
+
 	return &GitLabHost{
 		Caller:                input.Caller,
-		httpClient:            getHTTPClient(),
+		httpClient:            httpClient,
 		APIURL:                apiURL,
 		DiffRemoteMethod:      diffRemoteMethod,
 		BackupDir:             input.BackupDir,

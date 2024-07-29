@@ -124,9 +124,14 @@ func NewAzureDevOpsHost(input NewAzureDevOpsHostInput) (*AzureDevOpsHost, error)
 		logger.Printf("%s: %s", sUsingDiffRemoteMethod, diffRemoteMethod)
 	}
 
+	httpClient := input.HTTPClient
+	if httpClient == nil {
+		httpClient = getHTTPClient()
+	}
+
 	return &AzureDevOpsHost{
 		Caller:           input.Caller,
-		httpClient:       getHTTPClient(),
+		HttpClient:       httpClient,
 		Provider:         AzureDevOpsProviderName,
 		PAT:              input.PAT,
 		Orgs:             input.Orgs,
@@ -178,6 +183,7 @@ func (ad *AzureDevOpsHost) describeRepos() (describeReposOutput, errors.E) {
 }
 
 type NewAzureDevOpsHostInput struct {
+	HTTPClient       *retryablehttp.Client
 	Caller           string
 	BackupDir        string
 	DiffRemoteMethod string
@@ -190,7 +196,7 @@ type NewAzureDevOpsHostInput struct {
 
 type AzureDevOpsHost struct {
 	Caller           string
-	httpClient       *retryablehttp.Client
+	HttpClient       *retryablehttp.Client
 	Provider         string
 	PAT              string
 	Orgs             []string
@@ -242,7 +248,7 @@ func (ad *AzureDevOpsHost) describeAzureDevOpsOrgsRepos(org string) ([]repositor
 
 		var projectRepos []AzureDevOpsRepo
 
-		projectRepos, err = ListAllRepositories(retryablehttp.NewClient(), basicAuth, *project.Name, org)
+		projectRepos, err = ListAllRepositories(ad.HttpClient, basicAuth, *project.Name, org)
 		if err != nil {
 			return nil, errors.Errorf("failed to list repositories for organization: %s project: %s - %s", org, *project.Name, err)
 		}
