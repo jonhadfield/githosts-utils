@@ -24,6 +24,7 @@ const (
 )
 
 type NewGitHubHostInput struct {
+	HTTPClient       *retryablehttp.Client
 	Caller           string
 	APIURL           string
 	DiffRemoteMethod string
@@ -60,9 +61,14 @@ func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
 		logger.Print("using diff remote method: " + diffRemoteMethod)
 	}
 
+	httpClient := input.HTTPClient
+	if httpClient == nil {
+		httpClient = getHTTPClient()
+	}
+
 	return &GitHubHost{
 		Caller:           input.Caller,
-		httpClient:       getHTTPClient(),
+		HttpClient:       httpClient,
 		Provider:         gitHubProviderName,
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
@@ -78,7 +84,7 @@ func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
 
 type GitHubHost struct {
 	Caller           string
-	httpClient       *retryablehttp.Client
+	HttpClient       *retryablehttp.Client
 	Provider         string
 	APIURL           string
 	DiffRemoteMethod string
@@ -182,7 +188,7 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	req.Header.Set("Content-Type", contentTypeApplicationJSON)
 	req.Header.Set("Accept", contentTypeApplicationJSON)
 
-	resp, reqErr := gh.httpClient.Do(req)
+	resp, reqErr := gh.HttpClient.Do(req)
 	if reqErr != nil {
 		logger.Print(reqErr)
 
@@ -251,7 +257,7 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 		}
 
 		var respObj githubQueryNamesResponse
-		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); uErr != nil {
 			logger.Print(uErr)
 
 			return nil, errors.Wrap(uErr, "failed to unmarshal response")
@@ -296,7 +302,7 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 	}
 
 	var respObj githubQueryOrgsResponse
-	if uErr := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+	if uErr := json.Unmarshal([]byte(bodyStr), &respObj); uErr != nil {
 		logger.Print(uErr)
 
 		return nil, errors.Wrap(uErr, "failed to unmarshal response")

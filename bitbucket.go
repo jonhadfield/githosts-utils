@@ -25,6 +25,7 @@ const (
 
 type NewBitBucketHostInput struct {
 	Caller           string
+	HTTPClient       *retryablehttp.Client
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
@@ -55,8 +56,13 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 		logger.Print("using diff remote method: " + diffRemoteMethod)
 	}
 
+	httpClient := input.HTTPClient
+	if httpClient == nil {
+		httpClient = getHTTPClient()
+	}
+
 	return &BitbucketHost{
-		httpClient:       getHTTPClient(),
+		HttpClient:       httpClient,
 		Provider:         BitbucketProviderName,
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
@@ -70,7 +76,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 
 func (bb BitbucketHost) auth(key, secret string) (string, error) {
 	b, _, _, err := httpRequest(httpRequestInput{
-		client: bb.httpClient,
+		client: bb.HttpClient,
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
 		method: http.MethodPost,
 		headers: http.Header{
@@ -159,7 +165,7 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 
 		var resp *http.Response
 
-		resp, err = bb.httpClient.Do(req)
+		resp, err = bb.HttpClient.Do(req)
 		if err != nil {
 			logger.Println(err)
 
@@ -297,7 +303,7 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 
 type BitbucketHost struct {
 	Caller           string
-	httpClient       *retryablehttp.Client
+	HttpClient       *retryablehttp.Client
 	Provider         string
 	APIURL           string
 	DiffRemoteMethod string
