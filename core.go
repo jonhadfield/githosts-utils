@@ -216,6 +216,8 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	if cloneErr != nil {
 		if os.Getenv(envVarGitHostsLog) == "debug" {
+			fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
+
 			return errors.Errorf("cloning failed: %s: %s", strings.Join(cloneOutLines, ", "), cloneErr)
 		}
 
