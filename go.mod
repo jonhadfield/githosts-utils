@@ -6,8 +6,8 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/peterhellberg/link v1.2.0
-	github.com/stretchr/testify v1.9.0
-	gitlab.com/tozd/go/errors v0.8.1
+	github.com/stretchr/testify v1.10.0
+	gitlab.com/tozd/go/errors v0.10.0
 )
 
 require (
