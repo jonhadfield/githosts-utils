@@ -41,8 +41,12 @@ github.com/stretchr/testify v1.2.2/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXf
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
+github.com/stretchr/testify v1.10.0 h1:Xv5erBjTwe/5IxqUQTdXv5kgmIvbHo3QQyRwhJsOfJA=
+github.com/stretchr/testify v1.10.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 gitlab.com/tozd/go/errors v0.8.1 h1:RfylffRAsl3PbDdHNUBEkTleTCiL/RIT+Ef8p0HRNCI=
 gitlab.com/tozd/go/errors v0.8.1/go.mod h1:PvIdUMLpPwxr+KEBxghQaCMydHXGYdJQn/PhdMqYREY=
+gitlab.com/tozd/go/errors v0.10.0 h1:A98kL+gaDvWnY6ZB/u8zP+sYaWsWUGBHeFMtamvW/74=
+gitlab.com/tozd/go/errors v0.10.0/go.mod h1:q3Ugr0C8dCzMEkrzjjlV2qNsm9e0KvqBjwcbcjCpBe4=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
