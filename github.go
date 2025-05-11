@@ -5,22 +5,24 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
+	"gitlab.com/tozd/go/errors"
 	"io"
 	"net/http"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/hashicorp/go-retryablehttp"
-	"gitlab.com/tozd/go/errors"
+	"time"
 )
 
 const (
-	gitHubCallSize       = 100
-	githubEnvVarCallSize = "GITHUB_CALL_SIZE"
-	gitHubDomain         = "github.com"
-	gitHubProviderName   = "GitHub"
+	gitHubCallSize           = 100
+	githubEnvVarCallSize     = "GITHUB_CALL_SIZE"
+	githubEnvVarWorkerDelay  = "GITHUB_WORKER_DELAY"
+	gitHubDomain             = "github.com"
+	gitHubProviderName       = "GitHub"
+	githubDefaultWorkerDelay = 500
 )
 
 type NewGitHubHostInput struct {
@@ -532,6 +534,13 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 
 	for w := 1; w <= maxConcurrent; w++ {
 		go gitHubWorker(gh.LogLevel, gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, jobs, results)
+
+		delay := githubDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(githubEnvVarWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 
 	for x := range repoDesc.Repos {
