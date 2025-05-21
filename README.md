@@ -18,3 +18,15 @@ Tested on Windows 10 and 11, MacOS, and Linux, but should work on all OSes/archi
 - GitHub
 - GitLab
 
+
+#### Running Tests
+
+Set `GIT_BACKUP_DIR` to a temporary directory before running the test suite.
+
+```bash
+export GIT_BACKUP_DIR=$(mktemp -d)
+go test ./...
+```
+
+Some integration tests are skipped unless the relevant provider credentials are
+available in the environment.
