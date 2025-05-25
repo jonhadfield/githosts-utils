@@ -15,6 +15,9 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY is missing")
 	}
 
+	testLock.Lock()
+	defer testLock.Unlock()
+
 	// need to set output to buffer in order to test output
 	logger.SetOutput(&buf)
 	defer logger.SetOutput(os.Stdout)
@@ -87,6 +90,9 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	if os.Getenv(bitbucketEnvVarKey) == "" {
 		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY is missing")
 	}
+
+	testLock.Lock()
+	defer testLock.Unlock()
 
 	// need to set output to buffer in order to test output
 	logger.SetOutput(&buf)

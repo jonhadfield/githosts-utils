@@ -1,14 +1,16 @@
 package githosts
 
 import (
+	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 )
+
+var testLock sync.Mutex
 
 func TestAzureDevOpsHostBackupWithEmptyBackupDir(t *testing.T) {
 	t.Parallel()
@@ -86,7 +88,8 @@ func TestAzureDevOpsOrgBackup(t *testing.T) {
 		t.Skip(msgSkipAzureDevOpsUserNameMissing)
 	}
 
-	t.Parallel()
+	testLock.Lock()
+	defer testLock.Unlock()
 
 	logger.SetOutput(&buf)
 	defer logger.SetOutput(os.Stdout)
