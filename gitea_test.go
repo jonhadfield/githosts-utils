@@ -116,6 +116,9 @@ func TestGiteaGetOrganisations(t *testing.T) {
 
 // getOrganizationsRepos.
 func TestGetOrganizationsRepos(t *testing.T) {
+	testLock.Lock()
+	defer testLock.Unlock()
+
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
@@ -168,6 +171,9 @@ func TestGetOrganizationsRepos(t *testing.T) {
 }
 
 func TestGetAllOrganizationRepos(t *testing.T) {
+	testLock.Lock()
+	defer testLock.Unlock()
+
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
@@ -244,6 +250,9 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 }
 
 func TestGetAllUserRepos(t *testing.T) {
+	testLock.Lock()
+	defer testLock.Unlock()
+
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
@@ -309,6 +318,9 @@ func TestGetAPIURL(t *testing.T) {
 }
 
 func TestGiteaDiffRemoteMethod(t *testing.T) {
+	testLock.Lock()
+	defer testLock.Unlock()
+
 	apiURL := "https://api.example.com/api/v1"
 
 	gh, err := NewGiteaHost(NewGiteaHostInput{
@@ -336,6 +348,9 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 }
 
 func TestGiteaRepositoryBackup(t *testing.T) {
+	testLock.Lock()
+	defer testLock.Unlock()
+
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
@@ -384,6 +399,9 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 }
 
 func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
+	testLock.Lock()
+	defer testLock.Unlock()
+	
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
