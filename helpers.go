@@ -210,3 +210,11 @@ func remove(s []string, r string) []string {
 
 	return s
 }
+
+func canonicalDiffRemoteMethod(method string) string {
+	if strings.EqualFold(method, refsMethod) {
+		return refsMethod
+	}
+
+	return cloneMethod
+}
