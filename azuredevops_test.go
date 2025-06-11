@@ -1,13 +1,14 @@
 package githosts
 
 import (
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var testLock sync.Mutex

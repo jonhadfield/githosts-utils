@@ -401,7 +401,7 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
 	testLock.Lock()
 	defer testLock.Unlock()
-	
+
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
