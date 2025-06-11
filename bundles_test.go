@@ -14,7 +14,7 @@ const (
 )
 
 func TestRenameInvalidBundle(t *testing.T) {
-	if os.Getenv(envGithubToken) == "" {
+	if getEnvOrFile(envGithubToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
@@ -34,7 +34,7 @@ func TestRenameInvalidBundle(t *testing.T) {
 		APIURL:           githubAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        backupDir,
-		Token:            os.Getenv(envGithubToken),
+		Token:            getEnvOrFile(envGithubToken),
 		BackupsToRetain:  1,
 	})
 	require.NoError(t, err)
