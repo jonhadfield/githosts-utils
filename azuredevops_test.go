@@ -85,7 +85,7 @@ func TestDescribeAzureDevOpsOrgsReposWithInvalidOrg(t *testing.T) {
 }
 
 func TestAzureDevOpsOrgBackup(t *testing.T) {
-	if os.Getenv(envAzureDevOpsUserName) == "" {
+	if getEnvOrFile(envAzureDevOpsUserName) == "" {
 		t.Skip(msgSkipAzureDevOpsUserNameMissing)
 	}
 
@@ -110,9 +110,9 @@ func TestAzureDevOpsOrgBackup(t *testing.T) {
 		Caller:           "githosts-utils-test",
 		BackupDir:        backupDIR,
 		DiffRemoteMethod: refsMethod,
-		UserName:         os.Getenv("AZURE_DEVOPS_USERNAME"),
-		PAT:              os.Getenv("AZURE_DEVOPS_PAT"),
-		Orgs:             []string{os.Getenv("AZURE_DEVOPS_ORGS")},
+		UserName:         getEnvOrFile("AZURE_DEVOPS_USERNAME"),
+		PAT:              getEnvOrFile("AZURE_DEVOPS_PAT"),
+		Orgs:             []string{getEnvOrFile("AZURE_DEVOPS_ORGS")},
 		BackupsToRetain:  2,
 	})
 	require.NoError(t, err)
