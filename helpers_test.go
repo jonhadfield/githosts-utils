@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMaskSecretsReplacesSecretsWithAsterisks(t *testing.T) {
@@ -138,4 +139,10 @@ func TestGetBundleRefs(t *testing.T) {
 	refs, err := getBundleRefs("testfiles/example-bundles/example.20221102202522.bundle")
 	assert.NoError(t, err)
 	assert.Equal(t, "2c84a508078d81eae0246ae3f3097befd0bcb7dc", refs["refs/heads/master"])
+}
+
+func TestRemoveNotFound(t *testing.T) {
+	s := []string{"a", "b", "c"}
+	out := remove(s, "z")
+	require.Equal(t, s, out)
 }
