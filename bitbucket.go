@@ -32,6 +32,7 @@ type NewBitBucketHostInput struct {
 	Secret           string
 	BackupsToRetain  int
 	LogLevel         int
+	BackupLFS        bool
 }
 
 func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
@@ -69,6 +70,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 		User:             input.User,
 		Key:              input.Key,
 		Secret:           input.Secret,
+		BackupLFS:        input.BackupLFS,
 	}, nil
 }
 
@@ -216,10 +218,10 @@ func (bb BitbucketHost) getAPIURL() string {
 	return bb.APIURL
 }
 
-func bitBucketWorker(logLevel int, user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
+func bitBucketWorker(logLevel int, user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		repo.URLWithBasicAuth = urlWithBasicAuth(repo.HTTPSUrl, user, token)
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
 }
@@ -254,7 +256,7 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(bb.LogLevel, bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, jobs, results)
+		go bitBucketWorker(bb.LogLevel, bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, bb.BackupLFS, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -294,6 +296,7 @@ type BitbucketHost struct {
 	Key              string
 	Secret           string
 	LogLevel         int
+	BackupLFS        bool
 }
 
 type bitbucketOwner struct {
