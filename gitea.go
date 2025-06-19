@@ -43,6 +43,7 @@ type NewGiteaHostInput struct {
 	Orgs             []string
 	BackupsToRetain  int
 	LogLevel         int
+	BackupLFS        bool
 }
 
 type GiteaHost struct {
@@ -55,6 +56,7 @@ type GiteaHost struct {
 	Token            string
 	Orgs             []string
 	LogLevel         int
+	BackupLFS        bool
 }
 
 func NewGiteaHost(input NewGiteaHostInput) (*GiteaHost, error) {
@@ -90,6 +92,7 @@ func NewGiteaHost(input NewGiteaHostInput) (*GiteaHost, error) {
 		Token:            input.Token,
 		Orgs:             input.Orgs,
 		LogLevel:         input.LogLevel,
+		BackupLFS:        input.BackupLFS,
 	}, nil
 }
 
@@ -957,10 +960,10 @@ func (g *GiteaHost) diffRemoteMethod() string {
 	return canonicalDiffRemoteMethod(g.DiffRemoteMethod)
 }
 
-func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
+func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, token)
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
 }
@@ -986,7 +989,7 @@ func (g *GiteaHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go giteaWorker(g.Token, g.LogLevel, g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, jobs, results)
+		go giteaWorker(g.Token, g.LogLevel, g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, g.BackupLFS, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
