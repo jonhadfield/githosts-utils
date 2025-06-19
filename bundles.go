@@ -72,7 +72,11 @@ func getBundleRefs(bundlePath string) (gitRefs, error) {
 
 	out, bundleRefsCmdErr := bundleRefsCmd.CombinedOutput()
 	if bundleRefsCmdErr != nil {
-		return nil, errors.New(string(out))
+		gitErr := parseGitError(out)
+		if gitErr != "" {
+			return nil, errors.Errorf("git bundle list-heads failed: %s", gitErr)
+		}
+		return nil, errors.Wrap(bundleRefsCmdErr, "git bundle list-heads failed")
 	}
 
 	refs, err := generateMapFromRefsCmdOutput(out)
