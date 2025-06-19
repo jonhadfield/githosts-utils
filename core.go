@@ -175,6 +175,10 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 
 	out, err := remoteHeadsCmd.CombinedOutput()
 	if err != nil {
+		gitErr := parseGitError(out)
+		if gitErr != "" {
+			return refs, errors.Wrapf(err, "failed to retrieve remote heads: %s", gitErr)
+		}
 		return refs, errors.Wrap(err, "failed to retrieve remote heads")
 	}
 
@@ -218,20 +222,16 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	cloneCmd.Dir = backupDIR
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
-	if cloneErr != nil {
-		fmt.Printf("cloning failed for repository: %s - %s\n", repo.Name, cloneErr)
-	}
-
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
-
 	if cloneErr != nil {
+		gitErr := parseGitError(cloneOut)
 		if os.Getenv(envVarGitHostsLog) == "debug" {
 			fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
-
-			return errors.Errorf("cloning failed: %s: %s", strings.Join(cloneOutLines, ", "), cloneErr)
 		}
-
-		return errors.Errorf("cloning failed for repository: %s - %s", repo.Name, cloneErr)
+		if gitErr != "" {
+			return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s", repo.Name, gitErr)
+		}
+		return errors.Wrapf(cloneErr, "cloning failed for repository: %s", repo.Name)
 	}
 
 	// create bundle
