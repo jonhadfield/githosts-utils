@@ -37,6 +37,7 @@ type NewGitHubHostInput struct {
 	Orgs             []string
 	BackupsToRetain  int
 	LogLevel         int
+	BackupLFS        bool
 }
 
 func (gh *GitHubHost) getAPIURL() string {
@@ -81,6 +82,7 @@ func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
 		Token:            input.Token,
 		Orgs:             input.Orgs,
 		LogLevel:         input.LogLevel,
+		BackupLFS:        input.BackupLFS,
 	}, nil
 }
 
@@ -97,6 +99,7 @@ type GitHubHost struct {
 	Token            string
 	Orgs             []string
 	LogLevel         int
+	BackupLFS        bool
 }
 
 type edge struct {
@@ -487,10 +490,10 @@ func removeDuplicates(repos []repository) []repository {
 	return uniqueRepos
 }
 
-func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
+func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, stripTrailing(token, "\n"))
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
 }
@@ -519,7 +522,7 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(gh.LogLevel, gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, jobs, results)
+		go gitHubWorker(gh.LogLevel, gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, gh.BackupLFS, jobs, results)
 
 		delay := githubDefaultWorkerDelay
 		if envDelay, sErr := strconv.Atoi(os.Getenv(githubEnvVarWorkerDelay)); sErr == nil {

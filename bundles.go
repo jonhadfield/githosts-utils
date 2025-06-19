@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	bundleExtension = ".bundle"
+	bundleExtension     = ".bundle"
+	lfsArchiveExtension = ".lfs.tar.gz"
 	// invalidBundleStringCheck checks for a portion of the following in the command output
 	// to determine if valid: "does not look like a v2 or v3 bundle file".
 	invalidBundleStringCheck = "does not look like"
@@ -175,6 +176,37 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 
 	if logLevel > 0 {
 		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
+	}
+
+	return nil
+}
+
+func createLFSArchive(logLevel int, workingPath, backupPath string, repo repository) errors.E {
+	archiveFile := repo.Name + "." + getTimestamp() + lfsArchiveExtension
+	archiveFilePath := filepath.Join(backupPath, archiveFile)
+
+	createErr := createDirIfAbsent(backupPath)
+	if createErr != nil {
+		return errors.Errorf("failed to create backup path: %s: %s", backupPath, createErr)
+	}
+
+	logger.Printf("creating git lfs archive for: %s", repo.Name)
+
+	tarCmd := exec.Command("tar", "-czf", archiveFilePath, ".git/lfs")
+	tarCmd.Dir = workingPath
+
+	var tarOut bytes.Buffer
+	tarCmd.Stdout = &tarOut
+	tarCmd.Stderr = &tarOut
+
+	startTar := time.Now()
+
+	if tarErr := tarCmd.Run(); tarErr != nil {
+		return errors.Errorf("failed to create git lfs archive: %s: %s", repo.Name, tarErr)
+	}
+
+	if logLevel > 0 {
+		logger.Printf("git lfs archive create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startTar).String())
 	}
 
 	return nil

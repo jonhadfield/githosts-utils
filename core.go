@@ -183,7 +183,7 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
-func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string) errors.E {
+func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string, backupLFS bool) errors.E {
 	// create backup path
 	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
 	backupPath := filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
@@ -232,6 +232,18 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 		}
 
 		return errors.Errorf("cloning failed for repository: %s - %s", repo.Name, cloneErr)
+	}
+
+	if backupLFS {
+		lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
+		lfsCmd.Dir = workingPath
+		if out, err := lfsCmd.CombinedOutput(); err != nil {
+			return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
+		}
+
+		if err := createLFSArchive(logLevel, workingPath, backupPath, repo); err != nil {
+			return err
+		}
 	}
 
 	// create bundle

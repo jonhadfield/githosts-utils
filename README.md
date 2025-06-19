@@ -9,6 +9,7 @@
 - Clones repositories using `git --mirror` and stores timestamped bundle files
 - Optional reference comparison to skip cloning when refs have not changed
 - Ability to keep a configurable number of previous bundles
+- Optional Git LFS archival alongside each bundle
 - Pluggable HTTP client and simple logging via the `GITHOSTS_LOG` environment variable
 
 ## Installation
@@ -40,6 +41,7 @@ func main() {
         Caller:    "example",
         BackupDir: backupDir,
         Token:     os.Getenv("GITHUB_TOKEN"),
+        BackupLFS: true,
     })
     if err != nil {
         log.Fatal(err)
