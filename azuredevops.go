@@ -52,7 +52,7 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go azureDevOpsWorker(ad.LogLevel, ad.BackupDir, ad.DiffRemoteMethod, ad.BackupsToRetain, jobs, results)
+		go azureDevOpsWorker(ad.LogLevel, ad.BackupDir, ad.DiffRemoteMethod, ad.BackupsToRetain, ad.BackupLFS, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -76,11 +76,11 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	return providerBackupResults
 }
 
-func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int,
+func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool,
 	jobs <-chan repository, results chan<- RepoBackupResults,
 ) {
 	for repo := range jobs {
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
 }
@@ -127,6 +127,7 @@ func NewAzureDevOpsHost(input NewAzureDevOpsHostInput) (*AzureDevOpsHost, error)
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
 		LogLevel:         input.LogLevel,
+		BackupLFS:        input.BackupLFS,
 	}, nil
 }
 
@@ -179,6 +180,7 @@ type NewAzureDevOpsHostInput struct {
 	Orgs             []string
 	BackupsToRetain  int
 	LogLevel         int
+	BackupLFS        bool
 }
 
 type AzureDevOpsHost struct {
@@ -192,6 +194,7 @@ type AzureDevOpsHost struct {
 	BackupDir        string
 	BackupsToRetain  int
 	LogLevel         int
+	BackupLFS        bool
 }
 
 func AddBasicAuthToURL(originalURL, username, password string) (string, error) {

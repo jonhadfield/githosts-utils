@@ -41,6 +41,7 @@ type GitLabHost struct {
 	Token                 string
 	User                  gitlabUser
 	LogLevel              int
+	BackupLFS             bool
 }
 
 func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
@@ -305,6 +306,7 @@ type NewGitLabHostInput struct {
 	ProjectMinAccessLevel int
 	BackupsToRetain       int
 	LogLevel              int
+	BackupLFS             bool
 }
 
 func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
@@ -342,6 +344,7 @@ func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 		Token:                 input.Token,
 		ProjectMinAccessLevel: input.ProjectMinAccessLevel,
 		LogLevel:              input.LogLevel,
+		BackupLFS:             input.BackupLFS,
 	}, nil
 }
 
@@ -370,10 +373,10 @@ func (gl *GitLabHost) getAPIURL() string {
 	return gl.APIURL
 }
 
-func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, jobs <-chan repository, results chan<- RepoBackupResults) {
+func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, userName+":"+stripTrailing(token, "\n"))
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
 }
@@ -413,7 +416,7 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(gl.LogLevel, gl.User.UserName, gl.Token, gl.BackupDir, gl.diffRemoteMethod(), gl.BackupsToRetain, jobs, results)
+		go gitlabWorker(gl.LogLevel, gl.User.UserName, gl.Token, gl.BackupDir, gl.diffRemoteMethod(), gl.BackupsToRetain, gl.BackupLFS, jobs, results)
 	}
 
 	var providerBackupResults ProviderBackupResult
