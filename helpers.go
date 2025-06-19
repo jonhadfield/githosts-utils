@@ -68,12 +68,34 @@ func urlWithBasicAuth(httpsURL, user, password string) string {
 	return fmt.Sprintf("%s//%s:%s@%s", parts[0], user, password, parts[1])
 }
 
+// parseGitError returns any lines from git output that start with
+// "fatal:" or "error:". If none are found, it trims and returns the
+// entire output string.
+func parseGitError(out []byte) string {
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var errs []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "fatal:") || strings.HasPrefix(trimmed, "error:") {
+			errs = append(errs, trimmed)
+		}
+	}
+	if len(errs) > 0 {
+		return strings.Join(errs, ", ")
+	}
+	return strings.Join(lines, ", ")
+}
+
 func isEmpty(clonedRepoPath string) (bool, errors.E) {
 	remoteHeadsCmd := exec.Command("git", "count-objects", "-v")
 	remoteHeadsCmd.Dir = clonedRepoPath
 
 	out, err := remoteHeadsCmd.CombinedOutput()
 	if err != nil {
+		gitErr := parseGitError(out)
+		if gitErr != "" {
+			return true, errors.Wrapf(err, "failed to count objects in %s: %s", clonedRepoPath, gitErr)
+		}
 		return true, errors.Wrapf(err, "failed to count objects in %s", clonedRepoPath)
 	}
 
