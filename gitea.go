@@ -433,6 +433,7 @@ func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 	for {
 		var resp *http.Response
 
+		//nolint:bodyclose // makeGiteaRequest handles closing the response body
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			logger.Printf("failed to get users: %v", err)
@@ -551,6 +552,7 @@ func (g *GiteaHost) getOrganization(orgName string) (giteaOrganization, errors.E
 
 	var resp *http.Response
 
+	//nolint:bodyclose // makeGiteaRequest handles closing the response body
 	resp, body, err = g.makeGiteaRequest(reqUrl)
 	if err != nil {
 		return giteaOrganization{}, errors.Wrap(err, fmt.Sprintf("failed to get organization: %s", orgName))
@@ -625,6 +627,7 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	for {
 		var resp *http.Response
 
+		//nolint:bodyclose // makeGiteaRequest handles closing the response body
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			logger.Printf("failed to get organizations: %v", err.Error())
@@ -799,6 +802,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) ([]giteaReposi
 	for {
 		var resp *http.Response
 
+		//nolint:bodyclose // makeGiteaRequest handles closing the response body
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			return nil, errors.Errorf("failed to make Gitea request: %s", err)
@@ -883,6 +887,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
 	for {
 		var resp *http.Response
 
+		//nolint:bodyclose // makeGiteaRequest handles closing the response body
 		resp, body, err = g.makeGiteaRequest(reqUrl)
 		if err != nil {
 			logger.Printf("failed to get repos: %v", err)
