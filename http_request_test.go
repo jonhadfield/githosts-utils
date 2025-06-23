@@ -42,9 +42,13 @@ func TestHTTPRequestSuccess(t *testing.T) {
 
 func TestHTTPRequestNoMethod(t *testing.T) {
 	client := retryablehttp.NewClient()
-	_, _, _, err := httpRequest(httpRequestInput{
+	body, hdr, code, err := httpRequest(httpRequestInput{
 		client: client,
 		url:    "http://example.com",
 	})
 	require.Error(t, err)
+	// prevent dogsled lint issue by explicitly ignoring unused results
+	_ = body
+	_ = hdr
+	_ = code
 }
