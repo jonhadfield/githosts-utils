@@ -12,6 +12,7 @@ import (
 )
 
 func TestHTTPRequestSuccess(t *testing.T) {
+	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("unexpected method %s", r.Method)
@@ -41,6 +42,7 @@ func TestHTTPRequestSuccess(t *testing.T) {
 }
 
 func TestHTTPRequestNoMethod(t *testing.T) {
+	t.Parallel()
 	client := retryablehttp.NewClient()
 	body, hdr, code, err := httpRequest(httpRequestInput{
 		client: client,

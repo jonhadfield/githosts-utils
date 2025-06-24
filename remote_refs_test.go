@@ -8,6 +8,7 @@ import (
 )
 
 func TestRemoteRefsMatchLocalRefsTrue(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	remoteDir := filepath.Join(tmpDir, "remote")
 	backupDir := filepath.Join(tmpDir, "backup")
@@ -33,6 +34,7 @@ func TestRemoteRefsMatchLocalRefsTrue(t *testing.T) {
 }
 
 func TestRemoteRefsMatchLocalRefsFalse(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	remoteDir := filepath.Join(tmpDir, "remote")
 	backupDir := filepath.Join(tmpDir, "backup")
