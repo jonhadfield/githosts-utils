@@ -15,6 +15,7 @@ import (
 )
 
 func TestMaskSecretsReplacesSecretsWithAsterisks(t *testing.T) {
+	t.Parallel()
 	content := "Hello, my secret is secret123"
 	secrets := []string{"secret123"}
 
@@ -24,6 +25,7 @@ func TestMaskSecretsReplacesSecretsWithAsterisks(t *testing.T) {
 }
 
 func TestMaskSecretsHandlesMultipleSecrets(t *testing.T) {
+	t.Parallel()
 	content := "Hello, my secrets are secret123 and secret456"
 	secrets := []string{"secret123", "secret456"}
 
@@ -33,6 +35,7 @@ func TestMaskSecretsHandlesMultipleSecrets(t *testing.T) {
 }
 
 func TestMaskSecretsReturnsOriginalContentWhenNoSecrets(t *testing.T) {
+	t.Parallel()
 	content := "Hello, I have no secrets"
 	secrets := []string{}
 
@@ -42,6 +45,7 @@ func TestMaskSecretsReturnsOriginalContentWhenNoSecrets(t *testing.T) {
 }
 
 func TestMaskSecretsDoesNotAlterContentWithoutSecrets(t *testing.T) {
+	t.Parallel()
 	content := "Hello, my secret is not here"
 	secrets := []string{"secret123"}
 
@@ -51,6 +55,7 @@ func TestMaskSecretsDoesNotAlterContentWithoutSecrets(t *testing.T) {
 }
 
 func TestCreateDirIfAbsent(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "new", "sub")
 	err := createDirIfAbsent(path)
@@ -61,11 +66,13 @@ func TestCreateDirIfAbsent(t *testing.T) {
 }
 
 func TestStripTrailing(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "hello", stripTrailing("hello\n", "\n"))
 	assert.Equal(t, "world", stripTrailing("world", "\n"))
 }
 
 func TestURLHelpers(t *testing.T) {
+	t.Parallel()
 	u := urlWithToken("https://example.com/repo.git", "tok")
 	assert.Equal(t, "https://tok@example.com/repo.git", u)
 
@@ -80,6 +87,7 @@ func TestURLHelpers(t *testing.T) {
 }
 
 func TestTimeStampToTime(t *testing.T) {
+	t.Parallel()
 	ts := getTimestamp()
 	parsed, err := timeStampToTime(ts)
 	assert.NoError(t, err)
@@ -90,6 +98,7 @@ func TestTimeStampToTime(t *testing.T) {
 }
 
 func TestParseCountObjectsOutput(t *testing.T) {
+	t.Parallel()
 	loose, packed, err := parseCountObjectsOutput("count: 0\nin-pack: 0\n")
 	assert.NoError(t, err)
 	assert.False(t, loose)
@@ -100,6 +109,7 @@ func TestParseCountObjectsOutput(t *testing.T) {
 }
 
 func TestIsEmpty(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	cmd := exec.Command("git", "init", repo)
 	assert.NoError(t, cmd.Run())
@@ -119,6 +129,7 @@ func TestIsEmpty(t *testing.T) {
 }
 
 func TestGetResponseBody(t *testing.T) {
+	t.Parallel()
 	b := bytes.NewBufferString("hello")
 	resp := &http.Response{Body: io.NopCloser(b), Header: http.Header{}}
 	out, err := getResponseBody(resp)
@@ -136,12 +147,14 @@ func TestGetResponseBody(t *testing.T) {
 }
 
 func TestGetBundleRefs(t *testing.T) {
+	t.Parallel()
 	refs, err := getBundleRefs("testfiles/example-bundles/example.20221102202522.bundle")
 	assert.NoError(t, err)
 	assert.Equal(t, "2c84a508078d81eae0246ae3f3097befd0bcb7dc", refs["refs/heads/master"])
 }
 
 func TestRemoveNotFound(t *testing.T) {
+	t.Parallel()
 	s := []string{"a", "b", "c"}
 	out := remove(s, "z")
 	require.Equal(t, s, out)

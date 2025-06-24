@@ -10,6 +10,7 @@ import (
 )
 
 func TestCutBySpaceAndTrimOutput(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in     string
 		before string
@@ -31,6 +32,7 @@ func TestCutBySpaceAndTrimOutput(t *testing.T) {
 }
 
 func TestGenerateBasicAuth(t *testing.T) {
+	t.Parallel()
 	out := generateBasicAuth("bob", "batteryhorsestaple")
 	expected := base64.StdEncoding.EncodeToString([]byte("bob:batteryhorsestaple"))
 	if out != expected {
@@ -52,6 +54,7 @@ func TestSetLoggerPrefix(t *testing.T) {
 }
 
 func TestValidDiffRemoteMethod(t *testing.T) {
+	t.Parallel()
 	if err := validDiffRemoteMethod("clone"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,6 +67,7 @@ func TestValidDiffRemoteMethod(t *testing.T) {
 }
 
 func TestGetDiffRemoteMethod(t *testing.T) {
+	t.Parallel()
 	m, err := getDiffRemoteMethod("clone")
 	if err != nil || m != "clone" {
 		t.Fatalf("unexpected result: %s %v", m, err)
@@ -78,6 +82,7 @@ func TestGetDiffRemoteMethod(t *testing.T) {
 }
 
 func TestGetHTTPClient(t *testing.T) {
+	t.Parallel()
 	c := getHTTPClient()
 	if c == nil || c.HTTPClient == nil {
 		t.Fatal("nil client")
@@ -91,6 +96,7 @@ func TestGetHTTPClient(t *testing.T) {
 }
 
 func TestToPtr(t *testing.T) {
+	t.Parallel()
 	v := 10
 	p := ToPtr(v)
 	if *p != v {
@@ -99,12 +105,14 @@ func TestToPtr(t *testing.T) {
 }
 
 func TestExtractDomainFromAPIUrl(t *testing.T) {
+	t.Parallel()
 	if d := extractDomainFromAPIUrl("https://gitea.example.com/api/v1"); d != "gitea.example.com" {
 		t.Errorf("unexpected domain %s", d)
 	}
 }
 
 func TestGetRemoteRefs(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	remoteDir := filepath.Join(tmp, "remote")
 	if err := os.MkdirAll(remoteDir, 0o755); err != nil {
