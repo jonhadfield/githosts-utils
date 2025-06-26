@@ -242,7 +242,6 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 			return errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
 		}
 		if len(strings.TrimSpace(string(lfsFilesOut))) > 0 {
-			fmt.Printf("git lfs ls-files: %s\n", strings.TrimSpace(string(lfsFilesOut)))
 			lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
 			lfsCmd.Dir = workingPath
 			if out, err := lfsCmd.CombinedOutput(); err != nil {
