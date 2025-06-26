@@ -11,7 +11,7 @@ import (
 )
 
 func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
-	if os.Getenv(bitbucketEnvVarKey) == "" {
+	if os.Getenv(bitbucketEnvVarAPIToken) == "" {
 		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY is missing")
 	}
 
@@ -30,21 +30,21 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
+	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarAPIToken, bitbucketEnvVarEmail})
 
 	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{
 		Caller:           "TestPublicBitbucketRepositoryRefsCompare",
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        os.Getenv(envVarGitBackupDir),
-		Token:            os.Getenv(bitbucketEnvVarUser),
-		Email:            os.Getenv(bitbucketEnvVarKey),
-		Username:         os.Getenv(bitbucketEnvVarSecret),
+		Token:            os.Getenv(bitbucketEnvVarAPIToken),
+		Email:            os.Getenv(bitbucketEnvVarEmail),
 		LogLevel:         1,
 	})
 	require.NoError(t, err)
 
-	bbHost.Backup()
+	res := bbHost.Backup()
+	require.NoError(t, res.Error)
 	expectedPathOne := filepath.Join(bbHost.BackupDir, bitbucketDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
 	dirOneEntries, err := dirContents(expectedPathOne)
@@ -87,7 +87,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 }
 
 func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
-	if os.Getenv(bitbucketEnvVarKey) == "" {
+	if os.Getenv(bitbucketEnvVarAPIToken) == "" {
 		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY is missing")
 	}
 
@@ -104,15 +104,14 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarKey, bitbucketEnvVarSecret, bitbucketEnvVarUser})
+	unsetEnvVars([]string{envVarGitBackupDir, bitbucketEnvVarAPIToken, bitbucketEnvVarEmail})
 
 	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        os.Getenv(envVarGitBackupDir),
-		Token:            os.Getenv(bitbucketEnvVarUser),
-		Email:            os.Getenv(bitbucketEnvVarKey),
-		Username:         os.Getenv(bitbucketEnvVarSecret),
+		Token:            os.Getenv(bitbucketEnvVarAPIToken),
+		Email:            os.Getenv(bitbucketEnvVarEmail),
 	})
 	require.NoError(t, err)
 
