@@ -270,7 +270,10 @@ func pruneBackups(backupPath string, keep int) errors.E {
 
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), bundleExtension) {
-			logger.Printf("skipping non bundle file '%s'", f.Name())
+			// no need to mention skipping lfs archives, as they are not bundles
+			if !strings.HasSuffix(f.Name(), lfsArchiveExtension) {
+				logger.Printf("skipping non bundle and non lfs archive file '%s'", f.Name())
+			}
 
 			continue
 		}
@@ -389,16 +392,16 @@ func filesIdentical(path1, path2 string) bool {
 	return false
 }
 
-func removeBundleIfDuplicate(dir string) {
+func removeBundleIfDuplicate(dir string) bool {
 	files, err := getBundleFiles(dir)
 	if err != nil {
 		logger.Println(err)
 
-		return
+		return false
 	}
 
 	if len(files) == 1 {
-		return
+		return false
 	}
 	// get timestamps in filenames for sorting
 	fNameTimes := map[string]int{}
@@ -435,7 +438,11 @@ func removeBundleIfDuplicate(dir string) {
 		if deleteFile(filepath.Join(dir, ss[0].Key)) != nil {
 			logger.Println("failed to remove duplicate bundle")
 		}
+
+		return false
 	}
+
+	return true
 }
 
 func deleteFile(path string) error {
