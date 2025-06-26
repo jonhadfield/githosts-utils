@@ -235,14 +235,23 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	}
 
 	if backupLFS {
-		lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
-		lfsCmd.Dir = workingPath
-		if out, err := lfsCmd.CombinedOutput(); err != nil {
-			return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
+		lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
+		lfsFilesCmd.Dir = workingPath
+		lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
+		if lfsFilesErr != nil {
+			return errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
 		}
+		if len(strings.TrimSpace(string(lfsFilesOut))) > 0 {
+			fmt.Printf("git lfs ls-files: %s\n", strings.TrimSpace(string(lfsFilesOut)))
+			lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
+			lfsCmd.Dir = workingPath
+			if out, err := lfsCmd.CombinedOutput(); err != nil {
+				return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
+			}
 
-		if err := createLFSArchive(logLevel, workingPath, backupPath, repo); err != nil {
-			return err
+			if err := createLFSArchive(logLevel, workingPath, backupPath, repo); err != nil {
+				return err
+			}
 		}
 	}
 

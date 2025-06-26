@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -14,11 +13,12 @@ import (
 )
 
 const (
-	BitbucketProviderName = "BitBucket"
-	bitbucketEnvVarKey    = "BITBUCKET_KEY"
-	bitbucketEnvVarSecret = "BITBUCKET_SECRET"
-	bitbucketEnvVarUser   = "BITBUCKET_USER"
-	bitbucketDomain       = "bitbucket.com"
+	BitbucketProviderName   = "BitBucket"
+	bitbucketEnvVarKey      = "BITBUCKET_KEY"
+	bitbucketEnvVarSecret   = "BITBUCKET_SECRET"
+	bitbucketEnvVarUser     = "BITBUCKET_USER"
+	bitbucketDomain         = "bitbucket.com"
+	bitbucketStaticUserName = "x-bitbucket-api-token-auth"
 )
 
 type NewBitBucketHostInput struct {
@@ -27,9 +27,9 @@ type NewBitBucketHostInput struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
-	User             string
-	Key              string
-	Secret           string
+	Token            string
+	Email            string
+	Username         string
 	BackupsToRetain  int
 	LogLevel         int
 	BackupLFS        bool
@@ -67,53 +67,14 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
-		User:             input.User,
-		Key:              input.Key,
-		Secret:           input.Secret,
+		Token:            input.Token,
+		Email:            input.Email,
 		BackupLFS:        input.BackupLFS,
 	}, nil
 }
 
 func (bb BitbucketHost) auth() (string, error) {
-	b, _, _, err := httpRequest(httpRequestInput{
-		client: bb.HttpClient,
-		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", bb.Key, bb.Secret),
-		method: http.MethodPost,
-		headers: http.Header{
-			"Host":         []string{"bitbucket.org"},
-			"Content-Type": []string{"application/x-www-form-urlencoded"},
-			"Accept":       []string{"*/*"},
-		},
-		reqBody:           []byte("grant_type=client_credentials"),
-		basicAuthUser:     bb.Key,
-		basicAuthPassword: bb.Secret,
-		secrets:           []string{bb.Key, bb.Secret},
-		timeout:           defaultHttpRequestTimeout,
-	})
-	if err != nil {
-		return "", errors.Errorf("failed to get bitbucket auth token: %s", err)
-	}
-
-	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
-
-	var authResp bitbucketAuthResponse
-
-	if err = json.Unmarshal([]byte(bodyStr), &authResp); err != nil {
-		return "", errors.Errorf("failed to unmarshall bitbucket json response: %s", err)
-	}
-
-	// check for any errors
-	if authResp.AccessToken == "" {
-		var authErrResp bitbucketAuthErrorResponse
-
-		if err = json.Unmarshal([]byte(bodyStr), &authErrResp); err != nil {
-			return "", errors.Errorf("failed to unmarshall bitbucket json error response: %s", err)
-		}
-
-		return "", errors.Errorf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription)
-	}
-
-	return authResp.AccessToken, nil
+	return bb.Token, nil
 }
 
 type bitbucketAuthResponse struct {
@@ -124,26 +85,15 @@ type bitbucketAuthResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
-type bitbucketAuthErrorResponse struct {
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
-}
-
 func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing BitBucket repositories")
 
 	var err error
 
-	var token string
-
-	token, err = bb.auth()
-	if err != nil {
-		return describeReposOutput{}, errors.Wrap(err, "failed to get bitbucket auth token")
-	}
-
 	var repos []repository
 
 	rawRequestURL := bb.APIURL + "/repositories?role=member"
+	rawRequestURL = urlWithBasicAuth(rawRequestURL, bb.Email, bb.Token)
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
@@ -156,7 +106,7 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 			return describeReposOutput{}, errors.Wrap(errNewReq, "failed to create new request")
 		}
 
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+		req.Method = http.MethodGet
 		req.Header.Set("Content-Type", contentTypeApplicationJSON)
 		req.Header.Set("Accept", contentTypeApplicationJSON)
 
@@ -177,7 +127,6 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 		}
 
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
-
 		_ = resp.Body.Close()
 
 		var respObj bitbucketGetProjectsResponse
@@ -218,9 +167,9 @@ func (bb BitbucketHost) getAPIURL() string {
 	return bb.APIURL
 }
 
-func bitBucketWorker(logLevel int, user, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
+func bitBucketWorker(logLevel int, email, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
-		repo.URLWithBasicAuth = urlWithBasicAuth(repo.HTTPSUrl, user, token)
+		repo.URLWithBasicAuth = urlWithBasicAuth(repo.HTTPSUrl, bitbucketStaticUserName, token)
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
@@ -237,15 +186,6 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 
 	var err error
 
-	var token string
-
-	token, err = bb.auth()
-	if err != nil {
-		return ProviderBackupResult{
-			Error: errors.Errorf("failed to get bitbucket auth token: %s", err),
-		}
-	}
-
 	drO, err := bb.describeRepos()
 	if err != nil {
 		return ProviderBackupResult{}
@@ -256,7 +196,7 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(bb.LogLevel, bb.User, token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, bb.BackupLFS, jobs, results)
+		go bitBucketWorker(bb.LogLevel, bb.Email, bb.Token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, bb.BackupLFS, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -292,9 +232,8 @@ type BitbucketHost struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	BackupsToRetain  int
-	User             string
-	Key              string
-	Secret           string
+	Token            string
+	Email            string
 	LogLevel         int
 	BackupLFS        bool
 }
