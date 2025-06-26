@@ -234,7 +234,21 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 		return errors.Wrapf(cloneErr, "cloning failed for repository: %s", repo.Name)
 	}
 
-	if backupLFS {
+	// create bundle
+	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
+		if strings.HasSuffix(err.Error(), "is empty") {
+			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
+
+			return nil
+		}
+
+		return err
+	}
+
+	isUpdated := removeBundleIfDuplicate(backupPath)
+
+	switch {
+	case backupLFS && isUpdated:
 		lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
 		lfsFilesCmd.Dir = workingPath
 		lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
@@ -252,20 +266,9 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 				return err
 			}
 		}
+	case backupLFS:
+		logger.Printf("skipping LFS backup for %s repository %s as it is not updated", repo.Domain, repo.PathWithNameSpace)
 	}
-
-	// create bundle
-	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
-		if strings.HasSuffix(err.Error(), "is empty") {
-			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
-
-			return nil
-		}
-
-		return err
-	}
-
-	removeBundleIfDuplicate(backupPath)
 
 	if backupsToKeep > 0 {
 		if err := pruneBackups(backupPath, backupsToKeep); err != nil {
