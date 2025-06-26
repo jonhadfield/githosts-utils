@@ -14,9 +14,8 @@ import (
 
 const (
 	BitbucketProviderName   = "BitBucket"
-	bitbucketEnvVarKey      = "BITBUCKET_KEY"
-	bitbucketEnvVarSecret   = "BITBUCKET_SECRET"
-	bitbucketEnvVarUser     = "BITBUCKET_USER"
+	bitbucketEnvVarAPIToken = "BITBUCKET_API_TOKEN"
+	bitbucketEnvVarEmail    = "BITBUCKET_EMAIL"
 	bitbucketDomain         = "bitbucket.com"
 	bitbucketStaticUserName = "x-bitbucket-api-token-auth"
 )
@@ -29,7 +28,6 @@ type NewBitBucketHostInput struct {
 	BackupDir        string
 	Token            string
 	Email            string
-	Username         string
 	BackupsToRetain  int
 	LogLevel         int
 	BackupLFS        bool
@@ -85,6 +83,13 @@ type bitbucketAuthResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
+type bitbucketErrorResponse struct {
+	Type  string `json:"type"`
+	Error struct {
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
 func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing BitBucket repositories")
 
@@ -94,7 +99,6 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 
 	rawRequestURL := bb.APIURL + "/repositories?role=member"
 	rawRequestURL = urlWithBasicAuth(rawRequestURL, bb.Email, bb.Token)
-
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
@@ -119,6 +123,14 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 			return describeReposOutput{}, errors.Wrap(err, "failed to make request")
 		}
 
+		if resp.StatusCode != http.StatusOK {
+			logger.Printf("unexpected status code: %s (%d)", resp.Status, resp.StatusCode)
+
+			_ = resp.Body.Close()
+
+			return describeReposOutput{}, errors.Errorf("unexpected status code: %s (%d)", resp.Status, resp.StatusCode)
+		}
+
 		var bodyB []byte
 
 		bodyB, err = io.ReadAll(resp.Body)
@@ -128,6 +140,17 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 
 		bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 		_ = resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			var errResp bitbucketErrorResponse
+			if err = json.Unmarshal([]byte(bodyStr), &errResp); err != nil {
+				logger.Println(err)
+
+				return describeReposOutput{}, errors.Wrap(err, "failed to unmarshall bitbucket error json response")
+			}
+
+			return describeReposOutput{}, errors.Errorf("bitbucket request failed: %s", errResp.Error.Message)
+		}
 
 		var respObj bitbucketGetProjectsResponse
 		if err = json.Unmarshal([]byte(bodyStr), &respObj); err != nil {

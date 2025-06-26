@@ -17,7 +17,7 @@ func TestMain(m *testing.M) {
 
 var sobaEnvVarKeys = []string{
 	envVarGitBackupDir, gitlabEnvVarToken, gitlabEnvVarAPIUrl,
-	bitbucketEnvVarUser, bitbucketEnvVarKey, bitbucketEnvVarSecret,
+	bitbucketEnvVarEmail, bitbucketEnvVarAPIToken,
 }
 
 var numUserDefinedProviders int64
