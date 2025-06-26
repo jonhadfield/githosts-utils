@@ -196,7 +196,7 @@ func createLFSArchive(logLevel int, workingPath, backupPath string, repo reposit
 
 	logger.Printf("creating git lfs archive for: %s", repo.Name)
 
-	tarCmd := exec.Command("tar", "-czf", archiveFilePath, ".git/lfs")
+	tarCmd := exec.Command("tar", "-czf", archiveFilePath, "lfs")
 	tarCmd.Dir = workingPath
 
 	var tarOut bytes.Buffer
@@ -206,6 +206,8 @@ func createLFSArchive(logLevel int, workingPath, backupPath string, repo reposit
 	startTar := time.Now()
 
 	if tarErr := tarCmd.Run(); tarErr != nil {
+		tarErr = fmt.Errorf("repo name: %s: %s: %w", repo.Name, strings.TrimSpace(tarOut.String()), tarErr)
+
 		return errors.Errorf("failed to create git lfs archive: %s: %s", repo.Name, tarErr)
 	}
 

@@ -37,9 +37,9 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: refsMethod,
 		BackupDir:        os.Getenv(envVarGitBackupDir),
-		User:             os.Getenv(bitbucketEnvVarUser),
-		Key:              os.Getenv(bitbucketEnvVarKey),
-		Secret:           os.Getenv(bitbucketEnvVarSecret),
+		Token:            os.Getenv(bitbucketEnvVarUser),
+		Email:            os.Getenv(bitbucketEnvVarKey),
+		Username:         os.Getenv(bitbucketEnvVarSecret),
 		LogLevel:         1,
 	})
 	require.NoError(t, err)
@@ -110,9 +110,9 @@ func TestPublicBitbucketRepositoryCloneCompare(t *testing.T) {
 		APIURL:           bitbucketAPIURL,
 		DiffRemoteMethod: cloneMethod,
 		BackupDir:        os.Getenv(envVarGitBackupDir),
-		User:             os.Getenv(bitbucketEnvVarUser),
-		Key:              os.Getenv(bitbucketEnvVarKey),
-		Secret:           os.Getenv(bitbucketEnvVarSecret),
+		Token:            os.Getenv(bitbucketEnvVarUser),
+		Email:            os.Getenv(bitbucketEnvVarKey),
+		Username:         os.Getenv(bitbucketEnvVarSecret),
 	})
 	require.NoError(t, err)
 

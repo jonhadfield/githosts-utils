@@ -544,7 +544,7 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
 		if res.Error != nil {
-			logger.Printf("backup failed: %+v\n", errors.Unwrap(res.Error))
+			logger.Printf("backup failed: %+v\n", res.Error)
 		}
 
 		providerBackupResults.BackupResults = append(providerBackupResults.BackupResults, res)
