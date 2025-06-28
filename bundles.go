@@ -103,6 +103,38 @@ func dirHasBundles(dir string) bool {
 	return false
 }
 
+// lfsArchiveExistsForLatestBundle checks if an LFS archive exists for the latest bundle
+func lfsArchiveExistsForLatestBundle(backupPath, repoName string) (bool, error) {
+	// Get the latest bundle path to extract its timestamp
+	latestBundlePath, err := getLatestBundlePath(backupPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to get latest bundle path: %w", err)
+	}
+
+	// Extract timestamp from bundle filename
+	bundleBasename := filepath.Base(latestBundlePath)
+	timestamp, err := getTimeStampPartFromFileName(bundleBasename)
+	if err != nil {
+		return false, fmt.Errorf("failed to extract timestamp from bundle name: %w", err)
+	}
+
+	// Construct expected LFS archive filename
+	timestampStr := fmt.Sprintf("%014d", timestamp)
+	expectedLFSArchive := repoName + "." + timestampStr + lfsArchiveExtension
+	expectedLFSPath := filepath.Join(backupPath, expectedLFSArchive)
+
+	// Check if LFS archive exists
+	_, err = os.Stat(expectedLFSPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check LFS archive existence: %w", err)
+	}
+
+	return true, nil
+}
+
 func getLatestBundleRefs(backupPath string) (gitRefs, error) {
 	// if we encounter an invalid bundle, then we need to repeat until we find a valid one or run out
 	for {
@@ -187,6 +219,39 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 
 func createLFSArchive(logLevel int, workingPath, backupPath string, repo repository) errors.E {
 	archiveFile := repo.Name + "." + getTimestamp() + lfsArchiveExtension
+	archiveFilePath := filepath.Join(backupPath, archiveFile)
+
+	createErr := createDirIfAbsent(backupPath)
+	if createErr != nil {
+		return errors.Errorf("failed to create backup path: %s: %s", backupPath, createErr)
+	}
+
+	logger.Printf("creating git lfs archive for: %s", repo.Name)
+
+	tarCmd := exec.Command("tar", "-czf", archiveFilePath, "lfs")
+	tarCmd.Dir = workingPath
+
+	var tarOut bytes.Buffer
+	tarCmd.Stdout = &tarOut
+	tarCmd.Stderr = &tarOut
+
+	startTar := time.Now()
+
+	if tarErr := tarCmd.Run(); tarErr != nil {
+		tarErr = fmt.Errorf("repo name: %s: %s: %w", repo.Name, strings.TrimSpace(tarOut.String()), tarErr)
+
+		return errors.Errorf("failed to create git lfs archive: %s: %s", repo.Name, tarErr)
+	}
+
+	if logLevel > 0 {
+		logger.Printf("git lfs archive create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startTar).String())
+	}
+
+	return nil
+}
+
+func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string, repo repository, timestamp string) errors.E {
+	archiveFile := repo.Name + "." + timestamp + lfsArchiveExtension
 	archiveFilePath := filepath.Join(backupPath, archiveFile)
 
 	createErr := createDirIfAbsent(backupPath)
