@@ -247,27 +247,55 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	isUpdated := removeBundleIfDuplicate(backupPath)
 
-	switch {
-	case backupLFS && isUpdated:
-		lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
-		lfsFilesCmd.Dir = workingPath
-		lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
-		if lfsFilesErr != nil {
-			return errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
-		}
-		if len(strings.TrimSpace(string(lfsFilesOut))) > 0 {
-			lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
-			lfsCmd.Dir = workingPath
-			if out, err := lfsCmd.CombinedOutput(); err != nil {
-				return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
+	if backupLFS {
+		// Check if we need to create an LFS backup
+		needsLFSBackup := isUpdated
+		var useExistingTimestamp string
+		if !isUpdated {
+			// Repository wasn't updated, but check if LFS archive exists for the latest bundle
+			lfsExists, lfsErr := lfsArchiveExistsForLatestBundle(backupPath, repo.Name)
+			if lfsErr != nil {
+				logger.Printf("failed to check LFS archive existence for %s: %s", repo.PathWithNameSpace, lfsErr)
+			} else if !lfsExists {
+				logger.Printf("LFS archive missing for latest bundle of %s repository %s, creating it", repo.Domain, repo.PathWithNameSpace)
+				needsLFSBackup = true
+				// Get timestamp from the latest bundle to use for LFS archive
+				if latestBundlePath, err := getLatestBundlePath(backupPath); err == nil {
+					bundleBasename := filepath.Base(latestBundlePath)
+					if timestamp, err := getTimeStampPartFromFileName(bundleBasename); err == nil {
+						useExistingTimestamp = fmt.Sprintf("%014d", timestamp)
+					}
+				}
 			}
+		}
 
-			if err := createLFSArchive(logLevel, workingPath, backupPath, repo); err != nil {
-				return err
+		if needsLFSBackup {
+			lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
+			lfsFilesCmd.Dir = workingPath
+			lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
+			if lfsFilesErr != nil {
+				return errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
+			}
+			if len(strings.TrimSpace(string(lfsFilesOut))) > 0 {
+				lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
+				lfsCmd.Dir = workingPath
+				if out, err := lfsCmd.CombinedOutput(); err != nil {
+					return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
+				}
+
+				if useExistingTimestamp != "" {
+					if err := createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp); err != nil {
+						return err
+					}
+				} else {
+					if err := createLFSArchive(logLevel, workingPath, backupPath, repo); err != nil {
+						return err
+					}
+				}
+			} else {
+				logger.Printf("no LFS files found in %s repository %s", repo.Domain, repo.PathWithNameSpace)
 			}
 		}
-	case backupLFS:
-		logger.Printf("skipping LFS backup for %s repository %s as it is not updated", repo.Domain, repo.PathWithNameSpace)
 	}
 
 	if backupsToKeep > 0 {
