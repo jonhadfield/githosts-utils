@@ -35,6 +35,8 @@ type repository struct {
 	SSHUrl            string
 	URLWithToken      string
 	URLWithBasicAuth  string
+	BasicAuthUser     string
+	BasicAuthPass     string
 }
 
 type describeReposOutput struct {
@@ -47,7 +49,6 @@ type RepoBackupResults struct {
 	Error  errors.E `json:"error,omitempty"`
 }
 
-// type ProviderBackupResult []RepoBackupResults
 type ProviderBackupResult struct {
 	BackupResults []RepoBackupResults
 	Error         errors.E
@@ -61,6 +62,11 @@ func repoBackupResult(repo repository, err errors.E) RepoBackupResults {
 	}
 
 	return result
+}
+
+type BasicAuth struct {
+	User     string `json:"user,omitempty"`
+	Password string `json:"password,omitempty"`
 }
 
 type gitProvider interface {
@@ -128,6 +134,7 @@ func cutBySpaceAndTrimOutput(in string) (before, after string, found bool) {
 	if f {
 		b = strings.TrimSpace(b)
 		a = strings.TrimSpace(a)
+
 		if len(a) > 0 && len(b) > 0 {
 			return b, a, true
 		}
@@ -203,6 +210,8 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 		cloneURL = repo.URLWithToken
 	} else if repo.URLWithBasicAuth != "" {
 		cloneURL = repo.URLWithBasicAuth
+	} else if repo.BasicAuthUser != "" && repo.BasicAuthPass != "" {
+		cloneURL = fmt.Sprintf("https://%s:%s@%s", bitbucketStaticUserName, repo.BasicAuthPass, repo.HTTPSUrl)
 	}
 
 	// Check if existing, latest bundle refs, already match the remote
@@ -223,11 +232,14 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
+
 	if cloneErr != nil {
 		gitErr := parseGitError(cloneOut)
+
 		if os.Getenv(envVarGitHostsLog) == "debug" {
 			fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
 		}
+
 		if gitErr != "" {
 			return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s", repo.Name, gitErr)
 		}
@@ -356,4 +368,8 @@ func allTrue(in ...bool) bool {
 
 func ToPtr[T any](v T) *T {
 	return &v
+}
+
+func TrimInPlace(s *string) {
+	*s = strings.TrimSpace(*s)
 }

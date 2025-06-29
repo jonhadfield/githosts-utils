@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"gitlab.com/tozd/go/errors"
 
@@ -13,11 +16,21 @@ import (
 )
 
 const (
-	BitbucketProviderName   = "BitBucket"
+	BitbucketProviderName = "BitBucket"
+	// OAuth2
+	bitbucketEnvVarKey    = "BITBUCKET_KEY"
+	bitbucketEnvVarSecret = "BITBUCKET_SECRET"
+	bitbucketEnvVarUser   = "BITBUCKET_USER"
+	// API OAuthToken
 	bitbucketEnvVarAPIToken = "BITBUCKET_API_TOKEN"
 	bitbucketEnvVarEmail    = "BITBUCKET_EMAIL"
 	bitbucketDomain         = "bitbucket.com"
 	bitbucketStaticUserName = "x-bitbucket-api-token-auth"
+	// Auth Type
+	AuthTypeBitbucketOAuth2   = AuthTypeBearerToken
+	AuthTypeBitbucketAPIToken = AuthTypeBasicAuthHeader
+	AuthTypeBasicAuthHeader   = "basic-auth-header"
+	AuthTypeBearerToken       = "bearer-token"
 )
 
 type NewBitBucketHostInput struct {
@@ -26,15 +39,29 @@ type NewBitBucketHostInput struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
-	Token            string
-	Email            string
-	BackupsToRetain  int
-	LogLevel         int
-	BackupLFS        bool
+	// API Token
+	Email     string
+	BasicAuth BasicAuth
+	AuthType  string
+	// API Token
+	APIToken string
+	// OAuth2
+	User            string
+	Key             string
+	Secret          string
+	Token           string
+	Username        string
+	BackupsToRetain int
+	LogLevel        int
+	BackupLFS       bool
 }
 
 func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 	setLoggerPrefix(input.Caller)
+
+	if input.AuthType == "" {
+		return nil, errors.New("auth type must be specified")
+	}
 
 	apiURL := bitbucketAPIURL
 	if input.APIURL != "" {
@@ -58,21 +85,132 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 		httpClient = getHTTPClient()
 	}
 
-	return &BitbucketHost{
+	bitbucketHost := &BitbucketHost{
 		HttpClient:       httpClient,
 		Provider:         BitbucketProviderName,
 		APIURL:           apiURL,
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
-		Token:            input.Token,
+		OAuthToken:       input.Token,
+		APIToken:         input.APIToken,
+		AuthType:         input.AuthType,
+		BasicAuth:        input.BasicAuth,
 		Email:            input.Email,
 		BackupLFS:        input.BackupLFS,
-	}, nil
+		User:             input.User,
+		Key:              input.Key,
+		Secret:           input.Secret,
+	}
+
+	// If key and secret are provided, get OAuth token
+	if input.AuthType == AuthTypeBitbucketOAuth2 {
+		if input.Key == "" || input.Secret == "" {
+			return nil, errors.New("key and secret must be provided for BitBucket OAuth2 authentication")
+		}
+
+		oauthToken, err := auth(input.Key, input.Secret)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get BitBucket OAuth token")
+		}
+
+		logger.Printf("BitBucket OAuth: successfully obtained access token")
+		bitbucketHost.OAuthToken = oauthToken
+		// Set user to empty when using OAuth token
+		bitbucketHost.User = ""
+	}
+
+	return bitbucketHost, nil
 }
 
-func (bb BitbucketHost) auth() (string, error) {
-	return bb.Token, nil
+func auth(key, secret string) (string, error) {
+	b, _, _, err := httpRequest(httpRequestInput{
+		client: retryablehttp.NewClient(),
+		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
+		method: http.MethodPost,
+		headers: http.Header{
+			"Host":         []string{"bitbucket.org"},
+			"Content-Type": []string{"application/x-www-form-urlencoded"},
+			"Accept":       []string{"*/*"},
+		},
+		reqBody:           []byte("grant_type=client_credentials"),
+		basicAuthUser:     key,
+		basicAuthPassword: secret,
+		secrets:           []string{key, secret},
+		timeout:           defaultHttpRequestTimeout,
+	})
+	if err != nil {
+		return "", errors.Errorf("failed to get bitbucket auth token: %s", err)
+	}
+
+	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
+
+	var authResp bitbucketAuthResponse
+
+	if err = json.Unmarshal([]byte(bodyStr), &authResp); err != nil {
+		return "", errors.Errorf("failed to unmarshall bitbucket json response: %s", err)
+	}
+
+	// check for any errors
+	if authResp.AccessToken == "" {
+		var authErrResp bitbucketAuthErrorResponse
+
+		if err = json.Unmarshal([]byte(bodyStr), &authErrResp); err != nil {
+			return "", errors.Errorf("failed to unmarshall bitbucket json error response: %s", err)
+		}
+
+		return "", errors.Errorf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription)
+	}
+
+	return authResp.AccessToken, nil
+}
+
+// auth gets the OAuth2 access token for Bitbucket using the provided key and secret
+func (bb BitbucketHost) auth(key, secret string) (string, error) {
+	b, _, _, err := httpRequest(httpRequestInput{
+		client: bb.HttpClient,
+		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
+		method: http.MethodPost,
+		headers: http.Header{
+			"Host":         []string{"bitbucket.org"},
+			"Content-Type": []string{"application/x-www-form-urlencoded"},
+			"Accept":       []string{"*/*"},
+		},
+		reqBody:           []byte("grant_type=client_credentials"),
+		basicAuthUser:     key,
+		basicAuthPassword: secret,
+		secrets:           []string{key, secret},
+		timeout:           defaultHttpRequestTimeout,
+	})
+	if err != nil {
+		return "", errors.Errorf("failed to get bitbucket auth token: %s", err)
+	}
+
+	bodyStr := string(bytes.ReplaceAll(b, []byte("\r"), []byte("\r\n")))
+
+	var authResp bitbucketAuthResponse
+
+	if err = json.Unmarshal([]byte(bodyStr), &authResp); err != nil {
+		return "", errors.Errorf("failed to unmarshall bitbucket json response: %s", err)
+	}
+
+	// check for any errors
+	if authResp.AccessToken == "" {
+		var authErrResp bitbucketAuthErrorResponse
+
+		if err = json.Unmarshal([]byte(bodyStr), &authErrResp); err != nil {
+			return "", errors.Errorf("failed to unmarshall bitbucket json error response: %s", err)
+		}
+
+		return "", errors.Errorf("failed to get bitbucket auth token: %s - %s", authErrResp.Error, authErrResp.ErrorDescription)
+	}
+
+	return authResp.AccessToken, nil
+}
+
+type bitbucketAuthErrorResponse struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
 }
 
 type bitbucketAuthResponse struct {
@@ -90,17 +228,31 @@ type bitbucketErrorResponse struct {
 	} `json:"error"`
 }
 
+func urlWithBasicAuth(httpsURL, user, password string) string {
+	parts := strings.SplitN(httpsURL, "//", 2)
+	if len(parts) != 2 {
+		return httpsURL
+	}
+
+	return fmt.Sprintf("%s//%s:%s@%s", parts[0], user, password, parts[1])
+}
+
 func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
+
 	logger.Println("listing BitBucket repositories")
 
 	var err error
 
 	var repos []repository
 
-	rawRequestURL := bb.APIURL + "/repositories?role=member"
-	rawRequestURL = urlWithBasicAuth(rawRequestURL, bb.Email, bb.Token)
+	if bb.AuthType != AuthTypeBitbucketOAuth2 && bb.AuthType != AuthTypeBitbucketAPIToken {
+		return describeReposOutput{}, errors.New("no authentication method available - need either OAuth key/secret or API token/email")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
+
+	rawRequestURL := bb.APIURL + "/repositories?role=member"
 
 	for {
 		req, errNewReq := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, rawRequestURL, nil)
@@ -108,6 +260,41 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 			logger.Println(errNewReq)
 
 			return describeReposOutput{}, errors.Wrap(errNewReq, "failed to create new request")
+		}
+
+		var requestUrl string
+
+		switch bb.AuthType {
+		case AuthTypeBitbucketAPIToken:
+			req.SetBasicAuth(bb.Email, bb.APIToken)
+
+			requestUrl = rawRequestURL
+
+			var u *url.URL
+
+			u, err = url.Parse(requestUrl)
+			if err != nil {
+				logger.Println(err)
+
+				return describeReposOutput{}, errors.Wrap(err, "failed to parse request URL")
+			}
+
+			req.URL = u
+		case AuthTypeBearerToken:
+			// if it's auth url, then it's the API token
+			requestUrl = rawRequestURL
+
+			var u *url.URL
+
+			u, err = url.Parse(requestUrl)
+			if err != nil {
+				logger.Println(err)
+
+				return describeReposOutput{}, errors.Wrap(err, "failed to parse request URL")
+			}
+
+			req.URL = u
+			req.Header.Set("Authorization", "Bearer "+bb.OAuthToken)
 		}
 
 		req.Method = http.MethodGet
@@ -190,9 +377,29 @@ func (bb BitbucketHost) getAPIURL() string {
 	return bb.APIURL
 }
 
-func bitBucketWorker(logLevel int, email, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
+func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
-		repo.URLWithBasicAuth = urlWithBasicAuth(repo.HTTPSUrl, bitbucketStaticUserName, token)
+		var fUser string
+
+		var fToken string
+
+		if token != "" {
+			fUser = "x-token-auth"
+			fToken = token
+
+			logger.Printf("BitBucket clone: using OAuth token for repository %s", repo.PathWithNameSpace)
+		} else if apiToken != "" {
+			fUser = bitbucketStaticUserName
+			fToken = apiToken
+		} else {
+			logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
+			results <- repoBackupResult(repo, errors.New("no authentication available for cloning"))
+
+			continue
+		}
+
+		repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
+
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
 		results <- repoBackupResult(repo, err)
 	}
@@ -207,19 +414,19 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 
 	maxConcurrent := 5
 
-	var err error
-
 	drO, err := bb.describeRepos()
 	if err != nil {
-		return ProviderBackupResult{}
+		return ProviderBackupResult{
+			BackupResults: nil,
+			Error:         err,
+		}
 	}
 
 	jobs := make(chan repository, len(drO.Repos))
-
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(bb.LogLevel, bb.Email, bb.Token, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, bb.BackupLFS, jobs, results)
+		go bitBucketWorker(bb.LogLevel, bb.Email, bb.OAuthToken, bb.APIToken, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, bb.BackupLFS, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -255,10 +462,18 @@ type BitbucketHost struct {
 	DiffRemoteMethod string
 	BackupDir        string
 	BackupsToRetain  int
-	Token            string
-	Email            string
-	LogLevel         int
-	BackupLFS        bool
+	AuthType         string
+	// API OAuthToken
+	Email     string
+	APIToken  string
+	BasicAuth BasicAuth
+	// OAuth2
+	User       string
+	OAuthToken string
+	Key        string
+	Secret     string
+	LogLevel   int
+	BackupLFS  bool
 }
 
 type bitbucketOwner struct {

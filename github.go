@@ -215,9 +215,9 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	switch resp.StatusCode {
 	case http.StatusUnauthorized:
 		if strings.Contains(bodyStr, "Personal access tokens with fine grained access do not support the GraphQL API") {
-			logger.Println("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
+			logger.Println("GitHub authorisation with fine grained PAT (Personal Access OAuthToken) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
 
-			return "", errors.New("GitHub authorisation with fine grained PAT (Personal Access Token) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
+			return "", errors.New("GitHub authorisation with fine grained PAT (Personal Access OAuthToken) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
 		}
 
 		logger.Printf("GitHub authorisation failed: %s", bodyStr)

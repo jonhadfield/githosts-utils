@@ -151,7 +151,11 @@ func TestGetTimeStampPartFromFileName(t *testing.T) {
 func TestCreateHost(t *testing.T) {
 	t.Parallel()
 
-	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{})
+	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{AuthType: AuthTypeBitbucketOAuth2, Key: os.Getenv(bitbucketEnvVarKey), Secret: os.Getenv(bitbucketEnvVarSecret)})
+	require.NoError(t, err)
+	require.Equal(t, bitbucketAPIURL, bbHost.getAPIURL())
+
+	bbHost, err = NewBitBucketHost(NewBitBucketHostInput{AuthType: AuthTypeBitbucketAPIToken, Email: "test-email", APIToken: "test-token"})
 	require.NoError(t, err)
 	require.Equal(t, bitbucketAPIURL, bbHost.getAPIURL())
 

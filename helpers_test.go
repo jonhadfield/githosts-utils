@@ -72,10 +72,10 @@ func TestURLHelpers(t *testing.T) {
 	u = urlWithToken("noscheme", "tok")
 	assert.Equal(t, "noscheme", u)
 
-	u = urlWithBasicAuth("https://example.com/repo.git", "u", "p")
+	u = urlWithBasicAuthURL("https://example.com/repo.git", "u", "p")
 	assert.Equal(t, "https://u:p@example.com/repo.git", u)
 
-	u = urlWithBasicAuth("noscheme", "u", "p")
+	u = urlWithBasicAuthURL("noscheme", "u", "p")
 	assert.Equal(t, "noscheme", u)
 }
 
