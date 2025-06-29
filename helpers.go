@@ -59,7 +59,7 @@ func urlWithToken(httpsURL, token string) string {
 	return fmt.Sprintf("%s%s@%s", httpsURL[:pos+2], stripTrailing(token, "\n"), httpsURL[pos+2:])
 }
 
-func urlWithBasicAuth(httpsURL, user, password string) string {
+func urlWithBasicAuthURL(httpsURL, user, password string) string {
 	parts := strings.SplitN(httpsURL, "//", 2)
 	if len(parts) != 2 {
 		return httpsURL
