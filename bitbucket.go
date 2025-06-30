@@ -74,10 +74,10 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 	}
 
 	if diffRemoteMethod == "" {
-		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		logger.Print(msgUsingDefaultDiffRemoteMethod + ": " + defaultRemoteMethod)
 		diffRemoteMethod = defaultRemoteMethod
 	} else {
-		logger.Print("using diff remote method: " + diffRemoteMethod)
+		logger.Print(msgUsingDiffRemoteMethod + ": " + diffRemoteMethod)
 	}
 
 	httpClient := input.HTTPClient
@@ -407,7 +407,7 @@ func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemote
 
 func (bb BitbucketHost) Backup() ProviderBackupResult {
 	if bb.BackupDir == "" {
-		logger.Printf("backup skipped as backup directory not specified")
+		logger.Printf(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{}
 	}
