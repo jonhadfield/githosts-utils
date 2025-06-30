@@ -16,14 +16,18 @@ import (
 )
 
 const (
-	envVarGitBackupDir  = "GIT_BACKUP_DIR"
-	envVarGitHostsLog   = "GITHOSTS_LOG"
-	refsMethod          = "refs"
-	cloneMethod         = "clone"
-	defaultRemoteMethod = cloneMethod
-	logEntryPrefix      = "githosts-utils: "
-	statusOk            = "ok"
-	statusFailed        = "failed"
+	envVarGitBackupDir              = "GIT_BACKUP_DIR"
+	envVarGitHostsLog               = "GITHOSTS_LOG"
+	refsMethod                      = "refs"
+	cloneMethod                     = "clone"
+	defaultRemoteMethod             = cloneMethod
+	logEntryPrefix                  = "githosts-utils: "
+	statusOk                        = "ok"
+	statusFailed                    = "failed"
+	msgUsingDiffRemoteMethod        = "using diff remote method"
+	msgUsingDefaultDiffRemoteMethod = "using default diff remote method"
+	msgBackupSkippedNoDir           = "backup skipped as backup directory not specified"
+	msgBackupDirNotSpecified        = "backup directory not specified"
 )
 
 type repository struct {
