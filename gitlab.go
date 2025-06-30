@@ -323,10 +323,10 @@ func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 	}
 
 	if diffRemoteMethod == "" {
-		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		logger.Print(msgUsingDefaultDiffRemoteMethod + ": " + defaultRemoteMethod)
 		diffRemoteMethod = defaultRemoteMethod
 	} else {
-		logger.Print("using diff remote method: " + diffRemoteMethod)
+		logger.Print(msgUsingDiffRemoteMethod + ": " + diffRemoteMethod)
 	}
 
 	httpClient := input.HTTPClient
@@ -383,7 +383,7 @@ func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod str
 
 func (gl *GitLabHost) Backup() ProviderBackupResult {
 	if gl.BackupDir == "" {
-		logger.Printf("backup skipped as backup directory not specified")
+		logger.Printf(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{}
 	}

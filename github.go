@@ -58,10 +58,10 @@ func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
 	}
 
 	if diffRemoteMethod == "" {
-		logger.Print("using default diff remote method: " + defaultRemoteMethod)
+		logger.Print(msgUsingDefaultDiffRemoteMethod + ": " + defaultRemoteMethod)
 		diffRemoteMethod = defaultRemoteMethod
 	} else {
-		logger.Print("using diff remote method: " + diffRemoteMethod)
+		logger.Print(msgUsingDiffRemoteMethod + ": " + diffRemoteMethod)
 	}
 
 	httpClient := input.HTTPClient
@@ -500,11 +500,11 @@ func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backu
 
 func (gh *GitHubHost) Backup() ProviderBackupResult {
 	if gh.BackupDir == "" {
-		logger.Printf("backup skipped as backup directory not specified")
+		logger.Printf(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{
 			BackupResults: nil,
-			Error:         errors.New("backup directory not specified"),
+			Error:         errors.New(msgBackupDirNotSpecified),
 		}
 	}
 

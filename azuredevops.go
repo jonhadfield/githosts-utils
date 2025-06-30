@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	sUsingDiffRemoteMethod            = "using diff remote method"
-	sUsingDefaultDiffRemoteMethod     = "using default diff remote method"
 	AzureDevOpsProviderName           = "AzureDevOps"
 	azureDevOpsDomain                 = "dev.azure.com"
 	envAzureDevOpsUserName            = "AZURE_DEVOPS_USERNAME"
@@ -30,11 +28,11 @@ const (
 
 func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	if ad.BackupDir == "" {
-		logger.Printf("backup skipped as backup directory not specified")
+		logger.Printf(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{
 			BackupResults: nil,
-			Error:         errors.New("backup directory not specified"),
+			Error:         errors.New(msgBackupDirNotSpecified),
 		}
 	}
 
@@ -90,7 +88,7 @@ func NewAzureDevOpsHost(input NewAzureDevOpsHostInput) (*AzureDevOpsHost, error)
 
 	switch {
 	case input.BackupDir == "":
-		return nil, errors.New("backup directory not specified")
+		return nil, errors.New(msgBackupDirNotSpecified)
 	case input.UserName == "":
 		return nil, errors.New("username not specified")
 	case input.PAT == "":
@@ -105,10 +103,10 @@ func NewAzureDevOpsHost(input NewAzureDevOpsHostInput) (*AzureDevOpsHost, error)
 	}
 
 	if diffRemoteMethod == "" {
-		logger.Printf("%s: %s", sUsingDefaultDiffRemoteMethod, defaultRemoteMethod)
+		logger.Printf("%s: %s", msgUsingDefaultDiffRemoteMethod, defaultRemoteMethod)
 		diffRemoteMethod = defaultRemoteMethod
 	} else {
-		logger.Printf("%s: %s", sUsingDiffRemoteMethod, diffRemoteMethod)
+		logger.Printf("%s: %s", msgUsingDiffRemoteMethod, diffRemoteMethod)
 	}
 
 	httpClient := input.HTTPClient
