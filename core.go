@@ -261,22 +261,30 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
 
-	// Debug: log the raw git output to see what's happening
-	if cloneErr != nil {
-		logger.Printf("Git clone error output: %s", string(cloneOut))
-	}
-
 	if cloneErr != nil {
 		gitErr := parseGitError(cloneOut)
+		
+		// Always log the full git output for clone failures to help with debugging
+		logger.Printf("Git clone failed for repository: %s", repo.Name)
+		logger.Printf("Clone command exit code: %v", cloneErr)
+		logger.Printf("Full git output: %s", string(cloneOut))
 
 		if os.Getenv(envVarGitHostsLog) == "debug" {
 			fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
 		}
 
+		// Improve error message to include both git error and raw output
 		if gitErr != "" {
-			return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s", repo.Name, gitErr)
+			return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s. Full output: %s", repo.Name, gitErr, strings.TrimSpace(string(cloneOut)))
 		}
-		return errors.Wrapf(cloneErr, "cloning failed for repository: %s", repo.Name)
+		
+		// If no specific git error found, include the full output in the error
+		trimmedOutput := strings.TrimSpace(string(cloneOut))
+		if trimmedOutput != "" {
+			return errors.Wrapf(cloneErr, "cloning failed for repository: %s. Git output: %s", repo.Name, trimmedOutput)
+		}
+		
+		return errors.Wrapf(cloneErr, "cloning failed for repository: %s - exit status: %v", repo.Name, cloneErr)
 	}
 
 	// create bundle
