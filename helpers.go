@@ -179,7 +179,7 @@ type httpRequestInput struct {
 
 func httpRequest(in httpRequestInput) ([]byte, http.Header, int, error) {
 	if in.method == "" {
-		return nil, nil, 0, errors.New("HTTP method not specified")
+		return nil, nil, 0, fmt.Errorf("HTTP method not specified")
 	}
 
 	req, err := retryablehttp.NewRequest(in.method, in.url, in.reqBody)
@@ -197,9 +197,8 @@ func httpRequest(in httpRequestInput) ([]byte, http.Header, int, error) {
 	}
 
 	defer func(Body io.ReadCloser) {
-		err = Body.Close()
-		if err != nil {
-			fmt.Printf("failed to close response body: %s\n", err.Error())
+		if closeErr := Body.Close(); closeErr != nil {
+			fmt.Printf("failed to close response body: %s\n", closeErr.Error())
 		}
 	}(resp.Body)
 

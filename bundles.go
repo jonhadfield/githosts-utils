@@ -367,11 +367,9 @@ func pruneBackups(backupPath string, keep int) errors.E {
 
 	firstFilesToDelete := len(bfs) - keep
 
-	var err errors.E
-
 	for x, f := range files {
 		if x < firstFilesToDelete {
-			if removeErr := os.Remove(filepath.Join(backupPath, f.Name())); err != nil {
+			if removeErr := os.Remove(filepath.Join(backupPath, f.Name())); removeErr != nil {
 				return errors.Wrap(removeErr, "failed to remove file")
 			}
 
