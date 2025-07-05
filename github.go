@@ -491,18 +491,20 @@ func removeDuplicates(repos []repository) []repository {
 }
 
 func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
-	for repo := range jobs {
-		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, stripTrailing(token, "\n"))
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
-		results <- repoBackupResult(repo, err)
-
-		// Add delay between repository backups to prevent rate limiting
-		delay := githubDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(githubEnvVarWorkerDelay)); sErr == nil {
-			delay = envDelay
-		}
-		time.Sleep(time.Duration(delay) * time.Millisecond)
+	config := WorkerConfig{
+		LogLevel:         logLevel,
+		BackupDir:        backupDIR,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupsToKeep:    backupsToKeep,
+		BackupLFS:        backupLFS,
+		DefaultDelay:     githubDefaultWorkerDelay,
+		DelayEnvVar:      githubEnvVarWorkerDelay,
+		Secrets:          []string{token},
+		SetupRepo: func(repo *repository) {
+			repo.URLWithToken = urlWithToken(repo.HTTPSUrl, stripTrailing(token, "\n"))
+		},
 	}
+	genericWorker(config, jobs, results)
 }
 
 func (gh *GitHubHost) Backup() ProviderBackupResult {
@@ -515,7 +517,7 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := 10
+	maxConcurrent := defaultMaxConcurrentGitHub
 
 	repoDesc, err := gh.describeRepos()
 	if err != nil {

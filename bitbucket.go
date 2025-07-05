@@ -35,7 +35,7 @@ const (
 	AuthTypeBasicAuthHeader   = "basic-auth-header"
 	AuthTypeBearerToken       = "bearer-token"
 	// Worker delay
-	bitbucketEnvVarWorkerDelay = "BITBUCKET_WORKER_DELAY"
+	bitbucketEnvVarWorkerDelay  = "BITBUCKET_WORKER_DELAY"
 	bitbucketDefaultWorkerDelay = 500
 )
 
@@ -135,9 +135,9 @@ func auth(key, secret string) (string, error) {
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
 		method: http.MethodPost,
 		headers: http.Header{
-			"Host":         []string{"bitbucket.org"},
+			"Host":            []string{"bitbucket.org"},
 			HeaderContentType: []string{ContentTypeFormEncoded},
-			HeaderAccept:       []string{ContentTypeAny},
+			HeaderAccept:      []string{ContentTypeAny},
 		},
 		reqBody:           []byte("grant_type=client_credentials"),
 		basicAuthUser:     key,
@@ -178,9 +178,9 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
 		method: http.MethodPost,
 		headers: http.Header{
-			"Host":         []string{"bitbucket.org"},
+			"Host":            []string{"bitbucket.org"},
 			HeaderContentType: []string{ContentTypeFormEncoded},
-			HeaderAccept:       []string{ContentTypeAny},
+			HeaderAccept:      []string{ContentTypeAny},
 		},
 		reqBody:           []byte("grant_type=client_credentials"),
 		basicAuthUser:     key,

@@ -8,12 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"gitlab.com/tozd/go/errors"
 
@@ -378,18 +376,20 @@ func (gl *GitLabHost) getAPIURL() string {
 }
 
 func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
-	for repo := range jobs {
-		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, userName+":"+stripTrailing(token, "\n"))
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
-		results <- repoBackupResult(repo, err)
-
-		// Add delay between repository backups to prevent rate limiting
-		delay := gitlabDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(gitlabEnvVarWorkerDelay)); sErr == nil {
-			delay = envDelay
-		}
-		time.Sleep(time.Duration(delay) * time.Millisecond)
+	config := WorkerConfig{
+		LogLevel:         logLevel,
+		BackupDir:        backupDIR,
+		DiffRemoteMethod: diffRemoteMethod,
+		BackupsToKeep:    backupsToKeep,
+		BackupLFS:        backupLFS,
+		DefaultDelay:     gitlabDefaultWorkerDelay,
+		DelayEnvVar:      gitlabEnvVarWorkerDelay,
+		Secrets:          []string{token},
+		SetupRepo: func(repo *repository) {
+			repo.URLWithToken = urlWithToken(repo.HTTPSUrl, userName+":"+stripTrailing(token, "\n"))
+		},
 	}
+	genericWorker(config, jobs, results)
 }
 
 func (gl *GitLabHost) Backup() ProviderBackupResult {
@@ -399,7 +399,7 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	maxConcurrent := 5
+	maxConcurrent := defaultMaxConcurrentGitLab
 
 	var err errors.E
 
