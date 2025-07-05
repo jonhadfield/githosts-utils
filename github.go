@@ -189,9 +189,9 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 		return "", errors.Wrap(newReqErr, "failed to create request")
 	}
 
-	req.Header.Set("Authorization", "bearer "+gh.Token)
-	req.Header.Set("Content-Type", contentTypeApplicationJSON)
-	req.Header.Set("Accept", contentTypeApplicationJSON)
+	req.Header.Set(HeaderAuthorization, AuthPrefixBearer+gh.Token)
+	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
+	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
 	resp, reqErr := gh.HttpClient.Do(req)
 	if reqErr != nil {
@@ -495,6 +495,13 @@ func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backu
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, stripTrailing(token, "\n"))
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
 		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := githubDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(githubEnvVarWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 

@@ -21,11 +21,11 @@ func init() {
 }
 
 func TestGiteaGetUsers(t *testing.T) {
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -34,11 +34,10 @@ func TestGiteaGetUsers(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken, giteaEnvVarAPIUrl})
 
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
@@ -60,11 +59,11 @@ func TestGiteaGetUsers(t *testing.T) {
 }
 
 func TestGiteaGetOrganisations(t *testing.T) {
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -73,13 +72,11 @@ func TestGiteaGetOrganisations(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
-
 	envBackup := backupEnvironmentVariables()
 
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken, giteaEnvVarAPIUrl})
 
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
@@ -119,11 +116,11 @@ func TestGetOrganizationsRepos(t *testing.T) {
 	testLock.Lock()
 	defer testLock.Unlock()
 
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -132,10 +129,9 @@ func TestGetOrganizationsRepos(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken, giteaEnvVarAPIUrl})
 
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
@@ -174,11 +170,11 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	testLock.Lock()
 	defer testLock.Unlock()
 
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -187,16 +183,15 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken, giteaEnvVarAPIUrl})
 
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-		Token:            os.Getenv("GITEA_TOKEN"),
+		Token:            os.Getenv(envGiteaToken),
 	})
 
 	require.NoError(t, err)
@@ -253,11 +248,11 @@ func TestGetAllUserRepos(t *testing.T) {
 	testLock.Lock()
 	defer testLock.Unlock()
 
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -266,16 +261,15 @@ func TestGetAllUserRepos(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN", giteaEnvVarAPIUrl})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken, giteaEnvVarAPIUrl})
 
 	gHost, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           os.Getenv(giteaEnvVarAPIUrl),
 		DiffRemoteMethod: refsMethod,
-		Token:            os.Getenv("GITEA_TOKEN"),
+		Token:            os.Getenv(envGiteaToken),
 	})
 	require.NoError(t, err)
 
@@ -311,7 +305,7 @@ func TestGetAPIURL(t *testing.T) {
 	gh, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: cloneMethod,
-		Token:            os.Getenv("GITEA_TOKEN"),
+		Token:            os.Getenv(envGiteaToken),
 	})
 	require.NoError(t, err)
 	require.Equal(t, apiURL, gh.getAPIURL())
@@ -326,7 +320,7 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 	gh, err := NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: refsMethod,
-		Token:            os.Getenv("GITEA_TOKEN"),
+		Token:            os.Getenv(envGiteaToken),
 	})
 	require.NoError(t, err)
 	require.Equal(t, refsMethod, gh.diffRemoteMethod())
@@ -334,7 +328,7 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 	gh, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: cloneMethod,
-		Token:            os.Getenv("GITEA_TOKEN"),
+		Token:            os.Getenv(envGiteaToken),
 	})
 	require.NoError(t, err)
 	require.Equal(t, cloneMethod, gh.diffRemoteMethod())
@@ -342,7 +336,7 @@ func TestGiteaDiffRemoteMethod(t *testing.T) {
 	_, err = NewGiteaHost(NewGiteaHostInput{
 		APIURL:           apiURL,
 		DiffRemoteMethod: "invalid",
-		Token:            os.Getenv("GITEA_TOKEN"),
+		Token:            os.Getenv(envGiteaToken),
 	})
 	require.Error(t, err)
 }
@@ -351,11 +345,11 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 	testLock.Lock()
 	defer testLock.Unlock()
 
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -364,11 +358,10 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken})
 
 	backupDIR := os.Getenv(envVarGitBackupDir)
 
@@ -402,11 +395,11 @@ func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
 	testLock.Lock()
 	defer testLock.Unlock()
 
-	giteaToken := os.Getenv("GITEA_TOKEN")
+	giteaToken := os.Getenv(envGiteaToken)
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf("Skipping Gitea test as %s is missing", "GITEA_TOKEN")
+		t.Skipf(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -415,11 +408,10 @@ func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
-	unsetEnvVars([]string{envVarGitBackupDir, "GITEA_TOKEN"})
+	unsetEnvVars([]string{envVarGitBackupDir, envGiteaToken})
 
 	// backupDIR := os.Getenv(envVarGitBackupDir)
 

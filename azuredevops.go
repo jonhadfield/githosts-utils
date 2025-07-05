@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"time"
 
@@ -24,6 +25,8 @@ const (
 	azureDevOpsDomain                 = "dev.azure.com"
 	envAzureDevOpsUserName            = "AZURE_DEVOPS_USERNAME"
 	msgSkipAzureDevOpsUserNameMissing = "Skipping Azure DevOps test as " + envAzureDevOpsUserName + " is missing"
+	azureDevOpsEnvVarWorkerDelay      = "AZURE_DEVOPS_WORKER_DELAY"
+	azureDevOpsDefaultWorkerDelay     = 500
 )
 
 func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
@@ -80,6 +83,13 @@ func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backups
 	for repo := range jobs {
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{repo.BasicAuthPass, repo.URLWithToken})
 		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := azureDevOpsDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(azureDevOpsEnvVarWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 
@@ -340,8 +350,8 @@ func ListAllRepositories(httpClient *retryablehttp.Client, basicAuth, projectNam
 		return nil, err
 	}
 
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Authorization", "Basic "+basicAuth)
+	req.Header.Add(HeaderAccept, ContentTypeJSON)
+	req.Header.Add(HeaderAuthorization, AuthPrefixBasic+basicAuth)
 
 	resp, err := httpClient.Do(req)
 	if err != nil {

@@ -8,10 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gitlab.com/tozd/go/errors"
 
@@ -23,6 +25,8 @@ const (
 	// GitLabDefaultMinimumProjectAccessLevel https://docs.gitlab.com/ee/user/permissions.html#roles
 	GitLabDefaultMinimumProjectAccessLevel = 20
 	gitLabDomain                           = "gitlab.com"
+	gitlabEnvVarWorkerDelay                = "GITLAB_WORKER_DELAY"
+	gitlabDefaultWorkerDelay               = 500
 )
 
 type gitlabUser struct {
@@ -70,8 +74,8 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
 	}
 
 	req.Header.Set("Private-Token", gl.Token)
-	req.Header.Set("Content-Type", contentTypeApplicationJSON)
-	req.Header.Set("Accept", contentTypeApplicationJSON)
+	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
+	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
 	var resp *http.Response
 
@@ -276,8 +280,8 @@ func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []
 	}
 
 	req.Header.Set("Private-Token", token)
-	req.Header.Set("Content-Type", contentTypeApplicationJSON)
-	req.Header.Set("Accept", contentTypeApplicationJSON)
+	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
+	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
 	resp, err := c.Do(req)
 	if err != nil {
@@ -378,6 +382,13 @@ func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod str
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, userName+":"+stripTrailing(token, "\n"))
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
 		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := gitlabDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(gitlabEnvVarWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 
