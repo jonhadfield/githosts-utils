@@ -198,7 +198,7 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
-func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string, backupLFS bool) errors.E {
+func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string, backupLFS bool, secrets []string) errors.E {
 	// create backup path
 	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
 	backupPath := filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
@@ -216,6 +216,12 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 		cloneURL = repo.URLWithBasicAuth
 	} else if repo.BasicAuthUser != "" && repo.BasicAuthPass != "" {
 		cloneURL = fmt.Sprintf("https://%s:%s@%s", bitbucketStaticUserName, repo.BasicAuthPass, repo.HTTPSUrl)
+	} else if repo.SSHUrl != "" {
+		// Fallback to SSH URL if no other authentication method is available
+		cloneURL = repo.SSHUrl
+	} else {
+		// Final fallback to HTTPS URL
+		cloneURL = repo.HTTPSUrl
 	}
 
 	// Check if existing, latest bundle refs, already match the remote
@@ -230,12 +236,31 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	// clone repo
 	logger.Printf("cloning: %s to: %s", repo.HTTPSUrl, workingPath)
+	logger.Printf("git clone command will use URL: %s", maskSecrets(cloneURL, secrets))
 
-	cloneCmd := exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
+	// For SourceHut, add multiple configs to handle redirect and trailing slash issues
+	var cloneCmd *exec.Cmd
+	if strings.Contains(cloneURL, "git.sr.ht") {
+		// Multiple git configs to prevent various redirect and normalization issues
+		cloneCmd = exec.Command("git",
+			"-c", "http.followRedirects=false",
+			"-c", "http.postBuffer=524288000",
+			"-c", "http.maxRequestBuffer=100M",
+			"-c", "url.https://git.sr.ht/.insteadOf=https://git.sr.ht/",
+			"-c", "http.extraHeader=User-Agent: git/2.39.0",
+			"clone", "-v", "--mirror", cloneURL, workingPath)
+	} else {
+		cloneCmd = exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
+	}
 	cloneCmd.Dir = backupDIR
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
+
+	// Debug: log the raw git output to see what's happening
+	if cloneErr != nil {
+		logger.Printf("Git clone error output: %s", string(cloneOut))
+	}
 
 	if cloneErr != nil {
 		gitErr := parseGitError(cloneOut)

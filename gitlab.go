@@ -376,7 +376,7 @@ func (gl *GitLabHost) getAPIURL() string {
 func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, userName+":"+stripTrailing(token, "\n"))
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
 		results <- repoBackupResult(repo, err)
 	}
 }

@@ -149,6 +149,10 @@ func TestGetTimeStampPartFromFileName(t *testing.T) {
 }
 
 func TestCreateHost(t *testing.T) {
+	if os.Getenv(bitbucketEnvVarKey) == "" || os.Getenv(bitbucketEnvVarSecret) == "" {
+		t.Skip("Skipping Bitbucket test as BITBUCKET_KEY or BITBUCKET_SECRET is missing")
+	}
+
 	t.Parallel()
 
 	bbHost, err := NewBitBucketHost(NewBitBucketHostInput{AuthType: AuthTypeBitbucketOAuth2, Key: os.Getenv(bitbucketEnvVarKey), Secret: os.Getenv(bitbucketEnvVarSecret)})
