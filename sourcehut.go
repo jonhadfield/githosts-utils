@@ -16,10 +16,12 @@ import (
 )
 
 const (
-	sourcehutEnvVarWorkerDelay  = "SOURCEHUT_WORKER_DELAY"
+	envVarSourcehutWorkerDelay  = "SOURCEHUT_WORKER_DELAY"
 	sourcehutDomain             = "sourcehut"
 	sourcehutProviderName       = "sourcehut"
 	sourcehutDefaultWorkerDelay = 500
+	envSourcehutAPIURL          = "SOURCEHUT_APIURL"
+	envSourcehutToken           = "SOURCEHUT_PAT"
 )
 
 type NewSourcehutHostInput struct {
@@ -339,7 +341,7 @@ func (sh *SourcehutHost) Backup() ProviderBackupResult {
 		go sourcehutWorker(sh.LogLevel, sh.PersonalAccessToken, sh.BackupDir, sh.DiffRemoteMethod, sh.BackupsToRetain, sh.BackupLFS, jobs, results)
 
 		delay := sourcehutDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(sourcehutEnvVarWorkerDelay)); sErr == nil {
+		if envDelay, sErr := strconv.Atoi(os.Getenv(envVarSourcehutWorkerDelay)); sErr == nil {
 			delay = envDelay
 		}
 
@@ -375,4 +377,3 @@ func (sh *SourcehutHost) diffRemoteMethod() string {
 
 	return canonicalDiffRemoteMethod(sh.DiffRemoteMethod)
 }
-

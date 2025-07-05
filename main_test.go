@@ -18,9 +18,8 @@ func TestMain(m *testing.M) {
 var sobaEnvVarKeys = []string{
 	envVarGitBackupDir, gitlabEnvVarToken, gitlabEnvVarAPIUrl,
 	bitbucketEnvVarEmail, bitbucketEnvVarAPIToken, bitbucketEnvVarSecret, bitbucketEnvVarKey,
+	envSourcehutToken, envSourcehutAPIURL,
 }
-
-var numUserDefinedProviders int64
 
 func preflight() {
 	// create backup dir if defined but missing
@@ -37,11 +36,6 @@ func preflight() {
 			log.Fatal(err)
 		}
 	}
-}
-
-func resetGlobals() {
-	// reset global var
-	numUserDefinedProviders = 0
 }
 
 func backupEnvironmentVariables() map[string]string {
