@@ -373,12 +373,12 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 		if err != nil {
 			logger.Print(err)
 
-			return nil, nil
+			return nil, err
 		}
 
 		var respObj githubQueryOrgResponse
 
-		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); err != nil {
+		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); uErr != nil {
 			logger.Print(err)
 
 			return nil, errors.Wrap(uErr, "failed to unmarshal response")
