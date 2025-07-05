@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +32,8 @@ const (
 	giteaMatchByIfDefined            = "anyDefined"
 	giteaProviderName                = "Gitea"
 	txtNext                          = "next"
+	giteaEnvVarWorkerDelay           = "GITEA_WORKER_DELAY"
+	giteaDefaultWorkerDelay          = 500
 )
 
 type NewGiteaHostInput struct {
@@ -132,9 +135,9 @@ func (g *GiteaHost) makeGiteaRequest(reqUrl string) (*http.Response, []byte, err
 		return nil, nil, fmt.Errorf("failed to request %s: %w", reqUrl, err)
 	}
 
-	req.Header.Set("Authorization", "token "+g.Token)
-	req.Header.Set("Content-Type", contentTypeApplicationJSON)
-	req.Header.Set("Accept", contentTypeApplicationJSON)
+	req.Header.Set(HeaderAuthorization, AuthPrefixToken+g.Token)
+	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
+	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
 	resp, err := g.httpClient.Do(req)
 	if err != nil {
@@ -965,6 +968,13 @@ func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string,
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, token)
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
 		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := giteaDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(giteaEnvVarWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 

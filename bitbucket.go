@@ -8,7 +8,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"gitlab.com/tozd/go/errors"
 
@@ -31,6 +34,9 @@ const (
 	AuthTypeBitbucketAPIToken = AuthTypeBasicAuthHeader
 	AuthTypeBasicAuthHeader   = "basic-auth-header"
 	AuthTypeBearerToken       = "bearer-token"
+	// Worker delay
+	bitbucketEnvVarWorkerDelay = "BITBUCKET_WORKER_DELAY"
+	bitbucketDefaultWorkerDelay = 500
 )
 
 type NewBitBucketHostInput struct {
@@ -130,8 +136,8 @@ func auth(key, secret string) (string, error) {
 		method: http.MethodPost,
 		headers: http.Header{
 			"Host":         []string{"bitbucket.org"},
-			"Content-Type": []string{"application/x-www-form-urlencoded"},
-			"Accept":       []string{"*/*"},
+			HeaderContentType: []string{ContentTypeFormEncoded},
+			HeaderAccept:       []string{ContentTypeAny},
 		},
 		reqBody:           []byte("grant_type=client_credentials"),
 		basicAuthUser:     key,
@@ -173,8 +179,8 @@ func (bb BitbucketHost) auth(key, secret string) (string, error) {
 		method: http.MethodPost,
 		headers: http.Header{
 			"Host":         []string{"bitbucket.org"},
-			"Content-Type": []string{"application/x-www-form-urlencoded"},
-			"Accept":       []string{"*/*"},
+			HeaderContentType: []string{ContentTypeFormEncoded},
+			HeaderAccept:       []string{ContentTypeAny},
 		},
 		reqBody:           []byte("grant_type=client_credentials"),
 		basicAuthUser:     key,
@@ -294,12 +300,12 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 			}
 
 			req.URL = u
-			req.Header.Set("Authorization", "Bearer "+bb.OAuthToken)
+			req.Header.Set(HeaderAuthorization, AuthPrefixBearer+bb.OAuthToken)
 		}
 
 		req.Method = http.MethodGet
-		req.Header.Set("Content-Type", contentTypeApplicationJSON)
-		req.Header.Set("Accept", contentTypeApplicationJSON)
+		req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
+		req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
 		var resp *http.Response
 
@@ -402,6 +408,13 @@ func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemote
 
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token, apiToken})
 		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := bitbucketDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(bitbucketEnvVarWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 

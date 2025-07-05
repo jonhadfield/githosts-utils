@@ -18,6 +18,21 @@ const (
 	gitlabProjectsPerPageDefault = 20
 	sourcehutAPIURL              = "https://git.sr.ht/query"
 	contentTypeApplicationJSON   = "application/json; charset=utf-8"
+	
+	// HTTP Headers
+	HeaderContentType   = "Content-Type"
+	HeaderAuthorization = "Authorization"
+	HeaderAccept        = "Accept"
+	
+	// Authentication prefixes
+	AuthPrefixBearer = "Bearer "
+	AuthPrefixToken  = "token "
+	AuthPrefixBasic  = "Basic "
+	
+	// Content types
+	ContentTypeJSON        = "application/json"
+	ContentTypeFormEncoded = "application/x-www-form-urlencoded"
+	ContentTypeAny         = "*/*"
 )
 
 var logger *log.Logger

@@ -38,8 +38,6 @@ func TestPublicGitHubRepositoryBackup(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
-
 	envBackup := backupEnvironmentVariables()
 
 	defer restoreEnvironmentVariables(envBackup)
@@ -86,8 +84,6 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
-
 	envBackup := backupEnvironmentVariables()
 
 	defer restoreEnvironmentVariables(envBackup)
@@ -116,8 +112,6 @@ func TestSinglePublicGitHubOrgRepoBackups(t *testing.T) {
 	defer logger.SetOutput(os.Stdout)
 
 	resetBackups()
-
-	resetGlobals()
 
 	envBackup := backupEnvironmentVariables()
 
@@ -199,8 +193,6 @@ func TestPublicGitHubOrgRepoBackups(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
-
 	envBackup := backupEnvironmentVariables()
 
 	defer restoreEnvironmentVariables(envBackup)
@@ -270,8 +262,6 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 	defer logger.SetOutput(os.Stdout)
 
 	resetBackups()
-
-	resetGlobals()
 
 	envBackup := backupEnvironmentVariables()
 
@@ -351,8 +341,6 @@ func TestDescribeGithubReposWithWildcardAndLimitUserOwned(t *testing.T) {
 	defer logger.SetOutput(os.Stdout)
 
 	resetBackups()
-
-	resetGlobals()
 
 	envBackup := backupEnvironmentVariables()
 
@@ -435,8 +423,6 @@ func TestDescribeGithubReposWithWildcardAndNoLimitUserOwned(t *testing.T) {
 
 	resetBackups()
 
-	resetGlobals()
-
 	envBackup := backupEnvironmentVariables()
 
 	defer restoreEnvironmentVariables(envBackup)
@@ -518,8 +504,6 @@ func TestDescribeGithubReposWithSkipUserRepos(t *testing.T) {
 	defer logger.SetOutput(os.Stdout)
 
 	resetBackups()
-
-	resetGlobals()
 
 	envBackup := backupEnvironmentVariables()
 

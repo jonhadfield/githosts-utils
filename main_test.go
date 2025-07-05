@@ -8,6 +8,33 @@ import (
 	"testing"
 )
 
+// Common test constants
+const (
+	// Environment Variables for tests
+	envGiteaToken           = "GITEA_TOKEN"
+	envGitLabToken          = "GITLAB_TOKEN"
+	envBitbucketAPIToken    = "BITBUCKET_API_TOKEN"
+	envBitbucketEmail       = "BITBUCKET_EMAIL"
+	envBitbucketSecret      = "BITBUCKET_SECRET"
+	envBitbucketKey         = "BITBUCKET_KEY"
+	envBitbucketUser        = "BITBUCKET_USER"
+	envSourcehutPAT         = "SOURCEHUT_PAT"
+	
+	// Worker delay environment variables
+	envGitHubWorkerDelay     = "GITHUB_WORKER_DELAY"
+	envGitLabWorkerDelay     = "GITLAB_WORKER_DELAY"
+	envBitbucketWorkerDelay  = "BITBUCKET_WORKER_DELAY"
+	envGiteaWorkerDelay      = "GITEA_WORKER_DELAY"
+	envAzureDevOpsWorkerDelay = "AZURE_DEVOPS_WORKER_DELAY"
+	envSourcehutWorkerDelay  = "SOURCEHUT_WORKER_DELAY"
+	
+	// Skip test messages
+	msgSkipGiteaTokenMissing     = "Skipping Gitea test as GITEA_TOKEN is missing"
+	msgSkipGitLabTokenMissing    = "Skipping GitLab test as GITLAB_TOKEN is missing"
+	msgSkipBitbucketEmailMissing = "Skipping Bitbucket test as BITBUCKET_EMAIL is missing"
+	msgSkipSourcehutTokenMissing = "Skipping sourcehut test as SOURCEHUT_PAT is missing"
+)
+
 func TestMain(m *testing.M) {
 	preflight()
 
@@ -19,6 +46,8 @@ var sobaEnvVarKeys = []string{
 	envVarGitBackupDir, gitlabEnvVarToken, gitlabEnvVarAPIUrl,
 	bitbucketEnvVarEmail, bitbucketEnvVarAPIToken, bitbucketEnvVarSecret, bitbucketEnvVarKey,
 	envSourcehutToken, envSourcehutAPIURL,
+	envGitHubWorkerDelay, envGitLabWorkerDelay, envBitbucketWorkerDelay,
+	envGiteaWorkerDelay, envAzureDevOpsWorkerDelay, envSourcehutWorkerDelay,
 }
 
 func preflight() {

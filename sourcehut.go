@@ -137,9 +137,9 @@ func (sh *SourcehutHost) makeSourcehutRequest(payload string) (string, errors.E)
 		return "", errors.Wrap(newReqErr, "failed to create request")
 	}
 
-	req.Header.Set("Authorization", "Bearer "+sh.PersonalAccessToken)
-	req.Header.Set("Content-Type", contentTypeApplicationJSON)
-	req.Header.Set("Accept", contentTypeApplicationJSON)
+	req.Header.Set(HeaderAuthorization, AuthPrefixBearer+sh.PersonalAccessToken)
+	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
+	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
 	resp, reqErr := sh.HttpClient.Do(req)
 	if reqErr != nil {
@@ -311,6 +311,13 @@ func sourcehutWorker(logLevel int, token, backupDIR, diffRemoteMethod string, ba
 		logger.Printf("SourceHut worker using token auth format")
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
 		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := sourcehutDefaultWorkerDelay
+		if envDelay, sErr := strconv.Atoi(os.Getenv(envVarSourcehutWorkerDelay)); sErr == nil {
+			delay = envDelay
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
 
