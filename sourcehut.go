@@ -146,18 +146,18 @@ func (sh *SourcehutHost) makeSourcehutRequest(payload string) (string, errors.E)
 		return "", errors.Wrap(reqErr, "failed to make request")
 	}
 
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Printf("failed to close response body: %s", closeErr.Error())
+		}
+	}()
+
 	bodyB, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Print(err)
 
 		return "", errors.Wrap(err, "failed to read response body")
 	}
-
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logger.Printf("failed to close response body: %s", closeErr.Error())
-		}
-	}()
 
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
@@ -375,3 +375,4 @@ func (sh *SourcehutHost) diffRemoteMethod() string {
 
 	return canonicalDiffRemoteMethod(sh.DiffRemoteMethod)
 }
+

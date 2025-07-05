@@ -235,8 +235,10 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	}
 
 	// clone repo
-	logger.Printf("cloning: %s to: %s", repo.HTTPSUrl, workingPath)
-	logger.Printf("git clone command will use URL: %s", maskSecrets(cloneURL, secrets))
+	logger.Printf("cloning: %s to: %s", maskSecrets(repo.HTTPSUrl, secrets), workingPath)
+	if logLevel == 0 {
+		logger.Printf("git clone command will use URL: %s", maskSecrets(cloneURL, secrets))
+	}
 
 	// For SourceHut, add multiple configs to handle redirect and trailing slash issues
 	var cloneCmd *exec.Cmd

@@ -159,7 +159,7 @@ func getResponseBody(resp *http.Response) ([]byte, error) {
 
 func maskSecrets(content string, secret []string) string {
 	for _, s := range secret {
-		content = strings.ReplaceAll(content, s, strings.Repeat("*", len(s)))
+		content = strings.ReplaceAll(content, s, strings.Repeat("*", 5))
 	}
 
 	return content
