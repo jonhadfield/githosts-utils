@@ -39,17 +39,17 @@ type NewBitBucketHostInput struct {
 	APIURL           string
 	DiffRemoteMethod string
 	BackupDir        string
-	// API Token
+	// API OAuthToken
 	Email     string
 	BasicAuth BasicAuth
 	AuthType  string
-	// API Token
+	// API OAuthToken
 	APIToken string
 	// OAuth2
 	User            string
 	Key             string
 	Secret          string
-	Token           string
+	OAuthToken      string
 	Username        string
 	BackupsToRetain int
 	LogLevel        int
@@ -92,7 +92,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 		DiffRemoteMethod: diffRemoteMethod,
 		BackupDir:        input.BackupDir,
 		BackupsToRetain:  input.BackupsToRetain,
-		OAuthToken:       input.Token,
+		OAuthToken:       input.OAuthToken,
 		APIToken:         input.APIToken,
 		AuthType:         input.AuthType,
 		BasicAuth:        input.BasicAuth,
@@ -400,7 +400,7 @@ func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemote
 
 		repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
 
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token, apiToken})
 		results <- repoBackupResult(repo, err)
 	}
 }
