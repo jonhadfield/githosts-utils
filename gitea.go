@@ -452,11 +452,11 @@ func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 		case http.StatusForbidden:
 			logger.Println("failed to get users due to invalid or missing credentials (HTTP 403)")
 
-			return nil, errors.Wrap(err, "forbidden response to Gitea request")
+			return nil, errors.New("forbidden response to Gitea request")
 		default:
 			logger.Printf("failed to get users with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return nil, errors.Wrap(err, "unexpected errors making Gitea request")
+			return nil, errors.Errorf("unexpected errors making Gitea request: %d (%s)", resp.StatusCode, resp.Status)
 		}
 
 		var respObj giteaGetUsersResponse
@@ -607,7 +607,7 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	if err != nil {
 		logger.Printf("failed to parse get organizations URL %s: %v", getOrganizationsURL, err)
 
-		return nil, nil
+		return nil, errors.Wrap(err, "failed to parse get organizations URL")
 	}
 
 	q := u.Query()
@@ -629,7 +629,7 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 		if err != nil {
 			logger.Printf("failed to get organizations: %v", err.Error())
 
-			return nil, nil
+			return nil, errors.Wrap(err, "failed to get organizations")
 		}
 
 		if g.LogLevel > 0 {
@@ -644,12 +644,12 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 		case http.StatusForbidden:
 			logger.Println("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 
-			return organizations, nil
+			return organizations, errors.New("failed to get organizations due to invalid or missing credentials (HTTP 403)")
 		default:
 			logger.Printf("failed to get organizations with unexpected response: %d (%s)",
 				resp.StatusCode, resp.Status)
 
-			return organizations, nil
+			return organizations, errors.Errorf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 		}
 
 		var respObj giteaGetOrganizationsResponse
@@ -818,7 +818,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) ([]giteaReposi
 		default:
 			logger.Printf("failed to get repos with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-			return nil, nil
+			return nil, errors.Errorf("failed to get repos with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 		}
 
 		var respObj []giteaRepository
