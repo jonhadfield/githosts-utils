@@ -402,7 +402,7 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) ([]
 
 func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 	if strings.TrimSpace(g.APIURL) == "" {
-		g.APIURL = gitlabAPIURL
+		return nil, errors.New("GITEA_APIURL environment variable is required")
 	}
 
 	getUsersURL := g.APIURL + "/admin/users"
@@ -495,7 +495,7 @@ func (g *GiteaHost) getOrganizations() ([]giteaOrganization, errors.E) {
 	}
 
 	if strings.TrimSpace(g.APIURL) == "" {
-		g.APIURL = gitlabAPIURL
+		return nil, errors.New("GITEA_APIURL environment variable is required")
 	}
 
 	var organizations []giteaOrganization
@@ -527,7 +527,7 @@ func (g *GiteaHost) getOrganization(orgName string) (giteaOrganization, errors.E
 	}
 
 	if strings.TrimSpace(g.APIURL) == "" {
-		g.APIURL = gitlabAPIURL
+		return giteaOrganization{}, errors.New("GITEA_APIURL environment variable is required")
 	}
 
 	getOrganizationsURL := fmt.Sprintf("%s%s", g.APIURL+"/orgs/", orgName)
@@ -594,7 +594,7 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	logger.Printf("retrieving organizations")
 
 	if strings.TrimSpace(g.APIURL) == "" {
-		g.APIURL = gitlabAPIURL
+		return nil, errors.New("GITEA_APIURL environment variable is required")
 	}
 
 	getOrganizationsURL := g.APIURL + "/orgs"
@@ -770,7 +770,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) ([]giteaReposi
 	logger.Printf("retrieving repositories for organization %s", organizationName)
 
 	if strings.TrimSpace(g.APIURL) == "" {
-		g.APIURL = gitlabAPIURL
+		return nil, errors.New("GITEA_APIURL environment variable is required")
 	}
 
 	getOrganizationReposURL := g.APIURL + fmt.Sprintf("/orgs/%s/repos", organizationName)
@@ -852,7 +852,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
 	logger.Printf("retrieving all repositories for user %s", userName)
 
 	if strings.TrimSpace(g.APIURL) == "" {
-		g.APIURL = gitlabAPIURL
+		return nil, errors.New("GITEA_APIURL environment variable is required")
 	}
 
 	getOrganizationReposURL := g.APIURL + fmt.Sprintf("/users/%s/repos", userName)
