@@ -103,7 +103,7 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
 	default:
 		logger.Printf("failed to authenticate due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
-		return gitlabUser{}, nil
+		return gitlabUser{}, errors.Errorf("failed to authenticate due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 	}
 
 	var user gitlabUser
