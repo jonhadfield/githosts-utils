@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	sourcehutEnvVarToken  = "SOURCEHUT_PAT"
-	sourcehutEnvVarAPIUrl = "SOURCEHUT_APIURL"
+	sourcehutEnvVarToken = "SOURCEHUT_PAT"
 )
 
 func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
@@ -37,7 +36,7 @@ func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
 	require.NoError(t, err)
 
 	gl.Backup()
-	
+
 	// Test that the public repository (sobaOne) was backed up successfully
 	expectedSobaOnePath := filepath.Join(backupDIR, "sourcehut", "jonhadfield", "sobaOne")
 	require.DirExists(t, expectedSobaOnePath)
@@ -45,7 +44,7 @@ func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projectOneEntries, 1)
 	require.Contains(t, projectOneEntries[0].Name(), "sobaOne.")
-	
+
 	// Verify repository contents by extracting the bundle and checking for expected files
 	bundlePath := projectOneEntries[0]
 	tempExtractDir := filepath.Join(os.TempDir(), "sobaOne_extract_test")
@@ -54,18 +53,18 @@ func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
 			t.Logf("Warning: failed to cleanup temp directory: %v", cleanupErr)
 		}
 	}()
-	
+
 	// Extract the bundle to temporary directory
 	err = extractBundleToTemp(bundlePath.Name(), expectedSobaOnePath, tempExtractDir)
 	require.NoError(t, err)
-	
+
 	// Check that LICENSE and README.md exist in the repository root
 	licensePath := filepath.Join(tempExtractDir, "LICENSE")
 	readmePath := filepath.Join(tempExtractDir, "README.md")
-	
+
 	require.FileExists(t, licensePath, "LICENSE file should exist in sobaOne repository")
 	require.FileExists(t, readmePath, "README.md file should exist in sobaOne repository")
-	
+
 	// Note: sobaTwo is private and will be automatically skipped
 	// SourceHut private repositories cannot be cloned via HTTPS with personal access tokens
 	// Only public repositories are backed up due to authentication limitations
@@ -94,7 +93,7 @@ func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
 	require.NoError(t, err)
 
 	gl.Backup()
-	
+
 	// Test that the public repository (sobaOne) was backed up successfully
 	expectedSobaOnePath := filepath.Join(backupDIR, "sourcehut", "jonhadfield", "sobaOne")
 	require.DirExists(t, expectedSobaOnePath)
@@ -102,7 +101,7 @@ func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, projectOneEntries, 1)
 	require.Contains(t, projectOneEntries[0].Name(), "sobaOne.")
-	
+
 	// Verify repository contents by extracting the bundle and checking for expected files
 	bundlePath := projectOneEntries[0]
 	tempExtractDir := filepath.Join(os.TempDir(), "sobaOne_extract_test_refs")
@@ -111,18 +110,18 @@ func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
 			t.Logf("Warning: failed to cleanup temp directory: %v", cleanupErr)
 		}
 	}()
-	
+
 	// Extract the bundle to temporary directory
 	err = extractBundleToTemp(bundlePath.Name(), expectedSobaOnePath, tempExtractDir)
 	require.NoError(t, err)
-	
+
 	// Check that LICENSE and README.md exist in the repository root
 	licensePath := filepath.Join(tempExtractDir, "LICENSE")
 	readmePath := filepath.Join(tempExtractDir, "README.md")
-	
+
 	require.FileExists(t, licensePath, "LICENSE file should exist in sobaOne repository")
 	require.FileExists(t, readmePath, "README.md file should exist in sobaOne repository")
-	
+
 	// Note: sobaTwo is private and will be automatically skipped
 	// SourceHut private repositories cannot be cloned via HTTPS with personal access tokens
 	t.Logf("Public repository sobaOne backed up successfully with refs method and contains expected files")
