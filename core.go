@@ -198,6 +198,22 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 	return
 }
 
+func getCloneURL(repo repository) string {
+	if repo.URLWithToken != "" {
+		return repo.URLWithToken
+	}
+	if repo.URLWithBasicAuth != "" {
+		return repo.URLWithBasicAuth
+	}
+	if repo.BasicAuthUser != "" && repo.BasicAuthPass != "" {
+		return fmt.Sprintf("https://%s:%s@%s", bitbucketStaticUserName, repo.BasicAuthPass, repo.HTTPSUrl)
+	}
+	if repo.SSHUrl != "" {
+		return repo.SSHUrl
+	}
+	return repo.HTTPSUrl
+}
+
 func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string, backupLFS bool, secrets []string) errors.E {
 	// create backup path
 	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
@@ -208,21 +224,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 		return errors.Errorf("failed to remove working directory: %s: %s", workingPath, delErr)
 	}
 
-	var cloneURL string
-
-	if repo.URLWithToken != "" {
-		cloneURL = repo.URLWithToken
-	} else if repo.URLWithBasicAuth != "" {
-		cloneURL = repo.URLWithBasicAuth
-	} else if repo.BasicAuthUser != "" && repo.BasicAuthPass != "" {
-		cloneURL = fmt.Sprintf("https://%s:%s@%s", bitbucketStaticUserName, repo.BasicAuthPass, repo.HTTPSUrl)
-	} else if repo.SSHUrl != "" {
-		// Fallback to SSH URL if no other authentication method is available
-		cloneURL = repo.SSHUrl
-	} else {
-		// Final fallback to HTTPS URL
-		cloneURL = repo.HTTPSUrl
-	}
+	cloneURL := getCloneURL(repo)
 
 	// Check if existing, latest bundle refs, already match the remote
 	if diffRemoteMethod == refsMethod {
@@ -362,11 +364,11 @@ func getHTTPClient() *retryablehttp.Client {
 	rc := retryablehttp.NewClient()
 	rc.HTTPClient = &http.Client{
 		Transport: tr,
-		Timeout:   120 * time.Second,
+		Timeout:   backupTimeout,
 	}
 
 	rc.Logger = nil
-	rc.RetryWaitMax = 120 * time.Second
+	rc.RetryWaitMax = backupTimeout
 	rc.RetryWaitMin = 60 * time.Second
 	rc.RetryMax = 2
 

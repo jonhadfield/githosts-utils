@@ -3,6 +3,7 @@ package githosts
 import (
 	"log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -18,17 +19,25 @@ const (
 	gitlabProjectsPerPageDefault = 20
 	sourcehutAPIURL              = "https://git.sr.ht/query"
 	contentTypeApplicationJSON   = "application/json; charset=utf-8"
-	
+
+	// Concurrency limits
+	defaultMaxConcurrentGitHub = 10
+	defaultMaxConcurrentGitLab = 5
+	defaultMaxConcurrentOther  = 10
+
+	// Timeout values
+	backupTimeout = 120 * time.Second
+
 	// HTTP Headers
 	HeaderContentType   = "Content-Type"
 	HeaderAuthorization = "Authorization"
 	HeaderAccept        = "Accept"
-	
+
 	// Authentication prefixes
 	AuthPrefixBearer = "Bearer "
 	AuthPrefixToken  = "token "
 	AuthPrefixBasic  = "Basic "
-	
+
 	// Content types
 	ContentTypeJSON        = "application/json"
 	ContentTypeFormEncoded = "application/x-www-form-urlencoded"
@@ -36,6 +45,39 @@ const (
 )
 
 var logger *log.Logger
+
+type WorkerConfig struct {
+	LogLevel         int
+	BackupDir        string
+	DiffRemoteMethod string
+	BackupsToKeep    int
+	BackupLFS        bool
+	DefaultDelay     int
+	DelayEnvVar      string
+	Secrets          []string
+	SetupRepo        func(*repository) // Function to set up authentication on the repo
+}
+
+func genericWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
+	for repo := range jobs {
+		// Set up authentication for the repo
+		if config.SetupRepo != nil {
+			config.SetupRepo(&repo)
+		}
+
+		err := processBackup(config.LogLevel, repo, config.BackupDir, config.BackupsToKeep, config.DiffRemoteMethod, config.BackupLFS, config.Secrets)
+		results <- repoBackupResult(repo, err)
+
+		// Add delay between repository backups to prevent rate limiting
+		delay := config.DefaultDelay
+		if config.DelayEnvVar != "" {
+			if envDelay, sErr := strconv.Atoi(os.Getenv(config.DelayEnvVar)); sErr == nil {
+				delay = envDelay
+			}
+		}
+		time.Sleep(time.Duration(delay) * time.Millisecond)
+	}
+}
 
 func init() {
 	// allow for tests to override

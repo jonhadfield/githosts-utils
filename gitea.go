@@ -186,6 +186,51 @@ type organizationExistsInput struct {
 	fullName      string
 }
 
+func matchesRepository(in repoExistsInput, r repository) bool {
+	nameMatch := in.name == r.Name
+	ownerMatch := in.owner == r.Owner
+	domainMatch := in.domain == r.Domain
+	cloneUrlMatch := in.httpsUrl == r.HTTPSUrl
+	sshUrlMatch := in.sshUrl == r.SSHUrl
+	urlWithTokenMatch := in.urlWithToken == r.URLWithToken
+	urlWithBasicAuthMatch := in.urlWithBasicAuth == r.URLWithBasicAuth
+	pathWithNamespaceMatch := in.pathWithNamespace == r.PathWithNameSpace
+
+	switch in.matchBy {
+	case giteaMatchByExact:
+		return nameMatch && domainMatch && ownerMatch && cloneUrlMatch && sshUrlMatch && urlWithTokenMatch && urlWithBasicAuthMatch && pathWithNamespaceMatch
+	case giteaMatchByIfDefined:
+		anyDefined := in.name != "" || in.domain != "" || in.owner != "" || in.httpsUrl != "" || in.sshUrl != ""
+
+		if in.name != "" && !nameMatch {
+			return false
+		}
+		if in.domain != "" && !domainMatch {
+			return false
+		}
+		if in.owner != "" && !ownerMatch {
+			return false
+		}
+		if in.httpsUrl != "" && !cloneUrlMatch {
+			return false
+		}
+		if in.sshUrl != "" && !sshUrlMatch {
+			return false
+		}
+		if in.urlWithToken != "" && !urlWithTokenMatch {
+			return false
+		}
+		if in.urlWithBasicAuth != "" && !urlWithBasicAuthMatch {
+			return false
+		}
+		if in.pathWithNamespace != "" && !pathWithNamespaceMatch {
+			return false
+		}
+		return anyDefined
+	}
+	return false
+}
+
 func repoExists(in repoExistsInput) bool {
 	switch in.matchBy {
 	case giteaMatchByExact:
@@ -219,50 +264,8 @@ func repoExists(in repoExistsInput) bool {
 	}
 
 	for _, r := range in.repos {
-		nameMatch := in.name == r.Name
-		ownerMatch := in.owner == r.Owner
-		domainMatch := in.domain == r.Domain
-		cloneUrlMatch := in.httpsUrl == r.HTTPSUrl
-		sshUrlMatch := in.sshUrl == r.SSHUrl
-		urlWithTokenMatch := in.urlWithToken == r.URLWithToken
-		urlWithBasicAuthMatch := in.urlWithBasicAuth == r.URLWithBasicAuth
-		pathWithNamespaceMatch := in.pathWithNamespace == r.PathWithNameSpace
-
-		switch in.matchBy {
-		case giteaMatchByExact:
-			if allTrue(nameMatch, domainMatch, ownerMatch, cloneUrlMatch, sshUrlMatch, urlWithTokenMatch,
-				urlWithBasicAuthMatch, pathWithNamespaceMatch) {
-				return true
-			}
-
-			continue
-		case giteaMatchByIfDefined:
-			anyDefined := in.name != "" || in.domain != "" || in.owner != "" || in.httpsUrl != "" || in.sshUrl != ""
-
-			switch {
-			case in.name != "" && !nameMatch:
-				continue
-			case in.domain != "" && !domainMatch:
-				continue
-			case in.owner != "" && !ownerMatch:
-				continue
-			case in.httpsUrl != "" && !cloneUrlMatch:
-				continue
-			case in.sshUrl != "" && !sshUrlMatch:
-				continue
-			case in.urlWithToken != "" && !urlWithTokenMatch:
-				continue
-			case in.urlWithBasicAuth != "" && !urlWithBasicAuthMatch:
-				continue
-			case in.pathWithNamespace != "" && !pathWithNamespaceMatch:
-				continue
-			default:
-				if anyDefined {
-					return true
-				}
-
-				continue
-			}
+		if matchesRepository(in, r) {
+			return true
 		}
 	}
 
