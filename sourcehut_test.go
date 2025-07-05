@@ -20,7 +20,6 @@ func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
 		t.Skip("Skipping sourcehut test as SOURCEHUT_PAT is missing")
 	}
 
-	resetGlobals()
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
@@ -76,7 +75,7 @@ func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
 	if os.Getenv(sourcehutEnvVarToken) == "" {
 		t.Skip("Skipping sourcehut test as SOURCEHUT_PAT is missing")
 	}
-	resetGlobals()
+
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
 
