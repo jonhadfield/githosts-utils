@@ -20,7 +20,7 @@ func TestMaskSecretsReplacesSecretsWithAsterisks(t *testing.T) {
 
 	maskedContent := maskSecrets(content, secrets)
 
-	assert.Equal(t, "Hello, my secret is *********", maskedContent)
+	assert.Equal(t, "Hello, my secret is *****", maskedContent)
 }
 
 func TestMaskSecretsHandlesMultipleSecrets(t *testing.T) {
@@ -29,7 +29,7 @@ func TestMaskSecretsHandlesMultipleSecrets(t *testing.T) {
 
 	maskedContent := maskSecrets(content, secrets)
 
-	assert.Equal(t, "Hello, my secrets are ********* and *********", maskedContent)
+	assert.Equal(t, "Hello, my secrets are ***** and *****", maskedContent)
 }
 
 func TestMaskSecretsReturnsOriginalContentWhenNoSecrets(t *testing.T) {
