@@ -240,7 +240,7 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 
 	envCallSize := os.Getenv(githubEnvVarCallSize)
 	if envCallSize != "" {
-		if callSize, err := strconv.Atoi(envCallSize); err != nil {
+		if callSize, err := strconv.Atoi(envCallSize); err == nil {
 			gcs = callSize
 		}
 	}
@@ -352,7 +352,7 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 
 	envCallSize := os.Getenv(githubEnvVarCallSize)
 	if envCallSize != "" {
-		if callSize, err := strconv.Atoi(envCallSize); err != nil {
+		if callSize, err := strconv.Atoi(envCallSize); err == nil {
 			gcs = callSize
 		}
 	}
