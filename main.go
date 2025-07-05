@@ -16,7 +16,7 @@ const (
 	githubAPIURL                 = "https://api.github.com/graphql"
 	gitlabAPIURL                 = "https://gitlab.com/api/v4"
 	gitlabProjectsPerPageDefault = 20
-	sourcehutAPIURL              = "https://git.sr.ht/api/v1"
+	sourcehutAPIURL              = "https://git.sr.ht/query"
 	contentTypeApplicationJSON   = "application/json; charset=utf-8"
 )
 

@@ -400,7 +400,7 @@ func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemote
 
 		repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
 
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS)
+		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
 		results <- repoBackupResult(repo, err)
 	}
 }
