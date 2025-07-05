@@ -69,22 +69,42 @@ func urlWithBasicAuthURL(httpsURL, user, password string) string {
 	return fmt.Sprintf("%s//%s:%s@%s", parts[0], user, password, parts[1])
 }
 
-// parseGitError returns any lines from git output that start with
-// "fatal:" or "error:". If none are found, it trims and returns the
-// entire output string.
+// parseGitError returns any lines from git output that contain error information.
+// It looks for lines starting with "fatal:", "error:", or containing common error patterns.
+// If none are found, it returns the full trimmed output.
 func parseGitError(out []byte) string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var errs []string
+	
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "fatal:") || strings.HasPrefix(trimmed, "error:") {
+		if trimmed == "" {
+			continue
+		}
+		
+		// Check for common Git error prefixes and patterns
+		if strings.HasPrefix(trimmed, "fatal:") || 
+		   strings.HasPrefix(trimmed, "error:") ||
+		   strings.HasPrefix(trimmed, "ERROR:") ||
+		   strings.Contains(strings.ToLower(trimmed), "permission denied") ||
+		   strings.Contains(strings.ToLower(trimmed), "authentication failed") ||
+		   strings.Contains(strings.ToLower(trimmed), "repository not found") ||
+		   strings.Contains(strings.ToLower(trimmed), "could not resolve host") ||
+		   strings.Contains(strings.ToLower(trimmed), "connection refused") ||
+		   strings.Contains(strings.ToLower(trimmed), "timeout") {
 			errs = append(errs, trimmed)
 		}
 	}
+	
 	if len(errs) > 0 {
-		return strings.Join(errs, ", ")
+		return strings.Join(errs, "; ")
 	}
-	return strings.Join(lines, ", ")
+	
+	// If no specific errors found, return the full output (limit to first few lines to avoid huge messages)
+	if len(lines) > 5 {
+		return strings.Join(lines[:5], "; ") + "... (truncated)"
+	}
+	return strings.Join(lines, "; ")
 }
 
 func isEmpty(clonedRepoPath string) (bool, errors.E) {
