@@ -2,6 +2,7 @@ package githosts
 
 import (
 	b64 "encoding/base64"
+	"fmt"
 	"log"
 	"os"
 	"path"
@@ -22,7 +23,11 @@ const (
 )
 
 func deleteBackupsDir(path string) error {
-	return os.RemoveAll(path)
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("failed to delete %s: %w", path, err)
+	}
+
+	return nil
 }
 
 func createTestTextFile(fileName, content string) string {

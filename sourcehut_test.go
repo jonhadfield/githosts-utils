@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	sourcehutEnvVarToken = "SOURCEHUT_PAT"
+	sourcehutEnvVarToken = "SOURCEHUT_PAT" //nolint:gosec
 )
 
 func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
@@ -47,6 +47,7 @@ func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
 	// Verify repository contents by extracting the bundle and checking for expected files
 	bundlePath := projectOneEntries[0]
 	tempExtractDir := filepath.Join(os.TempDir(), "sobaOne_extract_test")
+
 	defer func() {
 		if cleanupErr := os.RemoveAll(tempExtractDir); cleanupErr != nil {
 			t.Logf("Warning: failed to cleanup temp directory: %v", cleanupErr)
@@ -104,6 +105,7 @@ func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
 	// Verify repository contents by extracting the bundle and checking for expected files
 	bundlePath := projectOneEntries[0]
 	tempExtractDir := filepath.Join(os.TempDir(), "sobaOne_extract_test_refs")
+
 	defer func() {
 		if cleanupErr := os.RemoveAll(tempExtractDir); cleanupErr != nil {
 			t.Logf("Warning: failed to cleanup temp directory: %v", cleanupErr)
@@ -129,8 +131,8 @@ func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
 // extractBundleToTemp extracts a git bundle to a temporary directory for content verification
 func extractBundleToTemp(bundleFileName, bundleDir, tempDir string) error {
 	// Create temporary directory
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		return err
+	if err := os.MkdirAll(tempDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
 	}
 
 	// Full path to the bundle file

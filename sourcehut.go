@@ -309,7 +309,9 @@ func sourcehutWorker(logLevel int, token, backupDIR, diffRemoteMethod string, ba
 		logger.Printf("SourceHut worker processing repo: %s", repo.Name)
 		logger.Printf("SourceHut worker base URL: %s", repo.HTTPSUrl)
 		logger.Printf("SourceHut worker using token auth format")
+
 		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
+
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting
