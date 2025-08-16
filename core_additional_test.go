@@ -40,14 +40,17 @@ func TestGenerateBasicAuth(t *testing.T) {
 
 func TestSetLoggerPrefix(t *testing.T) {
 	prev := logger.Prefix()
+
 	setLoggerPrefix("prefix")
 	if logger.Prefix() != "prefix: " {
 		t.Errorf("unexpected prefix %q", logger.Prefix())
 	}
+
 	setLoggerPrefix("")
 	if logger.Prefix() != "prefix: " {
 		t.Errorf("empty prefix should not change")
 	}
+
 	logger.SetPrefix(prev)
 }
 
@@ -68,10 +71,12 @@ func TestGetDiffRemoteMethod(t *testing.T) {
 	if err != nil || m != "clone" {
 		t.Fatalf("unexpected result: %s %v", m, err)
 	}
+
 	m, err = getDiffRemoteMethod("bad")
 	if err == nil {
 		t.Fatalf("expected error")
 	}
+
 	if m != "bad" {
 		t.Fatalf("method should be returned even on error")
 	}
@@ -93,6 +98,7 @@ func TestGetHTTPClient(t *testing.T) {
 func TestToPtr(t *testing.T) {
 	v := 10
 	p := ToPtr(v)
+
 	if *p != v {
 		t.Errorf("unexpected value")
 	}
@@ -106,6 +112,7 @@ func TestExtractDomainFromAPIUrl(t *testing.T) {
 
 func TestGetRemoteRefs(t *testing.T) {
 	tmp := t.TempDir()
+
 	remoteDir := filepath.Join(tmp, "remote")
 	if err := os.MkdirAll(remoteDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -120,6 +127,7 @@ func TestGetRemoteRefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("getRemoteRefs failed: %v", err)
 	}
+
 	if refs["refs/heads/master"] == "" || refs["refs/remotes/origin/my-branch"] == "" {
 		t.Fatalf("unexpected refs %+v", refs)
 	}

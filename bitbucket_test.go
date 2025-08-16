@@ -1,12 +1,13 @@
 package githosts
 
 import (
-	"github.com/stretchr/testify/require"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
@@ -46,14 +47,17 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 
 	res := bbHost.Backup()
 	require.NoError(t, res.Error)
+
 	expectedPathOne := filepath.Join(bbHost.BackupDir, bitbucketDomain, "go-soba", "repo0")
 	require.DirExists(t, expectedPathOne)
+
 	dirOneEntries, err := dirContents(expectedPathOne)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^repo0\.\d{14}\.bundle$`), dirOneEntries[0].Name())
 
 	expectedPathTwo := filepath.Join(bbHost.BackupDir, bitbucketDomain, "teamsoba", "teamsobarepoone")
 	require.DirExists(t, expectedPathTwo)
+
 	dirTwoEntries, err := dirContents(expectedPathTwo)
 	require.NoError(t, err)
 	require.Regexp(t, regexp.MustCompile(`^teamSobaRepoOne\.\d{14}\.bundle$`), dirTwoEntries[0].Name())
@@ -135,6 +139,7 @@ func TestPublicBitbucketRepositoryCloneCompareAPIKey(t *testing.T) {
 	// backup once more so we have bundles to compare and skip
 	bbHost.DiffRemoteMethod = refsMethod
 	bbHost.Backup()
+
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	reRepo0 := regexp.MustCompile(`skipping.*go-soba/repo0`)
@@ -212,10 +217,12 @@ func TestPublicBitbucketRepositoryCloneCompareOAuth(t *testing.T) {
 	// backup once more so we have bundles to compare and skip
 	bbHost.DiffRemoteMethod = refsMethod
 	bbHost.Backup()
+
 	logLines := strings.Split(strings.ReplaceAll(buf.String(), "\r\n", "\n"), "\n")
 
 	reRepo0 := regexp.MustCompile(`skipping.*go-soba/repo0`)
 	reRepo1 := regexp.MustCompile(`skipping.*teamsoba/teamsobarepoone`)
+
 	var matches int
 
 	logger.SetOutput(os.Stdout)

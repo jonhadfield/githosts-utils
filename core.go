@@ -28,6 +28,7 @@ const (
 	msgUsingDefaultDiffRemoteMethod = "using default diff remote method"
 	msgBackupSkippedNoDir           = "backup skipped as backup directory not specified"
 	msgBackupDirNotSpecified        = "backup directory not specified"
+	defaultRetryWait                = 60
 )
 
 type repository struct {
@@ -202,15 +203,19 @@ func getCloneURL(repo repository) string {
 	if repo.URLWithToken != "" {
 		return repo.URLWithToken
 	}
+
 	if repo.URLWithBasicAuth != "" {
 		return repo.URLWithBasicAuth
 	}
+
 	if repo.BasicAuthUser != "" && repo.BasicAuthPass != "" {
 		return fmt.Sprintf("https://%s:%s@%s", bitbucketStaticUserName, repo.BasicAuthPass, repo.HTTPSUrl)
 	}
+
 	if repo.SSHUrl != "" {
 		return repo.SSHUrl
 	}
+
 	return repo.HTTPSUrl
 }
 
@@ -238,6 +243,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	// clone repo
 	logger.Printf("cloning: %s to: %s", maskSecrets(repo.HTTPSUrl, secrets), workingPath)
+
 	if logLevel == 0 {
 		logger.Printf("git clone command will use URL: %s", maskSecrets(cloneURL, secrets))
 	}
@@ -256,6 +262,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	} else {
 		cloneCmd = exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	}
+
 	cloneCmd.Dir = backupDIR
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
@@ -263,7 +270,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	if cloneErr != nil {
 		gitErr := parseGitError(cloneOut)
-		
+
 		// Always log the full git output for clone failures to help with debugging
 		logger.Printf("Git clone failed for repository: %s", repo.Name)
 		logger.Printf("Clone command exit code: %v", cloneErr)
@@ -277,13 +284,13 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 		if gitErr != "" {
 			return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s. Full output: %s", repo.Name, gitErr, strings.TrimSpace(string(cloneOut)))
 		}
-		
+
 		// If no specific git error found, include the full output in the error
 		trimmedOutput := strings.TrimSpace(string(cloneOut))
 		if trimmedOutput != "" {
 			return errors.Wrapf(cloneErr, "cloning failed for repository: %s. Git output: %s", repo.Name, trimmedOutput)
 		}
-		
+
 		return errors.Wrapf(cloneErr, "cloning failed for repository: %s - exit status: %v", repo.Name, cloneErr)
 	}
 
@@ -303,7 +310,9 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	if backupLFS {
 		// Check if we need to create an LFS backup
 		needsLFSBackup := isUpdated
+
 		var useExistingTimestamp string
+
 		if !isUpdated {
 			// Repository wasn't updated, but check if LFS archive exists for the latest bundle
 			lfsExists, lfsErr := lfsArchiveExistsForLatestBundle(backupPath, repo.Name)
@@ -311,6 +320,7 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 				logger.Printf("failed to check LFS archive existence for %s: %s", repo.PathWithNameSpace, lfsErr)
 			} else if !lfsExists {
 				logger.Printf("LFS archive missing for latest bundle of %s repository %s, creating it", repo.Domain, repo.PathWithNameSpace)
+
 				needsLFSBackup = true
 				// Get timestamp from the latest bundle to use for LFS archive
 				if latestBundlePath, err := getLatestBundlePath(backupPath); err == nil {
@@ -326,12 +336,15 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 			lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
 			lfsFilesCmd.Dir = workingPath
 			lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
+
 			if lfsFilesErr != nil {
 				return errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
 			}
+
 			if len(strings.TrimSpace(string(lfsFilesOut))) > 0 {
 				lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
 				lfsCmd.Dir = workingPath
+
 				if out, err := lfsCmd.CombinedOutput(); err != nil {
 					return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
 				}
@@ -377,7 +390,7 @@ func getHTTPClient() *retryablehttp.Client {
 
 	rc.Logger = nil
 	rc.RetryWaitMax = backupTimeout
-	rc.RetryWaitMin = 60 * time.Second
+	rc.RetryWaitMin = defaultRetryWait * time.Second
 	rc.RetryMax = 2
 
 	return rc

@@ -21,7 +21,11 @@ const (
 )
 
 func createDirIfAbsent(path string) error {
-	return os.MkdirAll(path, backupDirMode)
+	if err := os.MkdirAll(path, backupDirMode); err != nil {
+		return fmt.Errorf("failed to create directory %s: %w", path, err)
+	}
+
+	return nil
 }
 
 func getTimestamp() string {
@@ -74,32 +78,33 @@ func urlWithBasicAuthURL(httpsURL, user, password string) string {
 // If none are found, it returns the full trimmed output.
 func parseGitError(out []byte) string {
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+
 	var errs []string
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
 		}
-		
+
 		// Check for common Git error prefixes and patterns
-		if strings.HasPrefix(trimmed, "fatal:") || 
-		   strings.HasPrefix(trimmed, "error:") ||
-		   strings.HasPrefix(trimmed, "ERROR:") ||
-		   strings.Contains(strings.ToLower(trimmed), "permission denied") ||
-		   strings.Contains(strings.ToLower(trimmed), "authentication failed") ||
-		   strings.Contains(strings.ToLower(trimmed), "repository not found") ||
-		   strings.Contains(strings.ToLower(trimmed), "could not resolve host") ||
-		   strings.Contains(strings.ToLower(trimmed), "connection refused") ||
-		   strings.Contains(strings.ToLower(trimmed), "timeout") {
+		if strings.HasPrefix(trimmed, "fatal:") ||
+			strings.HasPrefix(trimmed, "error:") ||
+			strings.HasPrefix(trimmed, "ERROR:") ||
+			strings.Contains(strings.ToLower(trimmed), "permission denied") ||
+			strings.Contains(strings.ToLower(trimmed), "authentication failed") ||
+			strings.Contains(strings.ToLower(trimmed), "repository not found") ||
+			strings.Contains(strings.ToLower(trimmed), "could not resolve host") ||
+			strings.Contains(strings.ToLower(trimmed), "connection refused") ||
+			strings.Contains(strings.ToLower(trimmed), "timeout") {
 			errs = append(errs, trimmed)
 		}
 	}
-	
+
 	if len(errs) > 0 {
 		return strings.Join(errs, "; ")
 	}
-	
+
 	// If no specific errors found, return the full output (limit to first few lines to avoid huge messages)
 	if len(lines) > 5 {
 		return strings.Join(lines[:5], "; ") + "... (truncated)"
@@ -134,7 +139,9 @@ func isEmpty(clonedRepoPath string) (bool, errors.E) {
 
 func parseCountObjectsOutput(out string) (looseObjects, inPackObjects bool, err errors.E) {
 	lines := strings.Split(out, "\n")
+
 	var found int
+
 	for _, line := range lines {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 {

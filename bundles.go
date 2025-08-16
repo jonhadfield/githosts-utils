@@ -42,12 +42,12 @@ func getLatestBundlePath(backupPath string) (string, error) {
 
 	for _, f := range bFiles {
 		var ts int
+
 		if ts, err = getTimeStampPartFromFileName(f.info.Name()); err == nil {
 			fNameTimes[f.info.Name()] = ts
 
 			continue
 		}
-		// ignoring error output
 	}
 
 	type kv struct {
@@ -77,6 +77,7 @@ func getBundleRefs(bundlePath string) (gitRefs, error) {
 		if gitErr != "" {
 			return nil, errors.Errorf("git bundle list-heads failed: %s", gitErr)
 		}
+
 		return nil, errors.Wrap(bundleRefsCmdErr, "git bundle list-heads failed")
 	}
 
@@ -113,6 +114,7 @@ func lfsArchiveExistsForLatestBundle(backupPath, repoName string) (bool, error) 
 
 	// Extract timestamp from bundle filename
 	bundleBasename := filepath.Base(latestBundlePath)
+
 	timestamp, err := getTimeStampPartFromFileName(bundleBasename)
 	if err != nil {
 		return false, fmt.Errorf("failed to extract timestamp from bundle name: %w", err)
@@ -307,7 +309,7 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 
 		info, err = f.Info()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get info for file %s: %w", f.Name(), err)
 		}
 
 		bfs = append(bfs, bundleFile{
@@ -318,7 +320,7 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 
 	sort.Sort(bfs)
 
-	return bfs, err
+	return bfs, nil
 }
 
 func pruneBackups(backupPath string, keep int) errors.E {

@@ -244,7 +244,6 @@ func urlWithBasicAuth(httpsURL, user, password string) string {
 }
 
 func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
-
 	logger.Println("listing BitBucket repositories")
 
 	var err error

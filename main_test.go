@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"slices"
@@ -94,7 +95,12 @@ func unsetEnvVars(exceptionList []string) {
 }
 
 func dirContents(path string) ([]os.DirEntry, error) {
-	return os.ReadDir(path)
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read dir %s: %w", path, err)
+	}
+
+	return entries, nil
 }
 
 func resetBackups() {

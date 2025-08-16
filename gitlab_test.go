@@ -37,12 +37,15 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-one")
 	expectedSubProjectTwoPath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-two")
+
 	require.DirExists(t, expectedSubProjectOnePath)
 	require.DirExists(t, expectedSubProjectTwoPath)
+
 	projectOneEntries, err := dirContents(expectedSubProjectOnePath)
 	require.NoError(t, err)
 	require.Len(t, projectOneEntries, 1)
 	require.Contains(t, projectOneEntries[0].Name(), "soba-sub-project-one.")
+
 	projectTwoEntries, err := dirContents(expectedSubProjectTwoPath)
 	require.NoError(t, err)
 	require.Len(t, projectTwoEntries, 1)
@@ -73,8 +76,11 @@ func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
 	gl.Backup()
 	expectedSubProjectOnePath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-one")
 	expectedSubProjectTwoPath := filepath.Join(backupDIR, gitLabDomain, "soba-test", "soba-sub", "soba-sub-project-two")
+
 	require.DirExists(t, expectedSubProjectOnePath)
+
 	require.DirExists(t, expectedSubProjectTwoPath)
+
 	projectOneEntries, err := dirContents(expectedSubProjectOnePath)
 	require.NoError(t, err)
 	require.Len(t, projectOneEntries, 1)
