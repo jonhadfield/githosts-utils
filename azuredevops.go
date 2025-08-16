@@ -89,6 +89,7 @@ func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backups
 		if envDelay, sErr := strconv.Atoi(os.Getenv(azureDevOpsEnvVarWorkerDelay)); sErr == nil {
 			delay = envDelay
 		}
+
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }
@@ -347,7 +348,7 @@ func ListAllRepositories(httpClient *retryablehttp.Client, basicAuth, projectNam
 	req, err := retryablehttp.NewRequest(http.MethodGet,
 		fmt.Sprintf("https://%s/%s/%s/_apis/git/repositories", azureDevOpsDomain, orgName, projectName), nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Add(HeaderAccept, ContentTypeJSON)
