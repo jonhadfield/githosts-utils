@@ -220,38 +220,88 @@ func getCloneURL(repo repository) string {
 }
 
 func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string, backupLFS bool, secrets []string) errors.E {
-	// create backup path
-	workingPath := filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
-	backupPath := filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
-	// clean existing working directory
-	delErr := os.RemoveAll(workingPath)
-	if delErr != nil {
-		return errors.Errorf("failed to remove working directory: %s: %s", workingPath, delErr)
+	workingPath, backupPath, err := setupBackupPaths(repo, backupDIR)
+	if err != nil {
+		return err
 	}
 
 	cloneURL := getCloneURL(repo)
 
-	// Check if existing, latest bundle refs, already match the remote
-	if diffRemoteMethod == refsMethod {
-		// check backup path exists before attempting to compare remote and local heads
-		if remoteRefsMatchLocalRefs(cloneURL, backupPath) {
-			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
+	if shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath, repo) {
+		return nil
+	}
 
+	if err := cloneRepository(repo, cloneURL, workingPath, backupDIR, logLevel, secrets); err != nil {
+		return err
+	}
+
+	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
+		if strings.HasSuffix(err.Error(), "is empty") {
+			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
 			return nil
+		}
+		return err
+	}
+
+	isUpdated := removeBundleIfDuplicate(backupPath)
+
+	if backupLFS {
+		if err := handleLFSBackup(logLevel, workingPath, backupPath, repo, isUpdated); err != nil {
+			return err
 		}
 	}
 
-	// clone repo
+	if backupsToKeep > 0 {
+		if err := pruneBackups(backupPath, backupsToKeep); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func setupBackupPaths(repo repository, backupDIR string) (workingPath, backupPath string, err errors.E) {
+	workingPath = filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
+	backupPath = filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
+	
+	delErr := os.RemoveAll(workingPath)
+	if delErr != nil {
+		return "", "", errors.Errorf("failed to remove working directory: %s: %s", workingPath, delErr)
+	}
+	
+	return workingPath, backupPath, nil
+}
+
+func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo repository) bool {
+	if diffRemoteMethod == refsMethod {
+		if remoteRefsMatchLocalRefs(cloneURL, backupPath) {
+			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
+			return true
+		}
+	}
+	return false
+}
+
+func cloneRepository(repo repository, cloneURL, workingPath, backupDIR string, logLevel int, secrets []string) errors.E {
 	logger.Printf("cloning: %s to: %s", maskSecrets(repo.HTTPSUrl, secrets), workingPath)
 
 	if logLevel == 0 {
 		logger.Printf("git clone command will use URL: %s", maskSecrets(cloneURL, secrets))
 	}
 
-	// For SourceHut, add multiple configs to handle redirect and trailing slash issues
+	cloneCmd := buildCloneCommand(cloneURL, workingPath, backupDIR)
+	cloneOut, cloneErr := cloneCmd.CombinedOutput()
+
+	if cloneErr != nil {
+		return handleCloneError(repo, cloneOut, cloneErr)
+	}
+
+	return nil
+}
+
+func buildCloneCommand(cloneURL, workingPath, backupDIR string) *exec.Cmd {
 	var cloneCmd *exec.Cmd
 	if strings.Contains(cloneURL, "git.sr.ht") {
-		// Multiple git configs to prevent various redirect and normalization issues
 		cloneCmd = exec.Command("git",
 			"-c", "http.followRedirects=false",
 			"-c", "http.postBuffer=524288000",
@@ -262,112 +312,106 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	} else {
 		cloneCmd = exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	}
-
 	cloneCmd.Dir = backupDIR
+	return cloneCmd
+}
 
-	cloneOut, cloneErr := cloneCmd.CombinedOutput()
+func handleCloneError(repo repository, cloneOut []byte, cloneErr error) errors.E {
+	gitErr := parseGitError(cloneOut)
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
 
-	if cloneErr != nil {
-		gitErr := parseGitError(cloneOut)
+	logger.Printf("Git clone failed for repository: %s", repo.Name)
+	logger.Printf("Clone command exit code: %v", cloneErr)
+	logger.Printf("Full git output: %s", string(cloneOut))
 
-		// Always log the full git output for clone failures to help with debugging
-		logger.Printf("Git clone failed for repository: %s", repo.Name)
-		logger.Printf("Clone command exit code: %v", cloneErr)
-		logger.Printf("Full git output: %s", string(cloneOut))
-
-		if os.Getenv(envVarGitHostsLog) == "debug" {
-			fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
-		}
-
-		// Improve error message to include both git error and raw output
-		if gitErr != "" {
-			return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s. Full output: %s", repo.Name, gitErr, strings.TrimSpace(string(cloneOut)))
-		}
-
-		// If no specific git error found, include the full output in the error
-		trimmedOutput := strings.TrimSpace(string(cloneOut))
-		if trimmedOutput != "" {
-			return errors.Wrapf(cloneErr, "cloning failed for repository: %s. Git output: %s", repo.Name, trimmedOutput)
-		}
-
-		return errors.Wrapf(cloneErr, "cloning failed for repository: %s - exit status: %v", repo.Name, cloneErr)
+	if os.Getenv(envVarGitHostsLog) == "debug" {
+		fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
 	}
 
-	// create bundle
-	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
-		if strings.HasSuffix(err.Error(), "is empty") {
-			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
+	if gitErr != "" {
+		return errors.Wrapf(cloneErr, "cloning failed for repository: %s - %s. Full output: %s", repo.Name, gitErr, strings.TrimSpace(string(cloneOut)))
+	}
 
-			return nil
-		}
+	trimmedOutput := strings.TrimSpace(string(cloneOut))
+	if trimmedOutput != "" {
+		return errors.Wrapf(cloneErr, "cloning failed for repository: %s. Git output: %s", repo.Name, trimmedOutput)
+	}
 
+	return errors.Wrapf(cloneErr, "cloning failed for repository: %s - exit status: %v", repo.Name, cloneErr)
+}
+
+func handleLFSBackup(logLevel int, workingPath, backupPath string, repo repository, isUpdated bool) errors.E {
+	needsLFSBackup, useExistingTimestamp := determineLFSBackupNeeds(backupPath, repo, isUpdated)
+
+	if !needsLFSBackup {
+		return nil
+	}
+
+	hasLFSFiles, err := checkForLFSFiles(workingPath)
+	if err != nil {
 		return err
 	}
 
-	isUpdated := removeBundleIfDuplicate(backupPath)
+	if !hasLFSFiles {
+		logger.Printf("no LFS files found in %s repository %s", repo.Domain, repo.PathWithNameSpace)
+		return nil
+	}
 
-	if backupLFS {
-		// Check if we need to create an LFS backup
-		needsLFSBackup := isUpdated
+	if err := fetchLFSFiles(workingPath); err != nil {
+		return err
+	}
 
-		var useExistingTimestamp string
+	if useExistingTimestamp != "" {
+		return createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp)
+	}
+	return createLFSArchive(logLevel, workingPath, backupPath, repo)
+}
 
-		if !isUpdated {
-			// Repository wasn't updated, but check if LFS archive exists for the latest bundle
-			lfsExists, lfsErr := lfsArchiveExistsForLatestBundle(backupPath, repo.Name)
-			if lfsErr != nil {
-				logger.Printf("failed to check LFS archive existence for %s: %s", repo.PathWithNameSpace, lfsErr)
-			} else if !lfsExists {
-				logger.Printf("LFS archive missing for latest bundle of %s repository %s, creating it", repo.Domain, repo.PathWithNameSpace)
+func determineLFSBackupNeeds(backupPath string, repo repository, isUpdated bool) (needsBackup bool, timestamp string) {
+	if isUpdated {
+		return true, ""
+	}
 
-				needsLFSBackup = true
-				// Get timestamp from the latest bundle to use for LFS archive
-				if latestBundlePath, err := getLatestBundlePath(backupPath); err == nil {
-					bundleBasename := filepath.Base(latestBundlePath)
-					if timestamp, err := getTimeStampPartFromFileName(bundleBasename); err == nil {
-						useExistingTimestamp = fmt.Sprintf("%014d", timestamp)
-					}
-				}
-			}
-		}
+	lfsExists, lfsErr := lfsArchiveExistsForLatestBundle(backupPath, repo.Name)
+	if lfsErr != nil {
+		logger.Printf("failed to check LFS archive existence for %s: %s", repo.PathWithNameSpace, lfsErr)
+		return false, ""
+	}
 
-		if needsLFSBackup {
-			lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
-			lfsFilesCmd.Dir = workingPath
-			lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
+	if lfsExists {
+		return false, ""
+	}
 
-			if lfsFilesErr != nil {
-				return errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
-			}
+	logger.Printf("LFS archive missing for latest bundle of %s repository %s, creating it", repo.Domain, repo.PathWithNameSpace)
 
-			if len(strings.TrimSpace(string(lfsFilesOut))) > 0 {
-				lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
-				lfsCmd.Dir = workingPath
-
-				if out, err := lfsCmd.CombinedOutput(); err != nil {
-					return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
-				}
-
-				if useExistingTimestamp != "" {
-					if err := createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp); err != nil {
-						return err
-					}
-				} else {
-					if err := createLFSArchive(logLevel, workingPath, backupPath, repo); err != nil {
-						return err
-					}
-				}
-			} else {
-				logger.Printf("no LFS files found in %s repository %s", repo.Domain, repo.PathWithNameSpace)
-			}
+	if latestBundlePath, err := getLatestBundlePath(backupPath); err == nil {
+		bundleBasename := filepath.Base(latestBundlePath)
+		if ts, err := getTimeStampPartFromFileName(bundleBasename); err == nil {
+			return true, fmt.Sprintf("%014d", ts)
 		}
 	}
 
-	if backupsToKeep > 0 {
-		if err := pruneBackups(backupPath, backupsToKeep); err != nil {
-			return err
-		}
+	return true, ""
+}
+
+func checkForLFSFiles(workingPath string) (bool, errors.E) {
+	lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
+	lfsFilesCmd.Dir = workingPath
+	lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
+
+	if lfsFilesErr != nil {
+		return false, errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
+	}
+
+	return len(strings.TrimSpace(string(lfsFilesOut))) > 0, nil
+}
+
+func fetchLFSFiles(workingPath string) errors.E {
+	lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
+	lfsCmd.Dir = workingPath
+
+	if out, err := lfsCmd.CombinedOutput(); err != nil {
+		return errors.Errorf("git lfs fetch failed: %s: %s", strings.TrimSpace(string(out)), err)
 	}
 
 	return nil
