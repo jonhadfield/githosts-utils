@@ -234,8 +234,10 @@ func matchesRepository(in repoExistsInput, r repository) bool {
 		if in.pathWithNamespace != "" && !pathWithNamespaceMatch {
 			return false
 		}
+
 		return anyDefined
 	}
+
 	return false
 }
 
@@ -416,20 +418,23 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) ([]
 
 func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 	config := paginationConfig{
-		baseURL:    g.APIURL + "/admin/users",
-		perPage:    giteaUsersPerPageDefault,
-		limit:      giteaUsersLimit,
-		resource:   "users",
-		logLevel:   g.LogLevel,
+		baseURL:  g.APIURL + "/admin/users",
+		perPage:  giteaUsersPerPageDefault,
+		limit:    giteaUsersLimit,
+		resource: "users",
+		logLevel: g.LogLevel,
 	}
 
 	var users []giteaUser
+
 	err := g.paginateGiteaAPI(config, func(body []byte) error {
 		var respObj giteaGetUsersResponse
 		if unmarshalErr := json.Unmarshal(body, &respObj); unmarshalErr != nil {
 			return unmarshalErr
 		}
+
 		users = append(users, respObj...)
+
 		return nil
 	})
 
@@ -545,20 +550,23 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	logger.Printf("retrieving organizations")
 
 	config := paginationConfig{
-		baseURL:    g.APIURL + "/orgs",
-		perPage:    giteaOrganizationsPerPageDefault,
-		limit:      giteaOrganizationsLimit,
-		resource:   "organizations",
-		logLevel:   g.LogLevel,
+		baseURL:  g.APIURL + "/orgs",
+		perPage:  giteaOrganizationsPerPageDefault,
+		limit:    giteaOrganizationsLimit,
+		resource: "organizations",
+		logLevel: g.LogLevel,
 	}
 
 	var organizations []giteaOrganization
+
 	err := g.paginateGiteaAPI(config, func(body []byte) error {
 		var respObj giteaGetOrganizationsResponse
 		if unmarshalErr := json.Unmarshal(body, &respObj); unmarshalErr != nil {
 			return unmarshalErr
 		}
+
 		organizations = append(organizations, respObj...)
+
 		return nil
 	})
 
@@ -863,7 +871,7 @@ func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string,
 
 func (g *GiteaHost) Backup() ProviderBackupResult {
 	if g.BackupDir == "" {
-		logger.Printf(msgBackupSkippedNoDir)
+		logger.Print(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{}
 	}
@@ -960,6 +968,7 @@ func (g *GiteaHost) paginateGiteaAPI(config paginationConfig, processResponse fu
 	u, err := url.Parse(config.baseURL)
 	if err != nil {
 		logger.Printf("failed to parse get %s URL %s: %v", config.resource, config.baseURL, err)
+
 		return errors.Wrapf(err, "failed to parse get %s URL", config.resource)
 	}
 

@@ -25,7 +25,7 @@ func TestGiteaGetUsers(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -63,7 +63,7 @@ func TestGiteaGetOrganisations(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -120,7 +120,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -174,7 +174,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -252,7 +252,7 @@ func TestGetAllUserRepos(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -349,7 +349,7 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {
@@ -399,7 +399,7 @@ func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
 	giteaAPIURL := os.Getenv(giteaEnvVarAPIUrl)
 
 	if giteaToken == "" {
-		t.Skipf(msgSkipGiteaTokenMissing)
+		t.Skip(msgSkipGiteaTokenMissing)
 	}
 
 	if giteaAPIURL == "" {

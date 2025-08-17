@@ -81,10 +81,7 @@ func getBundleRefs(bundlePath string) (gitRefs, error) {
 		return nil, errors.Wrap(bundleRefsCmdErr, "git bundle list-heads failed")
 	}
 
-	refs, err := generateMapFromRefsCmdOutput(out)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate map from refs cmd output: %w", err)
-	}
+	refs := generateMapFromRefsCmdOutput(out)
 
 	return refs, nil
 }
@@ -131,6 +128,7 @@ func lfsArchiveExistsForLatestBundle(backupPath, repoName string) (bool, error) 
 		if os.IsNotExist(err) {
 			return false, nil
 		}
+
 		return false, fmt.Errorf("failed to check LFS archive existence: %w", err)
 	}
 
@@ -423,7 +421,12 @@ func getTimeStampPartFromFileName(name string) (int, error) {
 
 		strTimestamp := parts[len(parts)-2]
 
-		return strconv.Atoi(strTimestamp)
+		l, err := strconv.Atoi(strTimestamp)
+		if err != nil {
+			return 0, fmt.Errorf("invalid timestamp '%s': %w", name, err)
+		}
+
+		return l, nil
 	}
 
 	return 0, fmt.Errorf("filename '%s' does not match bundle format <repo-name>.<timestamp>.bundle",

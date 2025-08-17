@@ -394,7 +394,7 @@ func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod str
 
 func (gl *GitLabHost) Backup() ProviderBackupResult {
 	if gl.BackupDir == "" {
-		logger.Printf(msgBackupSkippedNoDir)
+		logger.Print(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{}
 	}
