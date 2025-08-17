@@ -55,6 +55,7 @@ func TestCreateDirIfAbsent(t *testing.T) {
 	path := filepath.Join(dir, "new", "sub")
 	err := createDirIfAbsent(path)
 	assert.NoError(t, err)
+
 	info, statErr := os.Stat(path)
 	assert.NoError(t, statErr)
 	assert.True(t, info.IsDir())
@@ -109,7 +110,7 @@ func TestIsEmpty(t *testing.T) {
 	assert.True(t, empty)
 
 	f := filepath.Join(repo, "file.txt")
-	assert.NoError(t, os.WriteFile(f, []byte("content"), 0o644))
+	assert.NoError(t, os.WriteFile(f, []byte("content"), 0o600))
 	assert.NoError(t, exec.Command("git", "-C", repo, "add", "file.txt").Run())
 	assert.NoError(t, exec.Command("git", "-C", repo, "-c", "user.email=a@b", "-c", "user.name=n", "commit", "-m", "c").Run())
 
@@ -129,6 +130,7 @@ func TestGetResponseBody(t *testing.T) {
 	gz := gzip.NewWriter(&gzBuf)
 	_, _ = gz.Write([]byte("hello"))
 	gz.Close()
+
 	resp = &http.Response{Body: io.NopCloser(&gzBuf), Header: http.Header{"Content-Encoding": []string{"gzip"}}}
 	out, err = getResponseBody(resp)
 	assert.NoError(t, err)

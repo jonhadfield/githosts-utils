@@ -32,6 +32,7 @@ func TestCutBySpaceAndTrimOutput(t *testing.T) {
 
 func TestGenerateBasicAuth(t *testing.T) {
 	out := generateBasicAuth("bob", "batteryhorsestaple")
+
 	expected := base64.StdEncoding.EncodeToString([]byte("bob:batteryhorsestaple"))
 	if out != expected {
 		t.Errorf("expected %s got %s", expected, out)

@@ -140,9 +140,10 @@ func extractBundleToTemp(bundleFileName, bundleDir, tempDir string) error {
 
 	// Use git clone to extract bundle contents
 	cloneCmd := exec.Command("git", "clone", bundlePath, tempDir)
+
 	output, err := cloneCmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to clone bundle %s: %s - %v", bundlePath, string(output), err)
+		return fmt.Errorf("failed to clone bundle %s: %s - %w", bundlePath, string(output), err)
 	}
 
 	return nil

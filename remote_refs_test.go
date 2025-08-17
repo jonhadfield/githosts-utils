@@ -11,9 +11,11 @@ func TestRemoteRefsMatchLocalRefsTrue(t *testing.T) {
 	tmpDir := t.TempDir()
 	remoteDir := filepath.Join(tmpDir, "remote")
 	backupDir := filepath.Join(tmpDir, "backup")
+
 	if err := os.MkdirAll(remoteDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +57,7 @@ func TestRemoteRefsMatchLocalRefsFalse(t *testing.T) {
 	}
 
 	// make a new commit in remote repo so refs differ
-	if err := os.WriteFile(filepath.Join(remoteDir, "file.txt"), []byte("content"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(remoteDir, "file.txt"), []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if out, err := exec.Command("git", "-C", remoteDir, "add", "file.txt").CombinedOutput(); err != nil {

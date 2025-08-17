@@ -19,6 +19,7 @@ func TestHTTPRequestSuccess(t *testing.T) {
 		if r.Header.Get("X-Test") != "true" {
 			t.Errorf("missing header")
 		}
+
 		b, _ := io.ReadAll(r.Body)
 		_, _ = w.Write([]byte("resp:" + string(b)))
 	}))

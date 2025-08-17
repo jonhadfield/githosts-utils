@@ -186,6 +186,7 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 	logger.Println("listing SourceHut user's owned repositories")
 
 	var repos []repository
+
 	var cursor *string
 
 	for {
@@ -219,6 +220,7 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 			// Only backup public repositories due to authentication limitations
 			if strings.ToLower(repo.Visibility) != "public" {
 				logger.Printf("Skipping private SourceHut repository %s (visibility: %s) - HTTPS cloning not supported for private repos", repo.Name, repo.Visibility)
+
 				continue
 			}
 
@@ -325,7 +327,7 @@ func sourcehutWorker(logLevel int, token, backupDIR, diffRemoteMethod string, ba
 
 func (sh *SourcehutHost) Backup() ProviderBackupResult {
 	if sh.BackupDir == "" {
-		logger.Printf(msgBackupSkippedNoDir)
+		logger.Print(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{
 			BackupResults: nil,

@@ -31,7 +31,7 @@ const (
 
 func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	if ad.BackupDir == "" {
-		logger.Printf(msgBackupSkippedNoDir)
+		logger.Print(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{
 			BackupResults: nil,
