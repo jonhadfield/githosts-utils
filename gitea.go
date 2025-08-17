@@ -62,6 +62,14 @@ type GiteaHost struct {
 	BackupLFS        bool
 }
 
+type paginationConfig struct {
+	baseURL  string
+	perPage  int
+	limit    int
+	resource string
+	logLevel int
+}
+
 func NewGiteaHost(input NewGiteaHostInput) (*GiteaHost, error) {
 	setLoggerPrefix(input.Caller)
 
@@ -407,88 +415,25 @@ func (g *GiteaHost) getOrganizationsRepos(organizations []giteaOrganization) ([]
 }
 
 func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
-	if strings.TrimSpace(g.APIURL) == "" {
-		return nil, errors.New("GITEA_APIURL environment variable is required")
+	config := paginationConfig{
+		baseURL:    g.APIURL + "/admin/users",
+		perPage:    giteaUsersPerPageDefault,
+		limit:      giteaUsersLimit,
+		resource:   "users",
+		logLevel:   g.LogLevel,
 	}
-
-	getUsersURL := g.APIURL + "/admin/users"
-	if g.LogLevel > 0 {
-		logger.Printf("get users url: %s", getUsersURL)
-	}
-
-	// Initial request
-	u, err := url.Parse(getUsersURL)
-	if err != nil {
-		logger.Printf("failed to parse get users URL %s: %v", getUsersURL, err)
-
-		return nil, errors.Wrap(err, "failed to parse get users URL")
-	}
-
-	q := u.Query()
-	// set initial max per page
-	q.Set("per_page", strconv.Itoa(giteaUsersPerPageDefault))
-	q.Set("limit", strconv.Itoa(giteaUsersLimit))
-	u.RawQuery = q.Encode()
-
-	var body []byte
-
-	reqUrl := u.String()
 
 	var users []giteaUser
-
-	for {
-		var resp *http.Response
-
-		resp, body, err = g.makeGiteaRequest(reqUrl)
-		if err != nil {
-			logger.Printf("failed to get users: %v", err)
-
-			return nil, errors.Wrap(err, "failed to make Gitea request")
-		}
-
-		if g.LogLevel > 0 {
-			logger.Print(string(body))
-		}
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			if g.LogLevel > 0 {
-				logger.Println("users retrieved successfully")
-			}
-		case http.StatusForbidden:
-			logger.Println("failed to get users due to invalid or missing credentials (HTTP 403)")
-
-			return nil, errors.New("forbidden response to Gitea request")
-		default:
-			logger.Printf("failed to get users with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
-
-			return nil, errors.Errorf("unexpected errors making Gitea request: %d (%s)", resp.StatusCode, resp.Status)
-		}
-
+	err := g.paginateGiteaAPI(config, func(body []byte) error {
 		var respObj giteaGetUsersResponse
-
-		if err = json.Unmarshal(body, &respObj); err != nil {
-			logger.Println(err)
-
-			return nil, errors.Wrap(err, "failed to unmarshal Gitea response")
+		if unmarshalErr := json.Unmarshal(body, &respObj); unmarshalErr != nil {
+			return unmarshalErr
 		}
-
 		users = append(users, respObj...)
-		// reset request url
-		reqUrl = ""
+		return nil
+	})
 
-		for _, l := range link.ParseResponse(resp) {
-			if l.Rel == txtNext {
-				reqUrl = l.URI
-			}
-		}
-
-		if reqUrl == "" {
-			break
-		}
-	}
-
-	return users, nil
+	return users, err
 }
 
 func (g *GiteaHost) getOrganizations() ([]giteaOrganization, errors.E) {
@@ -599,90 +544,25 @@ func (g *GiteaHost) getOrganization(orgName string) (giteaOrganization, errors.E
 func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	logger.Printf("retrieving organizations")
 
-	if strings.TrimSpace(g.APIURL) == "" {
-		return nil, errors.New("GITEA_APIURL environment variable is required")
+	config := paginationConfig{
+		baseURL:    g.APIURL + "/orgs",
+		perPage:    giteaOrganizationsPerPageDefault,
+		limit:      giteaOrganizationsLimit,
+		resource:   "organizations",
+		logLevel:   g.LogLevel,
 	}
-
-	getOrganizationsURL := g.APIURL + "/orgs"
-	if g.LogLevel > 0 {
-		logger.Printf("get organizations url: %s", getOrganizationsURL)
-	}
-
-	// Initial request
-	u, err := url.Parse(getOrganizationsURL)
-	if err != nil {
-		logger.Printf("failed to parse get organizations URL %s: %v", getOrganizationsURL, err)
-
-		return nil, errors.Wrap(err, "failed to parse get organizations URL")
-	}
-
-	q := u.Query()
-	// set initial max per page
-	q.Set("per_page", strconv.Itoa(giteaOrganizationsPerPageDefault))
-	q.Set("limit", strconv.Itoa(giteaOrganizationsLimit))
-	u.RawQuery = q.Encode()
-
-	var body []byte
-
-	reqUrl := u.String()
 
 	var organizations []giteaOrganization
-
-	for {
-		var resp *http.Response
-
-		resp, body, err = g.makeGiteaRequest(reqUrl)
-		if err != nil {
-			logger.Printf("failed to get organizations: %v", err.Error())
-
-			return nil, errors.Wrap(err, "failed to get organizations")
-		}
-
-		if g.LogLevel > 0 {
-			logger.Print(string(body))
-		}
-
-		switch resp.StatusCode {
-		case http.StatusOK:
-			if g.LogLevel > 0 {
-				logger.Println("organizations retrieved successfully")
-			}
-		case http.StatusForbidden:
-			logger.Println("failed to get organizations due to invalid or missing credentials (HTTP 403)")
-
-			return organizations, errors.New("failed to get organizations due to invalid or missing credentials (HTTP 403)")
-		default:
-			logger.Printf("failed to get organizations with unexpected response: %d (%s)",
-				resp.StatusCode, resp.Status)
-
-			return organizations, errors.Errorf("failed to get organizations with unexpected response: %d (%s)", resp.StatusCode, resp.Status)
-		}
-
+	err := g.paginateGiteaAPI(config, func(body []byte) error {
 		var respObj giteaGetOrganizationsResponse
-
-		if err = json.Unmarshal(body, &respObj); err != nil {
-			return nil, errors.Wrap(err, "failed to unmarshal Gitea response")
+		if unmarshalErr := json.Unmarshal(body, &respObj); unmarshalErr != nil {
+			return unmarshalErr
 		}
-
 		organizations = append(organizations, respObj...)
+		return nil
+	})
 
-		// if we got a link response then
-		// reset request url
-		// link: <https://gitea.lessknown.co.uk/api/v1/admin/organisations?limit=2&page=2>; rel="next",<https://gitea.lessknown.co.uk/api/v1/admin/organisations?limit=2&page=2>; rel="last"
-		reqUrl = ""
-
-		for _, l := range link.ParseResponse(resp) {
-			if l.Rel == txtNext {
-				reqUrl = l.URI
-			}
-		}
-
-		if reqUrl == "" {
-			break
-		}
-	}
-
-	return organizations, nil
+	return organizations, err
 }
 
 type giteaRepository struct {
@@ -1066,4 +946,76 @@ func (g *GiteaHost) getAllUserRepositories() ([]repository, errors.E) {
 	}
 
 	return repositories, nil
+}
+
+func (g *GiteaHost) paginateGiteaAPI(config paginationConfig, processResponse func([]byte) error) errors.E {
+	if strings.TrimSpace(g.APIURL) == "" {
+		return errors.New("GITEA_APIURL environment variable is required")
+	}
+
+	if config.logLevel > 0 {
+		logger.Printf("get %s url: %s", config.resource, config.baseURL)
+	}
+
+	u, err := url.Parse(config.baseURL)
+	if err != nil {
+		logger.Printf("failed to parse get %s URL %s: %v", config.resource, config.baseURL, err)
+		return errors.Wrapf(err, "failed to parse get %s URL", config.resource)
+	}
+
+	q := u.Query()
+	q.Set("per_page", strconv.Itoa(config.perPage))
+	q.Set("limit", strconv.Itoa(config.limit))
+	u.RawQuery = q.Encode()
+
+	reqUrl := u.String()
+
+	for {
+		resp, body, err := g.makeGiteaRequest(reqUrl)
+		if err != nil {
+			logger.Printf("failed to get %s: %v", config.resource, err)
+			return errors.Wrapf(err, "failed to make Gitea request for %s", config.resource)
+		}
+
+		if config.logLevel > 0 {
+			logger.Print(string(body))
+		}
+
+		if err := g.handleGiteaAPIResponse(resp, config.resource); err != nil {
+			return err
+		}
+
+		if err := processResponse(body); err != nil {
+			return errors.Wrapf(err, "failed to process %s response", config.resource)
+		}
+
+		reqUrl = ""
+		for _, l := range link.ParseResponse(resp) {
+			if l.Rel == txtNext {
+				reqUrl = l.URI
+			}
+		}
+
+		if reqUrl == "" {
+			break
+		}
+	}
+
+	return nil
+}
+
+func (g *GiteaHost) handleGiteaAPIResponse(resp *http.Response, resource string) errors.E {
+	switch resp.StatusCode {
+	case http.StatusOK:
+		if g.LogLevel > 0 {
+			logger.Printf("%s retrieved successfully", resource)
+		}
+		return nil
+	case http.StatusForbidden:
+		logger.Printf("failed to get %s due to invalid or missing credentials (HTTP 403)", resource)
+		return errors.Errorf("forbidden response to Gitea request for %s", resource)
+	default:
+		logger.Printf("failed to get %s with unexpected response: %d (%s)", resource, resp.StatusCode, resp.Status)
+		return errors.Errorf("unexpected errors making Gitea request for %s: %d (%s)", resource, resp.StatusCode, resp.Status)
+	}
 }
