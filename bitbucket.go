@@ -23,6 +23,8 @@ const (
 	// OAuth2
 	bitbucketEnvVarKey    = "BITBUCKET_KEY"
 	bitbucketEnvVarSecret = "BITBUCKET_SECRET"
+	// URL parsing constants
+	urlProtocolParts = 2
 	bitbucketEnvVarUser   = "BITBUCKET_USER"
 	// API OAuthToken
 	bitbucketEnvVarAPIToken = "BITBUCKET_API_TOKEN"
@@ -235,8 +237,8 @@ type bitbucketErrorResponse struct {
 }
 
 func urlWithBasicAuth(httpsURL, user, password string) string {
-	parts := strings.SplitN(httpsURL, "//", 2)
-	if len(parts) != 2 {
+	parts := strings.SplitN(httpsURL, "//", urlProtocolParts)
+	if len(parts) != urlProtocolParts {
 		return httpsURL
 	}
 
@@ -419,7 +421,7 @@ func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemote
 
 func (bb BitbucketHost) Backup() ProviderBackupResult {
 	if bb.BackupDir == "" {
-		logger.Printf(msgBackupSkippedNoDir)
+		logger.Print(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{}
 	}

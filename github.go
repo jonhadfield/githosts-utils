@@ -509,7 +509,7 @@ func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backu
 
 func (gh *GitHubHost) Backup() ProviderBackupResult {
 	if gh.BackupDir == "" {
-		logger.Printf(msgBackupSkippedNoDir)
+		logger.Print(msgBackupSkippedNoDir)
 
 		return ProviderBackupResult{
 			BackupResults: nil,

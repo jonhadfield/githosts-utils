@@ -70,11 +70,13 @@ func genericWorker(config WorkerConfig, jobs <-chan repository, results chan<- R
 
 		// Add delay between repository backups to prevent rate limiting
 		delay := config.DefaultDelay
+
 		if config.DelayEnvVar != "" {
 			if envDelay, sErr := strconv.Atoi(os.Getenv(config.DelayEnvVar)); sErr == nil {
 				delay = envDelay
 			}
 		}
+
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
 }

@@ -18,6 +18,11 @@ import (
 const (
 	backupDirMode = 0o755
 	lenSecretMask = 5
+	// Error message limits
+	maxErrorLines = 5
+	// Git count-objects parsing
+	minFieldsForCountObjects = 2
+	expectedCountObjectFields = 2
 )
 
 func createDirIfAbsent(path string) error {
@@ -65,8 +70,8 @@ func urlWithToken(httpsURL, token string) string {
 }
 
 func urlWithBasicAuthURL(httpsURL, user, password string) string {
-	parts := strings.SplitN(httpsURL, "//", 2)
-	if len(parts) != 2 {
+	parts := strings.SplitN(httpsURL, "//", urlProtocolParts)
+	if len(parts) != urlProtocolParts {
 		return httpsURL
 	}
 
@@ -106,8 +111,8 @@ func parseGitError(out []byte) string {
 	}
 
 	// If no specific errors found, return the full output (limit to first few lines to avoid huge messages)
-	if len(lines) > 5 {
-		return strings.Join(lines[:5], "; ") + "... (truncated)"
+	if len(lines) > maxErrorLines {
+		return strings.Join(lines[:maxErrorLines], "; ") + "... (truncated)"
 	}
 	return strings.Join(lines, "; ")
 }
@@ -144,7 +149,7 @@ func parseCountObjectsOutput(out string) (looseObjects, inPackObjects bool, err 
 
 	for _, line := range lines {
 		fields := strings.Fields(line)
-		if len(fields) >= 2 {
+		if len(fields) >= minFieldsForCountObjects {
 			switch fields[0] {
 			case "count:":
 				found++
@@ -156,7 +161,7 @@ func parseCountObjectsOutput(out string) (looseObjects, inPackObjects bool, err 
 		}
 	}
 
-	if found != 2 {
+	if found != expectedCountObjectFields {
 		return false, false, errors.New("failed to get object counts")
 	}
 

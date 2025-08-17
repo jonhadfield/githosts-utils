@@ -148,7 +148,7 @@ func cutBySpaceAndTrimOutput(in string) (before, after string, found bool) {
 	return
 }
 
-func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs, err error) {
+func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs) {
 	refs = make(map[string]string)
 	lines := strings.Split(string(in), "\n")
 
@@ -191,10 +191,11 @@ func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
 		if gitErr != "" {
 			return refs, errors.Wrapf(err, "failed to retrieve remote heads: %s", gitErr)
 		}
+
 		return refs, errors.Wrap(err, "failed to retrieve remote heads")
 	}
 
-	refs, err = generateMapFromRefsCmdOutput(out)
+	refs = generateMapFromRefsCmdOutput(out)
 
 	return
 }
@@ -238,8 +239,10 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
 		if strings.HasSuffix(err.Error(), "is empty") {
 			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
+
 			return nil
 		}
+
 		return err
 	}
 
@@ -263,12 +266,12 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 func setupBackupPaths(repo repository, backupDIR string) (workingPath, backupPath string, err errors.E) {
 	workingPath = filepath.Join(backupDIR, workingDIRName, repo.Domain, repo.PathWithNameSpace)
 	backupPath = filepath.Join(backupDIR, repo.Domain, repo.PathWithNameSpace)
-	
+
 	delErr := os.RemoveAll(workingPath)
 	if delErr != nil {
 		return "", "", errors.Errorf("failed to remove working directory: %s: %s", workingPath, delErr)
 	}
-	
+
 	return workingPath, backupPath, nil
 }
 
@@ -276,9 +279,11 @@ func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo reposi
 	if diffRemoteMethod == refsMethod {
 		if remoteRefsMatchLocalRefs(cloneURL, backupPath) {
 			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
+
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -312,7 +317,9 @@ func buildCloneCommand(cloneURL, workingPath, backupDIR string) *exec.Cmd {
 	} else {
 		cloneCmd = exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	}
+
 	cloneCmd.Dir = backupDIR
+
 	return cloneCmd
 }
 
@@ -354,6 +361,7 @@ func handleLFSBackup(logLevel int, workingPath, backupPath string, repo reposito
 
 	if !hasLFSFiles {
 		logger.Printf("no LFS files found in %s repository %s", repo.Domain, repo.PathWithNameSpace)
+
 		return nil
 	}
 
@@ -364,6 +372,7 @@ func handleLFSBackup(logLevel int, workingPath, backupPath string, repo reposito
 	if useExistingTimestamp != "" {
 		return createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp)
 	}
+
 	return createLFSArchive(logLevel, workingPath, backupPath, repo)
 }
 
@@ -375,6 +384,7 @@ func determineLFSBackupNeeds(backupPath string, repo repository, isUpdated bool)
 	lfsExists, lfsErr := lfsArchiveExistsForLatestBundle(backupPath, repo.Name)
 	if lfsErr != nil {
 		logger.Printf("failed to check LFS archive existence for %s: %s", repo.PathWithNameSpace, lfsErr)
+
 		return false, ""
 	}
 
