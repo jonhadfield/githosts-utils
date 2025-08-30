@@ -198,6 +198,44 @@ func maskSecrets(content string, secret []string) string {
 	return content
 }
 
+// maskGitCommand masks sensitive information in git command arguments
+func maskGitCommand(args []string) string {
+	maskedArgs := make([]string, len(args))
+	for i, arg := range args {
+		maskedArgs[i] = maskURLCredentials(arg)
+	}
+	return strings.Join(maskedArgs, " ")
+}
+
+// maskURLCredentials masks credentials in URLs (https://user:pass@domain or https://token@domain)
+func maskURLCredentials(str string) string {
+	// Check if this looks like a URL with credentials
+	if strings.HasPrefix(str, "http://") || strings.HasPrefix(str, "https://") {
+		// Find the protocol end
+		protocolEnd := strings.Index(str, "://")
+		if protocolEnd == -1 {
+			return str
+		}
+		
+		protocol := str[:protocolEnd+3]
+		remainder := str[protocolEnd+3:]
+		
+		// Check if there's an @ sign indicating credentials
+		atIndex := strings.Index(remainder, "@")
+		if atIndex == -1 {
+			return str // No credentials in URL
+		}
+		
+		// Everything before @ contains credentials, everything after is the domain/path
+		domainPath := remainder[atIndex+1:]
+		
+		// Return protocol + masked credentials + @ + domain/path
+		return protocol + "********@" + domainPath
+	}
+	
+	return str
+}
+
 type httpRequestInput struct {
 	client            *retryablehttp.Client
 	url               string
