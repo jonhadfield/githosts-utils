@@ -295,10 +295,15 @@ func cloneRepository(repo repository, cloneURL, workingPath, backupDIR string, l
 	}
 
 	cloneCmd := buildCloneCommand(cloneURL, workingPath, backupDIR)
+	
+	// Log the exact command being executed for debugging
+	logger.Printf("executing git command: %s", strings.Join(cloneCmd.Args, " "))
+	logger.Printf("working directory: %s", cloneCmd.Dir)
+	
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 
 	if cloneErr != nil {
-		return handleCloneError(repo, cloneOut, cloneErr)
+		return handleCloneError(repo, cloneOut, cloneErr, cloneURL, secrets)
 	}
 
 	return nil
@@ -323,13 +328,33 @@ func buildCloneCommand(cloneURL, workingPath, backupDIR string) *exec.Cmd {
 	return cloneCmd
 }
 
-func handleCloneError(repo repository, cloneOut []byte, cloneErr error) errors.E {
+func handleCloneError(repo repository, cloneOut []byte, cloneErr error, cloneURL string, secrets []string) errors.E {
 	gitErr := parseGitError(cloneOut)
 	cloneOutLines := strings.Split(string(cloneOut), "\n")
 
-	logger.Printf("Git clone failed for repository: %s", repo.Name)
-	logger.Printf("Clone command exit code: %v", cloneErr)
-	logger.Printf("Full git output: %s", string(cloneOut))
+	logger.Printf("====== Git Clone Failed ======")
+	logger.Printf("Repository: %s", repo.Name)
+	logger.Printf("Repository Path: %s", repo.PathWithNameSpace)
+	logger.Printf("Clone URL (masked): %s", maskSecrets(cloneURL, secrets))
+	logger.Printf("Exit error: %v", cloneErr)
+	
+	// Extract exit code if available
+	if exitError, ok := cloneErr.(*exec.ExitError); ok {
+		logger.Printf("Exit code: %d", exitError.ExitCode())
+	}
+	
+	logger.Printf("Git output (last 50 lines):")
+	outputLines := strings.Split(string(cloneOut), "\n")
+	startLine := 0
+	if len(outputLines) > 50 {
+		startLine = len(outputLines) - 50
+	}
+	for i := startLine; i < len(outputLines); i++ {
+		if outputLines[i] != "" {
+			logger.Printf("  > %s", maskSecrets(outputLines[i], secrets))
+		}
+	}
+	logger.Printf("==============================")
 
 	if os.Getenv(envVarGitHostsLog) == "debug" {
 		fmt.Printf("debug: cloning failed for repository: %s - %s\n", repo.Name, strings.Join(cloneOutLines, ", "))
