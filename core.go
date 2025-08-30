@@ -296,8 +296,12 @@ func cloneRepository(repo repository, cloneURL, workingPath, backupDIR string, l
 
 	cloneCmd := buildCloneCommand(cloneURL, workingPath, backupDIR)
 	
-	// Log the exact command being executed for debugging
-	logger.Printf("executing git command: %s", strings.Join(cloneCmd.Args, " "))
+	// Log the command being executed for debugging, with secrets masked
+	maskedArgs := make([]string, len(cloneCmd.Args))
+	for i, arg := range cloneCmd.Args {
+		maskedArgs[i] = maskSecrets(arg, secrets)
+	}
+	logger.Printf("executing git command: %s", strings.Join(maskedArgs, " "))
 	logger.Printf("working directory: %s", cloneCmd.Dir)
 	
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
