@@ -68,7 +68,7 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	for a := 1; a <= len(repoDesc.Repos); a++ {
 		res := <-results
 		if res.Error != nil {
-			logger.Printf("backup failed: %+v\n", res.Error)
+			logger.Printf("Azure DevOps backup failed for repository: %+v", res.Error)
 		}
 
 		providerBackupResults.BackupResults = append(providerBackupResults.BackupResults, res)
