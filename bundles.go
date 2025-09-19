@@ -22,6 +22,7 @@ import (
 const (
 	bundleExtension     = ".bundle"
 	lfsArchiveExtension = ".lfs.tar.gz"
+	manifestExtension   = ".manifest"
 	// invalidBundleStringCheck checks for a portion of the following in the command output
 	// to determine if valid: "does not look like a v2 or v3 bundle file".
 	invalidBundleStringCheck = "does not look like"
@@ -190,16 +191,12 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 
 	timestamp := getTimestamp()
 	backupFile := repo.Name + "." + timestamp + bundleExtension
-	backupFilePath := filepath.Join(backupPath, backupFile)
-
-	createErr := createDirIfAbsent(backupPath)
-	if createErr != nil {
-		return errors.Errorf("failed to create backup path: %s: %s", backupPath, createErr)
-	}
+	// Create bundle in working directory first
+	workingBundlePath := filepath.Join(workingPath, backupFile)
 
 	logger.Printf("creating bundle for: %s", repo.Name)
 
-	bundleCmd := exec.Command("git", "bundle", "create", backupFilePath, "--all")
+	bundleCmd := exec.Command("git", "bundle", "create", workingBundlePath, "--all")
 	bundleCmd.Dir = workingPath
 
 	var bundleOut bytes.Buffer
@@ -217,8 +214,8 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
 	}
 
-	// Create manifest file
-	if manifestErr := createBundleManifest(backupFilePath, workingPath, timestamp); manifestErr != nil {
+	// Create manifest file in working directory
+	if manifestErr := createBundleManifest(workingBundlePath, workingPath, timestamp); manifestErr != nil {
 		logger.Printf("warning: failed to create manifest for bundle %s: %s", backupFile, manifestErr)
 		// Don't fail the bundle creation if manifest fails
 	}
@@ -358,8 +355,8 @@ func pruneBackups(backupPath string, keep int) errors.E {
 	for _, f := range files {
 		if !strings.HasSuffix(f.Name(), bundleExtension) {
 			// no need to mention skipping lfs archives, as they are not bundles
-			if !strings.HasSuffix(f.Name(), lfsArchiveExtension) {
-				logger.Printf("skipping non bundle and non lfs archive file '%s'", f.Name())
+			if !strings.HasSuffix(f.Name(), lfsArchiveExtension) && !strings.HasSuffix(f.Name(), manifestExtension) {
+				logger.Printf("skipping non bundle, non lfs, and non-manifest archive file '%s'", f.Name())
 			}
 
 			continue
@@ -456,30 +453,101 @@ func getTimeStampPartFromFileName(name string) (int, error) {
 }
 
 func filesIdentical(path1, path2 string) bool {
-	// check if file sizes are same
+	// First check if file sizes are same
 	latestBundleSize := getFileSize(path1)
-
 	previousBundleSize := getFileSize(path2)
 
-	if latestBundleSize == previousBundleSize {
-		// check if hashes match
-		latestBundleHash, latestHashErr := getSHA2Hash(path1)
-		if latestHashErr != nil {
-			logger.Printf("failed to get sha2 hash for: %s", path1)
-		}
+	// If sizes are different, files are definitely not identical
+	if latestBundleSize != previousBundleSize {
+		return false
+	}
 
-		previousBundleHash, previousHashErr := getSHA2Hash(path2)
+	// Try to use manifests for comparison if this looks like a bundle file
+	if strings.HasSuffix(path1, bundleExtension) && strings.HasSuffix(path2, bundleExtension) {
+		manifest1, _ := readBundleManifest(path1)
+		manifest2, _ := readBundleManifest(path2)
 
-		if previousHashErr != nil {
-			logger.Printf("failed to get sha2 hash for: %s", path2)
-		}
-
-		if reflect.DeepEqual(latestBundleHash, previousBundleHash) {
-			return true
+		// If both manifests exist and have hashes, use them for comparison
+		if manifest1 != nil && manifest2 != nil &&
+			manifest1.BundleHash != "" && manifest2.BundleHash != "" {
+			return manifest1.BundleHash == manifest2.BundleHash
 		}
 	}
 
-	return false
+	// Fall back to computing hashes directly
+	latestBundleHash, latestHashErr := getSHA2Hash(path1)
+	if latestHashErr != nil {
+		logger.Printf("failed to get sha2 hash for: %s", path1)
+		return false
+	}
+
+	previousBundleHash, previousHashErr := getSHA2Hash(path2)
+	if previousHashErr != nil {
+		logger.Printf("failed to get sha2 hash for: %s", path2)
+		return false
+	}
+
+	return reflect.DeepEqual(latestBundleHash, previousBundleHash)
+}
+
+// checkBundleIsDuplicate checks if the bundle in workingPath is identical to the latest bundle in backupPath
+// Returns the bundle filename from workingPath and whether it's a duplicate
+func checkBundleIsDuplicate(workingPath, backupPath string) (string, bool, error) {
+	// Find the bundle file in working directory
+	workingFiles, err := os.ReadDir(workingPath)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to read working directory: %w", err)
+	}
+
+	var workingBundleFile string
+	for _, f := range workingFiles {
+		if strings.HasSuffix(f.Name(), bundleExtension) {
+			workingBundleFile = f.Name()
+			break
+		}
+	}
+
+	if workingBundleFile == "" {
+		return "", false, errors.New("no bundle file found in working directory")
+	}
+
+	workingBundlePath := filepath.Join(workingPath, workingBundleFile)
+
+	// Check if backup directory exists and has bundles
+	if !dirHasBundles(backupPath) {
+		// No existing bundles, so this is not a duplicate
+		return workingBundleFile, false, nil
+	}
+
+	// Get the latest bundle in backup directory
+	latestBackupPath, err := getLatestBundlePath(backupPath)
+	if err != nil {
+		// If we can't find a latest bundle, assume it's not a duplicate
+		return workingBundleFile, false, nil
+	}
+
+	// Try to use manifest files for comparison if they exist
+	workingManifest, _ := readBundleManifest(workingBundlePath)
+	backupManifest, _ := readBundleManifest(latestBackupPath)
+
+	// If both manifests exist and have hashes, compare the hashes
+	if workingManifest != nil && backupManifest != nil &&
+		workingManifest.BundleHash != "" && backupManifest.BundleHash != "" {
+		if workingManifest.BundleHash == backupManifest.BundleHash {
+			logger.Printf("no change since previous bundle (manifest comparison): %s", filepath.Base(latestBackupPath))
+			return workingBundleFile, true, nil
+		}
+		// Hashes don't match, bundles are different
+		return workingBundleFile, false, nil
+	}
+
+	// Fall back to file comparison if manifests are not available
+	if filesIdentical(workingBundlePath, latestBackupPath) {
+		logger.Printf("no change since previous bundle (file comparison): %s", filepath.Base(latestBackupPath))
+		return workingBundleFile, true, nil
+	}
+
+	return workingBundleFile, false, nil
 }
 
 func removeBundleIfDuplicate(dir string) bool {
@@ -582,6 +650,30 @@ type BundleManifest struct {
 	BundleHash   string            `json:"bundle_hash"`
 	BundleFile   string            `json:"bundle_file"`
 	GitRefs      map[string]string `json:"git_refs"`
+}
+
+// readBundleManifest reads a bundle manifest file and returns the manifest data
+func readBundleManifest(bundlePath string) (*BundleManifest, error) {
+	manifestPath := strings.TrimSuffix(bundlePath, bundleExtension) + manifestExtension
+
+	// Check if manifest file exists
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		return nil, nil // No manifest file exists
+	}
+
+	// Read the manifest file
+	manifestData, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read manifest file: %w", err)
+	}
+
+	// Unmarshal the JSON
+	var manifest BundleManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal manifest: %w", err)
+	}
+
+	return &manifest, nil
 }
 
 // createBundleManifest creates a manifest file for the bundle with metadata
