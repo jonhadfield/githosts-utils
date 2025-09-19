@@ -857,7 +857,15 @@ func (g *GiteaHost) diffRemoteMethod() string {
 func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, token)
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
+		err := processBackup(processBackupInput{
+			LogLevel:         logLevel,
+			Repo:             repo,
+			BackupDIR:        backupDIR,
+			BackupsToKeep:    backupsToKeep,
+			DiffRemoteMethod: diffRemoteMethod,
+			BackupLFS:        backupLFS,
+			Secrets:          []string{token},
+		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting
