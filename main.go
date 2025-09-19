@@ -65,7 +65,15 @@ func genericWorker(config WorkerConfig, jobs <-chan repository, results chan<- R
 			config.SetupRepo(&repo)
 		}
 
-		err := processBackup(config.LogLevel, repo, config.BackupDir, config.BackupsToKeep, config.DiffRemoteMethod, config.BackupLFS, config.Secrets)
+		err := processBackup(processBackupInput{
+			LogLevel:         config.LogLevel,
+			Repo:             repo,
+			BackupDIR:        config.BackupDir,
+			BackupsToKeep:    config.BackupsToKeep,
+			DiffRemoteMethod: config.DiffRemoteMethod,
+			BackupLFS:        config.BackupLFS,
+			Secrets:          config.Secrets,
+		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting

@@ -312,7 +312,15 @@ func sourcehutWorker(logLevel int, token, backupDIR, diffRemoteMethod string, ba
 		logger.Printf("SourceHut worker base URL: %s", repo.HTTPSUrl)
 		logger.Printf("SourceHut worker using token auth format")
 
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token})
+		err := processBackup(processBackupInput{
+			LogLevel:         logLevel,
+			Repo:             repo,
+			BackupDIR:        backupDIR,
+			BackupsToKeep:    backupsToKeep,
+			DiffRemoteMethod: diffRemoteMethod,
+			BackupLFS:        backupLFS,
+			Secrets:          []string{token},
+		})
 
 		results <- repoBackupResult(repo, err)
 

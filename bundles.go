@@ -3,6 +3,8 @@ package githosts
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -186,7 +188,8 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 		return errors.Errorf("%s is empty", repo.PathWithNameSpace)
 	}
 
-	backupFile := repo.Name + "." + getTimestamp() + bundleExtension
+	timestamp := getTimestamp()
+	backupFile := repo.Name + "." + timestamp + bundleExtension
 	backupFilePath := filepath.Join(backupPath, backupFile)
 
 	createErr := createDirIfAbsent(backupPath)
@@ -214,11 +217,18 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
 	}
 
+	// Create manifest file
+	if manifestErr := createBundleManifest(backupFilePath, workingPath, timestamp); manifestErr != nil {
+		logger.Printf("warning: failed to create manifest for bundle %s: %s", backupFile, manifestErr)
+		// Don't fail the bundle creation if manifest fails
+	}
+
 	return nil
 }
 
 func createLFSArchive(logLevel int, workingPath, backupPath string, repo repository) errors.E {
-	archiveFile := repo.Name + "." + getTimestamp() + lfsArchiveExtension
+	timestamp := getTimestamp()
+	archiveFile := repo.Name + "." + timestamp + lfsArchiveExtension
 	archiveFilePath := filepath.Join(backupPath, archiveFile)
 
 	createErr := createDirIfAbsent(backupPath)
@@ -245,6 +255,12 @@ func createLFSArchive(logLevel int, workingPath, backupPath string, repo reposit
 
 	if logLevel > 0 {
 		logger.Printf("git lfs archive create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startTar).String())
+	}
+
+	// Create manifest file for LFS archive
+	if manifestErr := createLFSManifest(archiveFilePath, timestamp); manifestErr != nil {
+		logger.Printf("warning: failed to create manifest for LFS archive %s: %s", archiveFile, manifestErr)
+		// Don't fail the archive creation if manifest fails
 	}
 
 	return nil
@@ -278,6 +294,12 @@ func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string,
 
 	if logLevel > 0 {
 		logger.Printf("git lfs archive create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startTar).String())
+	}
+
+	// Create manifest file for LFS archive
+	if manifestErr := createLFSManifest(archiveFilePath, timestamp); manifestErr != nil {
+		logger.Printf("warning: failed to create manifest for LFS archive %s: %s", archiveFile, manifestErr)
+		// Don't fail the archive creation if manifest fails
 	}
 
 	return nil
@@ -552,4 +574,102 @@ func getFileSize(path string) int64 {
 	}
 
 	return fi.Size()
+}
+
+// BundleManifest represents the metadata for a bundle
+type BundleManifest struct {
+	CreationTime string            `json:"creation_time"`
+	BundleHash   string            `json:"bundle_hash"`
+	BundleFile   string            `json:"bundle_file"`
+	GitRefs      map[string]string `json:"git_refs"`
+}
+
+// createBundleManifest creates a manifest file for the bundle with metadata
+func createBundleManifest(bundlePath, workingPath, timestamp string) error {
+	// Get the hash of the bundle file
+	hashBytes, err := getSHA2Hash(bundlePath)
+	if err != nil {
+		return fmt.Errorf("failed to get bundle hash: %w", err)
+	}
+	hashStr := hex.EncodeToString(hashBytes)
+
+	// Get git refs from the bundle
+	refs, err := getBundleRefs(bundlePath)
+	if err != nil {
+		return fmt.Errorf("failed to get bundle refs: %w", err)
+	}
+
+	// Parse timestamp to get creation time
+	creationTime, err := timeStampToTime(timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	// Create manifest struct
+	manifest := BundleManifest{
+		CreationTime: creationTime.Format(time.RFC3339),
+		BundleHash:   hashStr,
+		BundleFile:   filepath.Base(bundlePath),
+		GitRefs:      refs,
+	}
+
+	// Marshal to JSON
+	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+
+	// Write manifest file
+	manifestPath := strings.TrimSuffix(bundlePath, bundleExtension) + ".manifest"
+	if err := os.WriteFile(manifestPath, manifestJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write manifest file: %w", err)
+	}
+
+	logger.Printf("created manifest: %s", filepath.Base(manifestPath))
+	return nil
+}
+
+// LFSManifest represents the metadata for an LFS archive
+type LFSManifest struct {
+	CreationTime string `json:"creation_time"`
+	ArchiveHash  string `json:"archive_hash"`
+	ArchiveFile  string `json:"archive_file"`
+}
+
+// createLFSManifest creates a manifest file for the LFS archive with metadata
+func createLFSManifest(archivePath, timestamp string) error {
+	// Get the hash of the archive file
+	hashBytes, err := getSHA2Hash(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to get archive hash: %w", err)
+	}
+	hashStr := hex.EncodeToString(hashBytes)
+
+	// Parse timestamp to get creation time
+	creationTime, err := timeStampToTime(timestamp)
+	if err != nil {
+		return fmt.Errorf("failed to parse timestamp: %w", err)
+	}
+
+	// Create manifest struct
+	manifest := LFSManifest{
+		CreationTime: creationTime.Format(time.RFC3339),
+		ArchiveHash:  hashStr,
+		ArchiveFile:  filepath.Base(archivePath),
+	}
+
+	// Marshal to JSON
+	manifestJSON, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal manifest: %w", err)
+	}
+
+	// Write manifest file
+	manifestPath := strings.TrimSuffix(archivePath, lfsArchiveExtension) + ".manifest"
+	if err := os.WriteFile(manifestPath, manifestJSON, 0644); err != nil {
+		return fmt.Errorf("failed to write manifest file: %w", err)
+	}
+
+	logger.Printf("created LFS manifest: %s", filepath.Base(manifestPath))
+	return nil
 }
