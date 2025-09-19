@@ -24,8 +24,8 @@ const (
 	bitbucketEnvVarKey    = "BITBUCKET_KEY"
 	bitbucketEnvVarSecret = "BITBUCKET_SECRET"
 	// URL parsing constants
-	urlProtocolParts = 2
-	bitbucketEnvVarUser   = "BITBUCKET_USER"
+	urlProtocolParts    = 2
+	bitbucketEnvVarUser = "BITBUCKET_USER"
 	// API OAuthToken
 	bitbucketEnvVarAPIToken = "BITBUCKET_API_TOKEN"
 	bitbucketEnvVarEmail    = "BITBUCKET_EMAIL"
@@ -407,7 +407,15 @@ func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemote
 
 		repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
 
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{token, apiToken})
+		err := processBackup(processBackupInput{
+			LogLevel:         logLevel,
+			Repo:             repo,
+			BackupDIR:        backupDIR,
+			BackupsToKeep:    backupsToKeep,
+			DiffRemoteMethod: diffRemoteMethod,
+			BackupLFS:        backupLFS,
+			Secrets:          []string{token, apiToken},
+		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting

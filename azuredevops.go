@@ -81,7 +81,15 @@ func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backups
 	jobs <-chan repository, results chan<- RepoBackupResults,
 ) {
 	for repo := range jobs {
-		err := processBackup(logLevel, repo, backupDIR, backupsToKeep, diffRemoteMethod, backupLFS, []string{repo.BasicAuthPass, repo.URLWithToken})
+		err := processBackup(processBackupInput{
+			LogLevel:         logLevel,
+			Repo:             repo,
+			BackupDIR:        backupDIR,
+			BackupsToKeep:    backupsToKeep,
+			DiffRemoteMethod: diffRemoteMethod,
+			BackupLFS:        backupLFS,
+			Secrets:          []string{repo.BasicAuthPass, repo.URLWithToken},
+		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting

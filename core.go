@@ -220,25 +220,42 @@ func getCloneURL(repo repository) string {
 	return repo.HTTPSUrl
 }
 
-func processBackup(logLevel int, repo repository, backupDIR string, backupsToKeep int, diffRemoteMethod string, backupLFS bool, secrets []string) errors.E {
-	workingPath, backupPath, err := setupBackupPaths(repo, backupDIR)
+type processBackupInput struct {
+	LogLevel         int
+	Repo             repository
+	BackupDIR        string
+	BackupsToKeep    int
+	DiffRemoteMethod string
+	BackupLFS        bool
+	Secrets          []string
+}
+
+func processBackup(in processBackupInput) errors.E {
+	workingPath, backupPath, err := setupBackupPaths(in.Repo, in.BackupDIR)
 	if err != nil {
 		return err
 	}
 
-	cloneURL := getCloneURL(repo)
+	cloneURL := getCloneURL(in.Repo)
 
-	if shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath, repo) {
+	if shouldSkipBackup(in.DiffRemoteMethod, cloneURL, backupPath, in.Repo) {
 		return nil
 	}
 
-	if err := cloneRepository(repo, cloneURL, workingPath, backupDIR, logLevel, secrets); err != nil {
+	if err = cloneRepository(cloneRepositoryInput{
+		Repo:        in.Repo,
+		CloneURL:    cloneURL,
+		WorkingPath: workingPath,
+		BackupDIR:   in.BackupDIR,
+		LogLevel:    in.LogLevel,
+		Secrets:     in.Secrets,
+	}); err != nil {
 		return err
 	}
 
-	if err := createBundle(logLevel, workingPath, backupPath, repo); err != nil {
+	if err = createBundle(in.LogLevel, workingPath, backupPath, in.Repo); err != nil {
 		if strings.HasSuffix(err.Error(), "is empty") {
-			logger.Printf("skipping empty %s repository %s", repo.Domain, repo.PathWithNameSpace)
+			logger.Printf("skipping empty %s repository %s", in.Repo.Domain, in.Repo.PathWithNameSpace)
 
 			return nil
 		}
@@ -248,14 +265,14 @@ func processBackup(logLevel int, repo repository, backupDIR string, backupsToKee
 
 	isUpdated := removeBundleIfDuplicate(backupPath)
 
-	if backupLFS {
-		if err := handleLFSBackup(logLevel, workingPath, backupPath, repo, isUpdated); err != nil {
+	if in.BackupLFS {
+		if err := handleLFSBackup(in.LogLevel, workingPath, backupPath, in.Repo, isUpdated); err != nil {
 			return err
 		}
 	}
 
-	if backupsToKeep > 0 {
-		if err := pruneBackups(backupPath, backupsToKeep); err != nil {
+	if in.BackupsToKeep > 0 {
+		if err := pruneBackups(backupPath, in.BackupsToKeep); err != nil {
 			return err
 		}
 	}
@@ -287,24 +304,33 @@ func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo reposi
 	return false
 }
 
-func cloneRepository(repo repository, cloneURL, workingPath, backupDIR string, logLevel int, secrets []string) errors.E {
-	logger.Printf("cloning: %s to: %s", maskSecrets(repo.HTTPSUrl, secrets), workingPath)
+type cloneRepositoryInput struct {
+	Repo        repository
+	CloneURL    string
+	WorkingPath string
+	BackupDIR   string
+	LogLevel    int
+	Secrets     []string
+}
 
-	if logLevel == 0 {
-		logger.Printf("git clone command will use URL: %s", maskSecrets(cloneURL, secrets))
+func cloneRepository(in cloneRepositoryInput) errors.E {
+	logger.Printf("cloning: %s to: %s", maskSecrets(in.Repo.HTTPSUrl, in.Secrets), in.WorkingPath)
+
+	if in.LogLevel == 0 {
+		logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))
 	}
 
-	cloneCmd := buildCloneCommand(cloneURL, workingPath, backupDIR)
-	
+	cloneCmd := buildCloneCommand(in.CloneURL, in.WorkingPath, in.BackupDIR)
+
 	// Log the command being executed for debugging, with URL credentials masked
 	maskedCmd := maskGitCommand(cloneCmd.Args)
 	logger.Printf("executing git command: %s", maskedCmd)
 	logger.Printf("working directory: %s", cloneCmd.Dir)
-	
+
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 
 	if cloneErr != nil {
-		return handleCloneError(repo, cloneOut, cloneErr, cloneURL, secrets)
+		return handleCloneError(in.Repo, cloneOut, cloneErr, in.CloneURL, in.Secrets)
 	}
 
 	return nil
@@ -338,12 +364,12 @@ func handleCloneError(repo repository, cloneOut []byte, cloneErr error, cloneURL
 	logger.Printf("Repository Path: %s", repo.PathWithNameSpace)
 	logger.Printf("Clone URL (masked): %s", maskSecrets(cloneURL, secrets))
 	logger.Printf("Exit error: %v", cloneErr)
-	
+
 	// Extract exit code if available
 	if exitError, ok := cloneErr.(*exec.ExitError); ok {
 		logger.Printf("Exit code: %d", exitError.ExitCode())
 	}
-	
+
 	logger.Printf("Git output (last 50 lines):")
 	outputLines := strings.Split(string(cloneOut), "\n")
 	startLine := 0
