@@ -263,7 +263,42 @@ func processBackup(in processBackupInput) errors.E {
 		return err
 	}
 
-	isUpdated := removeBundleIfDuplicate(backupPath)
+	// Check if the bundle is a duplicate before moving
+	bundleFileName, isDuplicate, checkErr := checkBundleIsDuplicate(workingPath, backupPath)
+	if checkErr != nil {
+		return errors.Errorf("failed to check for duplicate bundle: %s", checkErr)
+	}
+
+	isUpdated := true
+	if isDuplicate {
+		// Bundle is a duplicate, don't move it
+		logger.Printf("bundle is duplicate, not moving to backup directory")
+		isUpdated = false
+	} else {
+		// Bundle is not a duplicate, move it to backup directory
+		createErr := createDirIfAbsent(backupPath)
+		if createErr != nil {
+			return errors.Errorf("failed to create backup path: %s: %s", backupPath, createErr)
+		}
+
+		workingBundlePath := filepath.Join(workingPath, bundleFileName)
+		backupBundlePath := filepath.Join(backupPath, bundleFileName)
+
+		if moveErr := os.Rename(workingBundlePath, backupBundlePath); moveErr != nil {
+			return errors.Errorf("failed to move bundle to backup directory: %s", moveErr)
+		}
+
+		// Also move the manifest file if it exists
+		workingManifestPath := strings.TrimSuffix(workingBundlePath, ".bundle") + ".manifest"
+		backupManifestPath := strings.TrimSuffix(backupBundlePath, ".bundle") + ".manifest"
+
+		// Check if manifest exists and move it (don't fail if it doesn't exist)
+		if _, err := os.Stat(workingManifestPath); err == nil {
+			if moveErr := os.Rename(workingManifestPath, backupManifestPath); moveErr != nil {
+				logger.Printf("warning: failed to move manifest file: %s", moveErr)
+			}
+		}
+	}
 
 	if in.BackupLFS {
 		if err := handleLFSBackup(in.LogLevel, workingPath, backupPath, in.Repo, isUpdated); err != nil {
@@ -316,16 +351,16 @@ type cloneRepositoryInput struct {
 func cloneRepository(in cloneRepositoryInput) errors.E {
 	logger.Printf("cloning: %s to: %s", maskSecrets(in.Repo.HTTPSUrl, in.Secrets), in.WorkingPath)
 
-	if in.LogLevel == 0 {
-		logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))
-	}
+	//if in.LogLevel == 0 {
+	//	logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))
+	//}
 
 	cloneCmd := buildCloneCommand(in.CloneURL, in.WorkingPath, in.BackupDIR)
 
 	// Log the command being executed for debugging, with URL credentials masked
-	maskedCmd := maskGitCommand(cloneCmd.Args)
-	logger.Printf("executing git command: %s", maskedCmd)
-	logger.Printf("working directory: %s", cloneCmd.Dir)
+	//maskedCmd := maskGitCommand(cloneCmd.Args)
+	//logger.Printf("executing git command: %s", maskedCmd)
+	//logger.Printf("working directory: %s", cloneCmd.Dir)
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
 
