@@ -96,7 +96,10 @@ func dirHasBundles(dir string) bool {
 	}
 
 	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), bundleExtension) {
+		name := entry.Name()
+		// Check for both regular and encrypted bundles
+		if strings.HasSuffix(name, bundleExtension) ||
+			strings.HasSuffix(name, bundleExtension+encryptedBundleExtension) {
 			return true
 		}
 	}
@@ -138,7 +141,7 @@ func lfsArchiveExistsForLatestBundle(backupPath, repoName string) (bool, error) 
 	return true, nil
 }
 
-func getLatestBundleRefs(backupPath string) (gitRefs, error) {
+func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, error) {
 	// if we encounter an invalid bundle, then we need to repeat until we find a valid one or run out
 	for {
 		path, err := getLatestBundlePath(backupPath)
@@ -146,33 +149,85 @@ func getLatestBundleRefs(backupPath string) (gitRefs, error) {
 			return nil, err
 		}
 
-		// get refs for bundle
-		var refs gitRefs
-
-		if refs, err = getBundleRefs(path); err != nil {
-			// failed to get refs
-			if strings.Contains(err.Error(), invalidBundleStringCheck) {
-				// rename the invalid bundle
-				logger.Printf("renaming invalid bundle to %s.invalid",
-					path)
-
-				if err = os.Rename(path,
-					path+".invalid"); err != nil {
-					// failed to rename, meaning a filesystem or permissions issue
-					return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
-				}
-
-				// invalid bundle rename, so continue to check for the next latest bundle
-				continue
+		// Check if this is an encrypted bundle
+		if isEncryptedBundle(path) {
+			// For encrypted bundles, try to read refs from manifest if passphrase is available
+			if encryptionPassphrase == "" {
+				// No passphrase provided but bundle is encrypted - force creation of unencrypted bundle
+				return nil, fmt.Errorf("encrypted bundle found but no passphrase provided - will create unencrypted bundle")
 			}
-		}
 
-		// otherwise return the refs
-		return refs, nil
+			// Try to read refs from encrypted manifest
+			manifest, manifestErr := readBundleManifestWithPassphrase(path, encryptionPassphrase)
+			if manifestErr == nil && manifest != nil && len(manifest.GitRefs) > 0 {
+				// Successfully read refs from encrypted manifest
+				return manifest.GitRefs, nil
+			}
+
+			// If manifest reading fails, fall back to decrypting bundle and reading refs directly
+			logger.Printf("could not read refs from encrypted manifest for %s, will decrypt bundle temporarily", path)
+
+			// Create temporary file for decryption
+			tempFile, tempErr := os.CreateTemp("", "bundle-decrypt-*.bundle")
+			if tempErr != nil {
+				return nil, fmt.Errorf("failed to create temp file for bundle decryption: %w", tempErr)
+			}
+			tempPath := tempFile.Name()
+			tempFile.Close()
+			defer os.Remove(tempPath)
+
+			// Decrypt the bundle temporarily
+			if decryptErr := decryptFile(path, tempPath, encryptionPassphrase); decryptErr != nil {
+				return nil, fmt.Errorf("failed to decrypt bundle for ref reading: %w", decryptErr)
+			}
+
+			// Read refs from decrypted bundle
+			if refs, refsErr := getBundleRefs(tempPath); refsErr == nil {
+				return refs, nil
+			} else {
+				// Check if it's an invalid bundle
+				if strings.Contains(refsErr.Error(), invalidBundleStringCheck) {
+					// rename the invalid bundle
+					logger.Printf("renaming invalid encrypted bundle to %s.invalid", path)
+
+					if err = os.Rename(path, path+".invalid"); err != nil {
+						// failed to rename, meaning a filesystem or permissions issue
+						return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
+					}
+
+					// invalid bundle rename, so continue to check for the next latest bundle
+					continue
+				}
+				return nil, refsErr
+			}
+		} else {
+			// Unencrypted bundle - use existing logic
+			var refs gitRefs
+
+			if refs, err = getBundleRefs(path); err != nil {
+				// failed to get refs
+				if strings.Contains(err.Error(), invalidBundleStringCheck) {
+					// rename the invalid bundle
+					logger.Printf("renaming invalid bundle to %s.invalid", path)
+
+					if err = os.Rename(path, path+".invalid"); err != nil {
+						// failed to rename, meaning a filesystem or permissions issue
+						return nil, fmt.Errorf("failed to rename invalid bundle %w", err)
+					}
+
+					// invalid bundle rename, so continue to check for the next latest bundle
+					continue
+				}
+				return nil, err
+			}
+
+			// otherwise return the refs
+			return refs, nil
+		}
 	}
 }
 
-func createBundle(logLevel int, workingPath, backupPath string, repo repository) errors.E {
+func createBundle(logLevel int, workingPath string, repo repository, encryptionPassphrase string) errors.E {
 	objectsPath := filepath.Join(workingPath, "objects")
 
 	dirs, readErr := os.ReadDir(objectsPath)
@@ -214,10 +269,40 @@ func createBundle(logLevel int, workingPath, backupPath string, repo repository)
 		logger.Printf("git bundle create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startBundle).String())
 	}
 
-	// Create manifest file in working directory
-	if manifestErr := createBundleManifest(workingBundlePath, workingPath, timestamp); manifestErr != nil {
-		logger.Printf("warning: failed to create manifest for bundle %s: %s", backupFile, manifestErr)
-		// Don't fail the bundle creation if manifest fails
+	// Encrypt the bundle if a passphrase is provided
+	if encryptionPassphrase != "" {
+		// Create manifest file in working directory (only for encrypted bundles)
+		if manifestErr := createBundleManifest(workingBundlePath, workingPath, timestamp); manifestErr != nil {
+			logger.Printf("warning: failed to create manifest for bundle %s: %s", backupFile, manifestErr)
+			// Don't fail the bundle creation if manifest fails
+		}
+		encryptedBundlePath := workingBundlePath + encryptedBundleExtension
+		logger.Printf("encrypting bundle: %s", backupFile)
+
+		if err := encryptFile(workingBundlePath, encryptedBundlePath, encryptionPassphrase); err != nil {
+			return errors.Errorf("failed to encrypt bundle: %s", err)
+		}
+
+		// Remove the unencrypted bundle after successful encryption
+		if err := os.Remove(workingBundlePath); err != nil {
+			logger.Printf("warning: failed to remove unencrypted bundle: %s", err)
+			// Don't fail - we have the encrypted version
+		}
+
+		// Also encrypt the manifest if it exists
+		manifestPath := strings.TrimSuffix(workingBundlePath, bundleExtension) + manifestExtension
+		if _, err := os.Stat(manifestPath); err == nil {
+			encryptedManifestPath := manifestPath + encryptedBundleExtension
+			if err := encryptFile(manifestPath, encryptedManifestPath, encryptionPassphrase); err != nil {
+				logger.Printf("warning: failed to encrypt manifest: %s", err)
+				// Don't fail the bundle creation if manifest encryption fails
+			} else {
+				// Remove unencrypted manifest after successful encryption
+				if err := os.Remove(manifestPath); err != nil {
+					logger.Printf("warning: failed to remove unencrypted manifest: %s", err)
+				}
+			}
+		}
 	}
 
 	return nil
@@ -311,13 +396,24 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 	var bfs bundleFiles
 
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), bundleExtension) {
+		name := f.Name()
+		// Check for both regular and encrypted bundles
+		isBundleFile := strings.HasSuffix(name, bundleExtension)
+		isEncryptedBundleFile := strings.HasSuffix(name, bundleExtension+encryptedBundleExtension)
+
+		if !isBundleFile && !isEncryptedBundleFile {
 			continue
 		}
 
 		var ts time.Time
 
-		ts, err = timeStampFromBundleName(f.Name())
+		// For encrypted bundles, we need to get the timestamp from the original bundle name
+		bundleName := name
+		if isEncryptedBundleFile {
+			bundleName = getOriginalBundleName(name)
+		}
+
+		ts, err = timeStampFromBundleName(bundleName)
 		if err != nil {
 			return nil, err
 		}
@@ -435,8 +531,14 @@ func timeStampFromBundleName(i string) (time.Time, errors.E) {
 }
 
 func getTimeStampPartFromFileName(name string) (int, error) {
-	if strings.Count(name, ".") >= minBundleFileNameTokens-1 {
-		parts := strings.Split(name, ".")
+	// Handle encrypted bundles by removing .age extension first
+	originalName := name
+	if isEncryptedBundle(name) {
+		originalName = getOriginalBundleName(name)
+	}
+
+	if strings.Count(originalName, ".") >= minBundleFileNameTokens-1 {
+		parts := strings.Split(originalName, ".")
 
 		strTimestamp := parts[len(parts)-2]
 
@@ -462,8 +564,10 @@ func filesIdentical(path1, path2 string) bool {
 		return false
 	}
 
-	// Try to use manifests for comparison if this looks like a bundle file
-	if strings.HasSuffix(path1, bundleExtension) && strings.HasSuffix(path2, bundleExtension) {
+	// Try to use manifests for comparison if these are encrypted bundle files
+	// (manifests are only created for encrypted bundles)
+	if strings.HasSuffix(path1, bundleExtension+encryptedBundleExtension) &&
+	   strings.HasSuffix(path2, bundleExtension+encryptedBundleExtension) {
 		manifest1, _ := readBundleManifest(path1)
 		manifest2, _ := readBundleManifest(path2)
 
@@ -491,24 +595,31 @@ func filesIdentical(path1, path2 string) bool {
 }
 
 // checkBundleIsDuplicate checks if the bundle in workingPath is identical to the latest bundle in backupPath
-// Returns the bundle filename from workingPath and whether it's a duplicate
-func checkBundleIsDuplicate(workingPath, backupPath string) (string, bool, error) {
-	// Find the bundle file in working directory
+// Returns the bundle filename from workingPath, whether it's a duplicate, and whether to replace existing with encrypted
+func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string) (string, bool, bool, error) {
+	// Find the bundle file in working directory (could be encrypted or not)
 	workingFiles, err := os.ReadDir(workingPath)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to read working directory: %w", err)
+		return "", false, false, fmt.Errorf("failed to read working directory: %w", err)
 	}
 
 	var workingBundleFile string
+	var workingIsEncrypted bool
 	for _, f := range workingFiles {
-		if strings.HasSuffix(f.Name(), bundleExtension) {
-			workingBundleFile = f.Name()
+		name := f.Name()
+		if strings.HasSuffix(name, bundleExtension+encryptedBundleExtension) {
+			workingBundleFile = name
+			workingIsEncrypted = true
 			break
+		} else if strings.HasSuffix(name, bundleExtension) {
+			workingBundleFile = name
+			workingIsEncrypted = false
+			// Don't break - prefer encrypted if both exist
 		}
 	}
 
 	if workingBundleFile == "" {
-		return "", false, errors.New("no bundle file found in working directory")
+		return "", false, false, errors.New("no bundle file found in working directory")
 	}
 
 	workingBundlePath := filepath.Join(workingPath, workingBundleFile)
@@ -516,38 +627,77 @@ func checkBundleIsDuplicate(workingPath, backupPath string) (string, bool, error
 	// Check if backup directory exists and has bundles
 	if !dirHasBundles(backupPath) {
 		// No existing bundles, so this is not a duplicate
-		return workingBundleFile, false, nil
+		return workingBundleFile, false, false, nil
 	}
 
 	// Get the latest bundle in backup directory
 	latestBackupPath, err := getLatestBundlePath(backupPath)
 	if err != nil {
 		// If we can't find a latest bundle, assume it's not a duplicate
-		return workingBundleFile, false, nil
+		return workingBundleFile, false, false, nil
 	}
 
-	// Try to use manifest files for comparison if they exist
-	workingManifest, _ := readBundleManifest(workingBundlePath)
-	backupManifest, _ := readBundleManifest(latestBackupPath)
+	backupIsEncrypted := isEncryptedBundle(latestBackupPath)
 
-	// If both manifests exist and have hashes, compare the hashes
-	if workingManifest != nil && backupManifest != nil &&
-		workingManifest.BundleHash != "" && backupManifest.BundleHash != "" {
-		if workingManifest.BundleHash == backupManifest.BundleHash {
-			logger.Printf("no change since previous bundle (manifest comparison): %s", filepath.Base(latestBackupPath))
-			return workingBundleFile, true, nil
+	// Determine if bundles are identical
+	var isDuplicate bool
+	var shouldReplace bool
+
+	// Case 1: Both encrypted - try manifest comparison first, then file comparison
+	if workingIsEncrypted && backupIsEncrypted {
+		// Try to use manifest files for comparison if they exist
+		workingManifest, _ := readBundleManifestWithPassphrase(workingBundlePath, encryptionPassphrase)
+		backupManifest, _ := readBundleManifestWithPassphrase(latestBackupPath, encryptionPassphrase)
+
+		if workingManifest != nil && backupManifest != nil &&
+			workingManifest.BundleHash != "" && backupManifest.BundleHash != "" {
+			isDuplicate = workingManifest.BundleHash == backupManifest.BundleHash
+		} else {
+			// Fall back to file comparison if manifests are not available
+			isDuplicate = filesIdentical(workingBundlePath, latestBackupPath)
 		}
-		// Hashes don't match, bundles are different
-		return workingBundleFile, false, nil
+		shouldReplace = false
+	} else if workingIsEncrypted && !backupIsEncrypted {
+		// Case 2: Working is encrypted, backup is not encrypted
+		// Need to decrypt working bundle to compare
+		if encryptionPassphrase != "" {
+			identical, err := compareEncryptedWithPlain(workingBundlePath, latestBackupPath, encryptionPassphrase)
+			if err != nil {
+				logger.Printf("warning: failed to compare encrypted with plain bundle: %s", err)
+				isDuplicate = false
+			} else {
+				isDuplicate = identical
+			}
+			// If identical, we should replace the unencrypted with encrypted
+			shouldReplace = isDuplicate
+		} else {
+			// Can't decrypt to compare, assume not duplicate
+			isDuplicate = false
+			shouldReplace = false
+		}
+	} else if !workingIsEncrypted && backupIsEncrypted {
+		// Case 3: Working is not encrypted, backup is encrypted
+		// This shouldn't happen in normal flow (we encrypted in createBundle)
+		// but handle it anyway - can't compare without passphrase
+		isDuplicate = false
+		shouldReplace = false
+	} else {
+		// Case 4: Both unencrypted - direct file comparison
+		// No manifests are created for unencrypted bundles
+		isDuplicate = filesIdentical(workingBundlePath, latestBackupPath)
+		shouldReplace = false
 	}
 
-	// Fall back to file comparison if manifests are not available
-	if filesIdentical(workingBundlePath, latestBackupPath) {
-		logger.Printf("no change since previous bundle (file comparison): %s", filepath.Base(latestBackupPath))
-		return workingBundleFile, true, nil
+	if isDuplicate {
+		if shouldReplace {
+			logger.Printf("bundle content unchanged but will replace unencrypted with encrypted version: %s",
+				filepath.Base(latestBackupPath))
+		} else {
+			logger.Printf("no change since previous bundle: %s", filepath.Base(latestBackupPath))
+		}
 	}
 
-	return workingBundleFile, false, nil
+	return workingBundleFile, isDuplicate, shouldReplace, nil
 }
 
 func removeBundleIfDuplicate(dir string) bool {
@@ -654,17 +804,103 @@ type BundleManifest struct {
 
 // readBundleManifest reads a bundle manifest file and returns the manifest data
 func readBundleManifest(bundlePath string) (*BundleManifest, error) {
-	manifestPath := strings.TrimSuffix(bundlePath, bundleExtension) + manifestExtension
+	var manifestPath string
+
+	// Handle encrypted bundles
+	if isEncryptedBundle(bundlePath) {
+		// For encrypted bundles, the manifest is also encrypted
+		// e.g., test-repo.20250920100845.bundle.age -> test-repo.20250920100845.manifest.age
+		originalBundlePath := getOriginalBundleName(bundlePath)
+		manifestPath = strings.TrimSuffix(originalBundlePath, bundleExtension) + manifestExtension + encryptedBundleExtension
+	} else {
+		// For regular bundles
+		manifestPath = strings.TrimSuffix(bundlePath, bundleExtension) + manifestExtension
+	}
 
 	// Check if manifest file exists
 	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
 		return nil, nil // No manifest file exists
 	}
 
+	var manifestData []byte
+	var err error
+
+	// If it's an encrypted manifest, we need the passphrase to decrypt it
+	if strings.HasSuffix(manifestPath, encryptedBundleExtension) {
+		// For encrypted manifests, we can't read them without the passphrase
+		// This function doesn't have access to the passphrase, so return nil
+		// The caller should handle encrypted manifests separately if needed
+		return nil, nil
+	}
+
 	// Read the manifest file
-	manifestData, err := os.ReadFile(manifestPath)
+	manifestData, err = os.ReadFile(manifestPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read manifest file: %w", err)
+	}
+
+	// Unmarshal the JSON
+	var manifest BundleManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal manifest: %w", err)
+	}
+
+	return &manifest, nil
+}
+
+// readBundleManifestWithPassphrase reads a bundle manifest file, decrypting if necessary
+func readBundleManifestWithPassphrase(bundlePath, passphrase string) (*BundleManifest, error) {
+	var manifestPath string
+
+	// Handle encrypted bundles
+	if isEncryptedBundle(bundlePath) {
+		// For encrypted bundles, the manifest is also encrypted
+		originalBundlePath := getOriginalBundleName(bundlePath)
+		manifestPath = strings.TrimSuffix(originalBundlePath, bundleExtension) + manifestExtension + encryptedBundleExtension
+	} else {
+		// For regular bundles
+		manifestPath = strings.TrimSuffix(bundlePath, bundleExtension) + manifestExtension
+	}
+
+	// Check if manifest file exists
+	if _, err := os.Stat(manifestPath); os.IsNotExist(err) {
+		return nil, nil // No manifest file exists
+	}
+
+	var manifestData []byte
+	var err error
+
+	// If it's an encrypted manifest, decrypt it first
+	if strings.HasSuffix(manifestPath, encryptedBundleExtension) {
+		if passphrase == "" {
+			return nil, nil // Can't decrypt without passphrase
+		}
+
+		// Create temporary file for decrypted manifest
+		tempFile, err := os.CreateTemp("", "decrypted-manifest-*.json")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create temp file: %w", err)
+		}
+		tempPath := tempFile.Name()
+		tempFile.Close()
+		defer os.Remove(tempPath)
+
+		// Decrypt the manifest
+		if err := decryptFile(manifestPath, tempPath, passphrase); err != nil {
+			return nil, fmt.Errorf("failed to decrypt manifest: %w", err)
+		}
+
+		// Read the decrypted manifest
+		manifestData, err = os.ReadFile(tempPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read decrypted manifest: %w", err)
+		}
+	} else {
+		// Read the manifest file directly
+		manifestData, err = os.ReadFile(manifestPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read manifest file: %w", err)
+		}
 	}
 
 	// Unmarshal the JSON

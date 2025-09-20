@@ -76,7 +76,7 @@ func TestAllTrue(t *testing.T) {
 func TestGetLatestBundleRefs(t *testing.T) {
 	t.Parallel()
 
-	refs, err := getLatestBundleRefs("testfiles/example-bundles")
+	refs, err := getLatestBundleRefs("testfiles/example-bundles", "")
 	require.NoError(t, err)
 
 	var found int
