@@ -37,29 +37,31 @@ const (
 )
 
 type NewGiteaHostInput struct {
-	Caller           string
-	HTTPClient       *retryablehttp.Client
-	APIURL           string
-	DiffRemoteMethod string
-	BackupDir        string
-	Token            string
-	Orgs             []string
-	BackupsToRetain  int
-	LogLevel         int
-	BackupLFS        bool
+	Caller               string
+	HTTPClient           *retryablehttp.Client
+	APIURL               string
+	DiffRemoteMethod     string
+	BackupDir            string
+	Token                string
+	Orgs                 []string
+	BackupsToRetain      int
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type GiteaHost struct {
-	Caller           string
-	httpClient       *retryablehttp.Client
-	APIURL           string
-	DiffRemoteMethod string
-	BackupDir        string
-	BackupsToRetain  int
-	Token            string
-	Orgs             []string
-	LogLevel         int
-	BackupLFS        bool
+	Caller               string
+	httpClient           *retryablehttp.Client
+	APIURL               string
+	DiffRemoteMethod     string
+	BackupDir            string
+	BackupsToRetain      int
+	Token                string
+	Orgs                 []string
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type paginationConfig struct {
@@ -95,15 +97,16 @@ func NewGiteaHost(input NewGiteaHostInput) (*GiteaHost, error) {
 	}
 
 	return &GiteaHost{
-		httpClient:       httpClient,
-		APIURL:           input.APIURL,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupDir:        input.BackupDir,
-		BackupsToRetain:  input.BackupsToRetain,
-		Token:            input.Token,
-		Orgs:             input.Orgs,
-		LogLevel:         input.LogLevel,
-		BackupLFS:        input.BackupLFS,
+		httpClient:           httpClient,
+		APIURL:               input.APIURL,
+		DiffRemoteMethod:     diffRemoteMethod,
+		BackupDir:            input.BackupDir,
+		BackupsToRetain:      input.BackupsToRetain,
+		Token:                input.Token,
+		Orgs:                 input.Orgs,
+		LogLevel:             input.LogLevel,
+		BackupLFS:            input.BackupLFS,
+		EncryptionPassphrase: input.EncryptionPassphrase,
 	}, nil
 }
 
@@ -854,24 +857,31 @@ func (g *GiteaHost) diffRemoteMethod() string {
 	return canonicalDiffRemoteMethod(g.DiffRemoteMethod)
 }
 
-func giteaWorker(token string, logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
+func giteaWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
-		repo.URLWithToken = urlWithToken(repo.HTTPSUrl, token)
+		// Set up authentication for the repo
+		if config.SetupRepo != nil {
+			config.SetupRepo(&repo)
+		}
+
 		err := processBackup(processBackupInput{
-			LogLevel:         logLevel,
-			Repo:             repo,
-			BackupDIR:        backupDIR,
-			BackupsToKeep:    backupsToKeep,
-			DiffRemoteMethod: diffRemoteMethod,
-			BackupLFS:        backupLFS,
-			Secrets:          []string{token},
+			LogLevel:             config.LogLevel,
+			Repo:                 repo,
+			BackupDIR:            config.BackupDir,
+			BackupsToKeep:        config.BackupsToKeep,
+			DiffRemoteMethod:     config.DiffRemoteMethod,
+			BackupLFS:            config.BackupLFS,
+			Secrets:              config.Secrets,
+			EncryptionPassphrase: config.EncryptionPassphrase,
 		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting
-		delay := giteaDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(giteaEnvVarWorkerDelay)); sErr == nil {
-			delay = envDelay
+		delay := config.DefaultDelay
+		if config.DelayEnvVar != "" {
+			if envDelay, sErr := strconv.Atoi(os.Getenv(config.DelayEnvVar)); sErr == nil {
+				delay = envDelay
+			}
 		}
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
@@ -898,7 +908,20 @@ func (g *GiteaHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go giteaWorker(g.Token, g.LogLevel, g.BackupDir, g.diffRemoteMethod(), g.BackupsToRetain, g.BackupLFS, jobs, results)
+		go giteaWorker(WorkerConfig{
+			LogLevel:         g.LogLevel,
+			BackupDir:        g.BackupDir,
+			DiffRemoteMethod: g.diffRemoteMethod(),
+			BackupsToKeep:    g.BackupsToRetain,
+			BackupLFS:        g.BackupLFS,
+			DefaultDelay:     giteaDefaultWorkerDelay,
+			DelayEnvVar:      giteaEnvVarWorkerDelay,
+			Secrets:          []string{g.Token},
+			SetupRepo: func(repo *repository) {
+				repo.URLWithToken = urlWithToken(repo.HTTPSUrl, g.Token)
+			},
+			EncryptionPassphrase: g.EncryptionPassphrase,
+		}, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {

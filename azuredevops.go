@@ -53,7 +53,20 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go azureDevOpsWorker(ad.LogLevel, ad.BackupDir, ad.DiffRemoteMethod, ad.BackupsToRetain, ad.BackupLFS, jobs, results)
+		go azureDevOpsWorker(WorkerConfig{
+			LogLevel:             ad.LogLevel,
+			BackupDir:            ad.BackupDir,
+			DiffRemoteMethod:     ad.DiffRemoteMethod,
+			BackupsToKeep:        ad.BackupsToRetain,
+			BackupLFS:            ad.BackupLFS,
+			DefaultDelay:         azureDevOpsDefaultWorkerDelay,
+			DelayEnvVar:          azureDevOpsEnvVarWorkerDelay,
+			SetupRepo: func(repo *repository) {
+				// Azure DevOps uses BasicAuthPass and URLWithToken for secrets
+				// No additional URL setup needed as it's already configured
+			},
+			EncryptionPassphrase: ad.EncryptionPassphrase,
+		}, jobs, results)
 	}
 
 	for x := range repoDesc.Repos {
@@ -77,25 +90,34 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 	return providerBackupResults
 }
 
-func azureDevOpsWorker(logLevel int, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool,
-	jobs <-chan repository, results chan<- RepoBackupResults,
-) {
+func azureDevOpsWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
+		// Set up authentication for the repo
+		if config.SetupRepo != nil {
+			config.SetupRepo(&repo)
+		}
+
+		// Azure DevOps specific: use BasicAuthPass and URLWithToken as secrets
+		secrets := []string{repo.BasicAuthPass, repo.URLWithToken}
+
 		err := processBackup(processBackupInput{
-			LogLevel:         logLevel,
-			Repo:             repo,
-			BackupDIR:        backupDIR,
-			BackupsToKeep:    backupsToKeep,
-			DiffRemoteMethod: diffRemoteMethod,
-			BackupLFS:        backupLFS,
-			Secrets:          []string{repo.BasicAuthPass, repo.URLWithToken},
+			LogLevel:             config.LogLevel,
+			Repo:                 repo,
+			BackupDIR:            config.BackupDir,
+			BackupsToKeep:        config.BackupsToKeep,
+			DiffRemoteMethod:     config.DiffRemoteMethod,
+			BackupLFS:            config.BackupLFS,
+			Secrets:              secrets,
+			EncryptionPassphrase: config.EncryptionPassphrase,
 		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting
-		delay := azureDevOpsDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(azureDevOpsEnvVarWorkerDelay)); sErr == nil {
-			delay = envDelay
+		delay := config.DefaultDelay
+		if config.DelayEnvVar != "" {
+			if envDelay, sErr := strconv.Atoi(os.Getenv(config.DelayEnvVar)); sErr == nil {
+				delay = envDelay
+			}
 		}
 
 		time.Sleep(time.Duration(delay) * time.Millisecond)
@@ -134,17 +156,18 @@ func NewAzureDevOpsHost(input NewAzureDevOpsHostInput) (*AzureDevOpsHost, error)
 	}
 
 	return &AzureDevOpsHost{
-		Caller:           input.Caller,
-		HttpClient:       httpClient,
-		Provider:         AzureDevOpsProviderName,
-		PAT:              input.PAT,
-		Orgs:             input.Orgs,
-		UserName:         input.UserName,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupDir:        input.BackupDir,
-		BackupsToRetain:  input.BackupsToRetain,
-		LogLevel:         input.LogLevel,
-		BackupLFS:        input.BackupLFS,
+		Caller:               input.Caller,
+		HttpClient:           httpClient,
+		Provider:             AzureDevOpsProviderName,
+		PAT:                  input.PAT,
+		Orgs:                 input.Orgs,
+		UserName:             input.UserName,
+		DiffRemoteMethod:     diffRemoteMethod,
+		BackupDir:            input.BackupDir,
+		BackupsToRetain:      input.BackupsToRetain,
+		LogLevel:             input.LogLevel,
+		BackupLFS:            input.BackupLFS,
+		EncryptionPassphrase: input.EncryptionPassphrase,
 	}, nil
 }
 
@@ -188,30 +211,32 @@ func (ad *AzureDevOpsHost) describeRepos() (describeReposOutput, errors.E) {
 }
 
 type NewAzureDevOpsHostInput struct {
-	HTTPClient       *retryablehttp.Client
-	Caller           string
-	BackupDir        string
-	DiffRemoteMethod string
-	UserName         string
-	PAT              string
-	Orgs             []string
-	BackupsToRetain  int
-	LogLevel         int
-	BackupLFS        bool
+	HTTPClient           *retryablehttp.Client
+	Caller               string
+	BackupDir            string
+	DiffRemoteMethod     string
+	UserName             string
+	PAT                  string
+	Orgs                 []string
+	BackupsToRetain      int
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type AzureDevOpsHost struct {
-	Caller           string
-	HttpClient       *retryablehttp.Client
-	Provider         string
-	PAT              string
-	Orgs             []string
-	UserName         string
-	DiffRemoteMethod string
-	BackupDir        string
-	BackupsToRetain  int
-	LogLevel         int
-	BackupLFS        bool
+	Caller               string
+	HttpClient           *retryablehttp.Client
+	Provider             string
+	PAT                  string
+	Orgs                 []string
+	UserName             string
+	DiffRemoteMethod     string
+	BackupDir            string
+	BackupsToRetain      int
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 func AddBasicAuthToURL(originalURL, username, password string) (string, error) {

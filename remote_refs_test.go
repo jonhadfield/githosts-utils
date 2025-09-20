@@ -29,7 +29,7 @@ func TestRemoteRefsMatchLocalRefsTrue(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("bundle: %v %s", err, out)
 	}
-	if !remoteRefsMatchLocalRefs(remoteDir, backupDir) {
+	if !remoteRefsMatchLocalRefs(remoteDir, backupDir, "") {
 		t.Errorf("expected refs to match")
 	}
 }
@@ -67,7 +67,7 @@ func TestRemoteRefsMatchLocalRefsFalse(t *testing.T) {
 		t.Fatalf("commit: %v %s", err, out)
 	}
 
-	if remoteRefsMatchLocalRefs(remoteDir, backupDir) {
+	if remoteRefsMatchLocalRefs(remoteDir, backupDir, "") {
 		t.Errorf("expected refs to differ")
 	}
 }

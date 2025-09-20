@@ -57,11 +57,12 @@ type NewBitBucketHostInput struct {
 	User            string
 	Key             string
 	Secret          string
-	OAuthToken      string
-	Username        string
-	BackupsToRetain int
-	LogLevel        int
-	BackupLFS       bool
+	OAuthToken           string
+	Username             string
+	BackupsToRetain      int
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
@@ -94,21 +95,22 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 	}
 
 	bitbucketHost := &BitbucketHost{
-		HttpClient:       httpClient,
-		Provider:         BitbucketProviderName,
-		APIURL:           apiURL,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupDir:        input.BackupDir,
-		BackupsToRetain:  input.BackupsToRetain,
-		OAuthToken:       input.OAuthToken,
-		APIToken:         input.APIToken,
-		AuthType:         input.AuthType,
-		BasicAuth:        input.BasicAuth,
-		Email:            input.Email,
-		BackupLFS:        input.BackupLFS,
-		User:             input.User,
-		Key:              input.Key,
-		Secret:           input.Secret,
+		HttpClient:           httpClient,
+		Provider:             BitbucketProviderName,
+		APIURL:               apiURL,
+		DiffRemoteMethod:     diffRemoteMethod,
+		BackupDir:            input.BackupDir,
+		BackupsToRetain:      input.BackupsToRetain,
+		OAuthToken:           input.OAuthToken,
+		APIToken:             input.APIToken,
+		AuthType:             input.AuthType,
+		BasicAuth:            input.BasicAuth,
+		Email:                input.Email,
+		BackupLFS:            input.BackupLFS,
+		User:                 input.User,
+		Key:                  input.Key,
+		Secret:               input.Secret,
+		EncryptionPassphrase: input.EncryptionPassphrase,
 	}
 
 	// If key and secret are provided, get OAuth token
@@ -384,44 +386,38 @@ func (bb BitbucketHost) getAPIURL() string {
 	return bb.APIURL
 }
 
-func bitBucketWorker(logLevel int, email, token, apiToken, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
+func bitBucketWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
-		var fUser string
+		// Set up authentication for the repo
+		if config.SetupRepo != nil {
+			config.SetupRepo(&repo)
+		}
 
-		var fToken string
-
-		if token != "" {
-			fUser = "x-token-auth"
-			fToken = token
-
-			logger.Printf("BitBucket clone: using OAuth token for repository %s", repo.PathWithNameSpace)
-		} else if apiToken != "" {
-			fUser = bitbucketStaticUserName
-			fToken = apiToken
-		} else {
+		// Check if authentication was properly set up
+		if repo.URLWithBasicAuth == "" {
 			logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
 			results <- repoBackupResult(repo, errors.New("no authentication available for cloning"))
-
 			continue
 		}
 
-		repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
-
 		err := processBackup(processBackupInput{
-			LogLevel:         logLevel,
-			Repo:             repo,
-			BackupDIR:        backupDIR,
-			BackupsToKeep:    backupsToKeep,
-			DiffRemoteMethod: diffRemoteMethod,
-			BackupLFS:        backupLFS,
-			Secrets:          []string{token, apiToken},
+			LogLevel:             config.LogLevel,
+			Repo:                 repo,
+			BackupDIR:            config.BackupDir,
+			BackupsToKeep:        config.BackupsToKeep,
+			DiffRemoteMethod:     config.DiffRemoteMethod,
+			BackupLFS:            config.BackupLFS,
+			Secrets:              config.Secrets,
+			EncryptionPassphrase: config.EncryptionPassphrase,
 		})
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting
-		delay := bitbucketDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(bitbucketEnvVarWorkerDelay)); sErr == nil {
-			delay = envDelay
+		delay := config.DefaultDelay
+		if config.DelayEnvVar != "" {
+			if envDelay, sErr := strconv.Atoi(os.Getenv(config.DelayEnvVar)); sErr == nil {
+				delay = envDelay
+			}
 		}
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
@@ -448,7 +444,32 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go bitBucketWorker(bb.LogLevel, bb.Email, bb.OAuthToken, bb.APIToken, bb.BackupDir, bb.diffRemoteMethod(), bb.BackupsToRetain, bb.BackupLFS, jobs, results)
+		go bitBucketWorker(WorkerConfig{
+			LogLevel:         bb.LogLevel,
+			BackupDir:        bb.BackupDir,
+			DiffRemoteMethod: bb.diffRemoteMethod(),
+			BackupsToKeep:    bb.BackupsToRetain,
+			BackupLFS:        bb.BackupLFS,
+			DefaultDelay:     bitbucketDefaultWorkerDelay,
+			DelayEnvVar:      bitbucketEnvVarWorkerDelay,
+			Secrets:          []string{bb.OAuthToken, bb.APIToken},
+			SetupRepo: func(repo *repository) {
+				var fUser, fToken string
+				if bb.OAuthToken != "" {
+					fUser = "x-token-auth"
+					fToken = bb.OAuthToken
+					logger.Printf("BitBucket clone: using OAuth token for repository %s", repo.PathWithNameSpace)
+				} else if bb.APIToken != "" {
+					fUser = bitbucketStaticUserName
+					fToken = bb.APIToken
+				} else {
+					logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
+					return
+				}
+				repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
+			},
+			EncryptionPassphrase: bb.EncryptionPassphrase,
+		}, jobs, results)
 	}
 
 	for x := range drO.Repos {
@@ -494,8 +515,9 @@ type BitbucketHost struct {
 	OAuthToken string
 	Key        string
 	Secret     string
-	LogLevel   int
-	BackupLFS  bool
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type bitbucketOwner struct {
