@@ -25,34 +25,36 @@ const (
 )
 
 type NewSourcehutHostInput struct {
-	HTTPClient          *retryablehttp.Client
-	Caller              string
-	APIURL              string
-	DiffRemoteMethod    string
-	BackupDir           string
-	PersonalAccessToken string
-	LimitUserOwned      bool
-	SkipUserRepos       bool
-	Orgs                []string
-	BackupsToRetain     int
-	LogLevel            int
-	BackupLFS           bool
+	HTTPClient           *retryablehttp.Client
+	Caller               string
+	APIURL               string
+	DiffRemoteMethod     string
+	BackupDir            string
+	PersonalAccessToken  string
+	LimitUserOwned       bool
+	SkipUserRepos        bool
+	Orgs                 []string
+	BackupsToRetain      int
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type SourcehutHost struct {
-	Caller              string
-	HttpClient          *retryablehttp.Client
-	Provider            string
-	APIURL              string
-	DiffRemoteMethod    string
-	BackupDir           string
-	SkipUserRepos       bool
-	LimitUserOwned      bool
-	BackupsToRetain     int
-	PersonalAccessToken string
-	Orgs                []string
-	LogLevel            int
-	BackupLFS           bool
+	Caller               string
+	HttpClient           *retryablehttp.Client
+	Provider             string
+	APIURL               string
+	DiffRemoteMethod     string
+	BackupDir            string
+	SkipUserRepos        bool
+	LimitUserOwned       bool
+	BackupsToRetain      int
+	PersonalAccessToken  string
+	Orgs                 []string
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type sourcehutRepository struct {
@@ -107,19 +109,20 @@ func NewSourcehutHost(input NewSourcehutHostInput) (*SourcehutHost, error) {
 	}
 
 	return &SourcehutHost{
-		Caller:              input.Caller,
-		HttpClient:          httpClient,
-		Provider:            sourcehutProviderName,
-		APIURL:              apiURL,
-		DiffRemoteMethod:    diffRemoteMethod,
-		BackupDir:           input.BackupDir,
-		SkipUserRepos:       input.SkipUserRepos,
-		LimitUserOwned:      input.LimitUserOwned,
-		BackupsToRetain:     input.BackupsToRetain,
-		PersonalAccessToken: input.PersonalAccessToken,
-		Orgs:                input.Orgs,
-		LogLevel:            input.LogLevel,
-		BackupLFS:           input.BackupLFS,
+		Caller:               input.Caller,
+		HttpClient:           httpClient,
+		Provider:             sourcehutProviderName,
+		APIURL:               apiURL,
+		DiffRemoteMethod:     diffRemoteMethod,
+		BackupDir:            input.BackupDir,
+		SkipUserRepos:        input.SkipUserRepos,
+		LimitUserOwned:       input.LimitUserOwned,
+		BackupsToRetain:      input.BackupsToRetain,
+		PersonalAccessToken:  input.PersonalAccessToken,
+		Orgs:                 input.Orgs,
+		LogLevel:             input.LogLevel,
+		BackupLFS:            input.BackupLFS,
+		EncryptionPassphrase: input.EncryptionPassphrase,
 	}, nil
 }
 
@@ -287,47 +290,32 @@ func (sh *SourcehutHost) describeRepos() (describeReposOutput, errors.E) {
 	}, nil
 }
 
-func sourcehutWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
+func sourcehutWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
-		// Use HTTPS with token for SourceHut (no SSH due to firewall restrictions)
-		repo.HTTPSUrl = strings.TrimSuffix(repo.HTTPSUrl, "/")
-
-		// Try SourceHut-specific token format: just token as username with empty password
-		cleanToken := stripTrailing(token, "\n")
-		httpsURL := repo.HTTPSUrl
-
-		// Try different SourceHut authentication formats
-		if strings.HasPrefix(httpsURL, "https://") {
-			urlPart := httpsURL[8:] // Remove "https://"
-			// Try token as username with empty password (SourceHut specific)
-			repo.URLWithToken = "https://" + cleanToken + ":@" + urlPart
-		} else {
-			// Fallback to standard method
-			repo.URLWithToken = urlWithToken(repo.HTTPSUrl, cleanToken)
+		// Set up authentication for the repo
+		if config.SetupRepo != nil {
+			config.SetupRepo(&repo)
 		}
 
-		repo.URLWithToken = strings.TrimSuffix(repo.URLWithToken, "/")
-
-		logger.Printf("SourceHut worker processing repo: %s", repo.Name)
-		logger.Printf("SourceHut worker base URL: %s", repo.HTTPSUrl)
-		logger.Printf("SourceHut worker using token auth format")
-
 		err := processBackup(processBackupInput{
-			LogLevel:         logLevel,
-			Repo:             repo,
-			BackupDIR:        backupDIR,
-			BackupsToKeep:    backupsToKeep,
-			DiffRemoteMethod: diffRemoteMethod,
-			BackupLFS:        backupLFS,
-			Secrets:          []string{token},
+			LogLevel:             config.LogLevel,
+			Repo:                 repo,
+			BackupDIR:            config.BackupDir,
+			BackupsToKeep:        config.BackupsToKeep,
+			DiffRemoteMethod:     config.DiffRemoteMethod,
+			BackupLFS:            config.BackupLFS,
+			Secrets:              config.Secrets,
+			EncryptionPassphrase: config.EncryptionPassphrase,
 		})
 
 		results <- repoBackupResult(repo, err)
 
 		// Add delay between repository backups to prevent rate limiting
-		delay := sourcehutDefaultWorkerDelay
-		if envDelay, sErr := strconv.Atoi(os.Getenv(envVarSourcehutWorkerDelay)); sErr == nil {
-			delay = envDelay
+		delay := config.DefaultDelay
+		if config.DelayEnvVar != "" {
+			if envDelay, sErr := strconv.Atoi(os.Getenv(config.DelayEnvVar)); sErr == nil {
+				delay = envDelay
+			}
 		}
 		time.Sleep(time.Duration(delay) * time.Millisecond)
 	}
@@ -357,7 +345,40 @@ func (sh *SourcehutHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go sourcehutWorker(sh.LogLevel, sh.PersonalAccessToken, sh.BackupDir, sh.DiffRemoteMethod, sh.BackupsToRetain, sh.BackupLFS, jobs, results)
+		go sourcehutWorker(WorkerConfig{
+			LogLevel:         sh.LogLevel,
+			BackupDir:        sh.BackupDir,
+			DiffRemoteMethod: sh.DiffRemoteMethod,
+			BackupsToKeep:    sh.BackupsToRetain,
+			BackupLFS:        sh.BackupLFS,
+			DefaultDelay:     sourcehutDefaultWorkerDelay,
+			DelayEnvVar:      envVarSourcehutWorkerDelay,
+			Secrets:          []string{sh.PersonalAccessToken},
+			SetupRepo: func(repo *repository) {
+				// Use HTTPS with token for SourceHut (no SSH due to firewall restrictions)
+				repo.HTTPSUrl = strings.TrimSuffix(repo.HTTPSUrl, "/")
+				// Try SourceHut-specific token format: just token as username with empty password
+				cleanToken := stripTrailing(sh.PersonalAccessToken, "\n")
+				httpsURL := repo.HTTPSUrl
+
+				// Try different SourceHut authentication formats
+				if strings.HasPrefix(httpsURL, "https://") {
+					urlPart := httpsURL[8:] // Remove "https://"
+					// Try token as username with empty password (SourceHut specific)
+					repo.URLWithToken = "https://" + cleanToken + ":@" + urlPart
+				} else {
+					// Fallback to standard method
+					repo.URLWithToken = urlWithToken(repo.HTTPSUrl, cleanToken)
+				}
+
+				repo.URLWithToken = strings.TrimSuffix(repo.URLWithToken, "/")
+
+				logger.Printf("SourceHut worker processing repo: %s", repo.Name)
+				logger.Printf("SourceHut worker base URL: %s", repo.HTTPSUrl)
+				logger.Printf("SourceHut worker using token auth format")
+			},
+			EncryptionPassphrase: sh.EncryptionPassphrase,
+		}, jobs, results)
 
 		delay := sourcehutDefaultWorkerDelay
 		if envDelay, sErr := strconv.Atoi(os.Getenv(envVarSourcehutWorkerDelay)); sErr == nil {

@@ -84,7 +84,7 @@ type gitProvider interface {
 // gitRefs is a mapping of references to SHAs.
 type gitRefs map[string]string
 
-func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
+func remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase string) bool {
 	// if there's no backup path then return false
 	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 		return false
@@ -99,7 +99,7 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath string) bool {
 
 	var err error
 
-	lHeads, err = getLatestBundleRefs(backupPath)
+	lHeads, err = getLatestBundleRefs(backupPath, encryptionPassphrase)
 	if err != nil {
 		logger.Printf("failed to get latest bundle refs for %s", backupPath)
 
@@ -221,13 +221,14 @@ func getCloneURL(repo repository) string {
 }
 
 type processBackupInput struct {
-	LogLevel         int
-	Repo             repository
-	BackupDIR        string
-	BackupsToKeep    int
-	DiffRemoteMethod string
-	BackupLFS        bool
-	Secrets          []string
+	LogLevel             int
+	Repo                 repository
+	BackupDIR            string
+	BackupsToKeep        int
+	DiffRemoteMethod     string
+	BackupLFS            bool
+	Secrets              []string
+	EncryptionPassphrase string // Optional passphrase for age encryption
 }
 
 func processBackup(in processBackupInput) errors.E {
@@ -238,7 +239,7 @@ func processBackup(in processBackupInput) errors.E {
 
 	cloneURL := getCloneURL(in.Repo)
 
-	if shouldSkipBackup(in.DiffRemoteMethod, cloneURL, backupPath, in.Repo) {
+	if shouldSkipBackup(in.DiffRemoteMethod, cloneURL, backupPath, in.Repo, in.EncryptionPassphrase) {
 		return nil
 	}
 
@@ -253,7 +254,7 @@ func processBackup(in processBackupInput) errors.E {
 		return err
 	}
 
-	if err = createBundle(in.LogLevel, workingPath, backupPath, in.Repo); err != nil {
+	if err = createBundle(in.LogLevel, workingPath, in.Repo, in.EncryptionPassphrase); err != nil {
 		if strings.HasSuffix(err.Error(), "is empty") {
 			logger.Printf("skipping empty %s repository %s", in.Repo.Domain, in.Repo.PathWithNameSpace)
 
@@ -264,18 +265,18 @@ func processBackup(in processBackupInput) errors.E {
 	}
 
 	// Check if the bundle is a duplicate before moving
-	bundleFileName, isDuplicate, checkErr := checkBundleIsDuplicate(workingPath, backupPath)
+	bundleFileName, isDuplicate, shouldReplace, checkErr := checkBundleIsDuplicate(workingPath, backupPath, in.EncryptionPassphrase)
 	if checkErr != nil {
 		return errors.Errorf("failed to check for duplicate bundle: %s", checkErr)
 	}
 
 	isUpdated := true
-	if isDuplicate {
-		// Bundle is a duplicate, don't move it
+	if isDuplicate && !shouldReplace {
+		// Bundle is a duplicate and doesn't need replacement, don't move it
 		logger.Printf("bundle is duplicate, not moving to backup directory")
 		isUpdated = false
 	} else {
-		// Bundle is not a duplicate, move it to backup directory
+		// Bundle is not a duplicate OR needs to replace existing (encrypted replacing unencrypted)
 		createErr := createDirIfAbsent(backupPath)
 		if createErr != nil {
 			return errors.Errorf("failed to create backup path: %s: %s", backupPath, createErr)
@@ -284,13 +285,39 @@ func processBackup(in processBackupInput) errors.E {
 		workingBundlePath := filepath.Join(workingPath, bundleFileName)
 		backupBundlePath := filepath.Join(backupPath, bundleFileName)
 
+		// If replacing, remove the old unencrypted bundle first
+		if shouldReplace {
+			// Find and remove the old unencrypted bundle
+			oldBundlePath, err := getLatestBundlePath(backupPath)
+			if err == nil && !isEncryptedBundle(oldBundlePath) {
+				logger.Printf("removing unencrypted bundle to replace with encrypted: %s", filepath.Base(oldBundlePath))
+				if removeErr := os.Remove(oldBundlePath); removeErr != nil {
+					logger.Printf("warning: failed to remove old unencrypted bundle: %s", removeErr)
+				}
+				// Also remove old manifest if it exists
+				oldManifestPath := strings.TrimSuffix(oldBundlePath, bundleExtension) + manifestExtension
+				if _, err := os.Stat(oldManifestPath); err == nil {
+					if removeErr := os.Remove(oldManifestPath); removeErr != nil {
+						logger.Printf("warning: failed to remove old manifest: %s", removeErr)
+					}
+				}
+			}
+		}
+
 		if moveErr := os.Rename(workingBundlePath, backupBundlePath); moveErr != nil {
 			return errors.Errorf("failed to move bundle to backup directory: %s", moveErr)
 		}
 
-		// Also move the manifest file if it exists
-		workingManifestPath := strings.TrimSuffix(workingBundlePath, ".bundle") + ".manifest"
-		backupManifestPath := strings.TrimSuffix(backupBundlePath, ".bundle") + ".manifest"
+		// Handle manifest files - they might be encrypted too
+		baseWorkingName := getOriginalBundleName(bundleFileName)
+		workingManifestPath := strings.TrimSuffix(filepath.Join(workingPath, baseWorkingName), bundleExtension) + manifestExtension
+		backupManifestPath := strings.TrimSuffix(filepath.Join(backupPath, baseWorkingName), bundleExtension) + manifestExtension
+
+		// Check for encrypted manifest first
+		if isEncryptedBundle(bundleFileName) {
+			workingManifestPath = workingManifestPath + encryptedBundleExtension
+			backupManifestPath = backupManifestPath + encryptedBundleExtension
+		}
 
 		// Check if manifest exists and move it (don't fail if it doesn't exist)
 		if _, err := os.Stat(workingManifestPath); err == nil {
@@ -327,9 +354,9 @@ func setupBackupPaths(repo repository, backupDIR string) (workingPath, backupPat
 	return workingPath, backupPath, nil
 }
 
-func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo repository) bool {
+func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo repository, encryptionPassphrase string) bool {
 	if diffRemoteMethod == refsMethod {
-		if remoteRefsMatchLocalRefs(cloneURL, backupPath) {
+		if remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase) {
 			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
 
 			return true
@@ -349,7 +376,7 @@ type cloneRepositoryInput struct {
 }
 
 func cloneRepository(in cloneRepositoryInput) errors.E {
-	logger.Printf("cloning: %s to: %s", maskSecrets(in.Repo.HTTPSUrl, in.Secrets), in.WorkingPath)
+	logger.Printf("cloning: %s to: %s", maskURLCredentials(in.CloneURL), in.WorkingPath)
 
 	//if in.LogLevel == 0 {
 	//	logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))

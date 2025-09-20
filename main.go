@@ -47,15 +47,16 @@ const (
 var logger *log.Logger
 
 type WorkerConfig struct {
-	LogLevel         int
-	BackupDir        string
-	DiffRemoteMethod string
-	BackupsToKeep    int
-	BackupLFS        bool
-	DefaultDelay     int
-	DelayEnvVar      string
-	Secrets          []string
-	SetupRepo        func(*repository) // Function to set up authentication on the repo
+	LogLevel             int
+	BackupDir            string
+	DiffRemoteMethod     string
+	BackupsToKeep        int
+	BackupLFS            bool
+	DefaultDelay         int
+	DelayEnvVar          string
+	Secrets              []string
+	SetupRepo            func(*repository) // Function to set up authentication on the repo
+	EncryptionPassphrase string
 }
 
 func genericWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
@@ -66,13 +67,14 @@ func genericWorker(config WorkerConfig, jobs <-chan repository, results chan<- R
 		}
 
 		err := processBackup(processBackupInput{
-			LogLevel:         config.LogLevel,
-			Repo:             repo,
-			BackupDIR:        config.BackupDir,
-			BackupsToKeep:    config.BackupsToKeep,
-			DiffRemoteMethod: config.DiffRemoteMethod,
-			BackupLFS:        config.BackupLFS,
-			Secrets:          config.Secrets,
+			LogLevel:             config.LogLevel,
+			Repo:                 repo,
+			BackupDIR:            config.BackupDir,
+			BackupsToKeep:        config.BackupsToKeep,
+			DiffRemoteMethod:     config.DiffRemoteMethod,
+			BackupLFS:            config.BackupLFS,
+			Secrets:              config.Secrets,
+			EncryptionPassphrase: config.EncryptionPassphrase,
 		})
 		results <- repoBackupResult(repo, err)
 

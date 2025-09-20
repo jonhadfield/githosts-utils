@@ -26,18 +26,19 @@ const (
 )
 
 type NewGitHubHostInput struct {
-	HTTPClient       *retryablehttp.Client
-	Caller           string
-	APIURL           string
-	DiffRemoteMethod string
-	BackupDir        string
-	Token            string
-	LimitUserOwned   bool
-	SkipUserRepos    bool
-	Orgs             []string
-	BackupsToRetain  int
-	LogLevel         int
-	BackupLFS        bool
+	HTTPClient           *retryablehttp.Client
+	Caller               string
+	APIURL               string
+	DiffRemoteMethod     string
+	BackupDir            string
+	Token                string
+	LimitUserOwned       bool
+	SkipUserRepos        bool
+	Orgs                 []string
+	BackupsToRetain      int
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 func (gh *GitHubHost) getAPIURL() string {
@@ -70,36 +71,38 @@ func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
 	}
 
 	return &GitHubHost{
-		Caller:           input.Caller,
-		HttpClient:       httpClient,
-		Provider:         gitHubProviderName,
-		APIURL:           apiURL,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupDir:        input.BackupDir,
-		SkipUserRepos:    input.SkipUserRepos,
-		LimitUserOwned:   input.LimitUserOwned,
-		BackupsToRetain:  input.BackupsToRetain,
-		Token:            input.Token,
-		Orgs:             input.Orgs,
-		LogLevel:         input.LogLevel,
-		BackupLFS:        input.BackupLFS,
+		Caller:               input.Caller,
+		HttpClient:           httpClient,
+		Provider:             gitHubProviderName,
+		APIURL:               apiURL,
+		DiffRemoteMethod:     diffRemoteMethod,
+		BackupDir:            input.BackupDir,
+		SkipUserRepos:        input.SkipUserRepos,
+		LimitUserOwned:       input.LimitUserOwned,
+		BackupsToRetain:      input.BackupsToRetain,
+		Token:                input.Token,
+		Orgs:                 input.Orgs,
+		LogLevel:             input.LogLevel,
+		BackupLFS:            input.BackupLFS,
+		EncryptionPassphrase: input.EncryptionPassphrase,
 	}, nil
 }
 
 type GitHubHost struct {
-	Caller           string
-	HttpClient       *retryablehttp.Client
-	Provider         string
-	APIURL           string
-	DiffRemoteMethod string
-	BackupDir        string
-	SkipUserRepos    bool
-	LimitUserOwned   bool
-	BackupsToRetain  int
-	Token            string
-	Orgs             []string
-	LogLevel         int
-	BackupLFS        bool
+	Caller               string
+	HttpClient           *retryablehttp.Client
+	Provider             string
+	APIURL               string
+	DiffRemoteMethod     string
+	BackupDir            string
+	SkipUserRepos        bool
+	LimitUserOwned       bool
+	BackupsToRetain      int
+	Token                string
+	Orgs                 []string
+	LogLevel             int
+	BackupLFS            bool
+	EncryptionPassphrase string
 }
 
 type edge struct {
@@ -490,20 +493,7 @@ func removeDuplicates(repos []repository) []repository {
 	return uniqueRepos
 }
 
-func gitHubWorker(logLevel int, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
-	config := WorkerConfig{
-		LogLevel:         logLevel,
-		BackupDir:        backupDIR,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupsToKeep:    backupsToKeep,
-		BackupLFS:        backupLFS,
-		DefaultDelay:     githubDefaultWorkerDelay,
-		DelayEnvVar:      githubEnvVarWorkerDelay,
-		Secrets:          []string{token},
-		SetupRepo: func(repo *repository) {
-			repo.URLWithToken = urlWithToken(repo.HTTPSUrl, stripTrailing(token, "\n"))
-		},
-	}
+func gitHubWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	genericWorker(config, jobs, results)
 }
 
@@ -531,7 +521,20 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitHubWorker(gh.LogLevel, gh.Token, gh.BackupDir, gh.DiffRemoteMethod, gh.BackupsToRetain, gh.BackupLFS, jobs, results)
+		go gitHubWorker(WorkerConfig{
+			LogLevel:         gh.LogLevel,
+			BackupDir:        gh.BackupDir,
+			DiffRemoteMethod: gh.DiffRemoteMethod,
+			BackupsToKeep:    gh.BackupsToRetain,
+			BackupLFS:        gh.BackupLFS,
+			DefaultDelay:     githubDefaultWorkerDelay,
+			DelayEnvVar:      githubEnvVarWorkerDelay,
+			Secrets:          []string{gh.Token},
+			SetupRepo: func(repo *repository) {
+				repo.URLWithToken = urlWithToken(repo.HTTPSUrl, stripTrailing(gh.Token, "\n"))
+			},
+			EncryptionPassphrase: gh.EncryptionPassphrase,
+		}, jobs, results)
 
 		delay := githubDefaultWorkerDelay
 		if envDelay, sErr := strconv.Atoi(os.Getenv(githubEnvVarWorkerDelay)); sErr == nil {

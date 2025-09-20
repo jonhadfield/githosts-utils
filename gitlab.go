@@ -44,6 +44,7 @@ type GitLabHost struct {
 	User                  gitlabUser
 	LogLevel              int
 	BackupLFS             bool
+	EncryptionPassphrase  string
 }
 
 func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
@@ -309,6 +310,7 @@ type NewGitLabHostInput struct {
 	BackupsToRetain       int
 	LogLevel              int
 	BackupLFS             bool
+	EncryptionPassphrase  string
 }
 
 func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
@@ -347,6 +349,7 @@ func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 		ProjectMinAccessLevel: input.ProjectMinAccessLevel,
 		LogLevel:              input.LogLevel,
 		BackupLFS:             input.BackupLFS,
+		EncryptionPassphrase:  input.EncryptionPassphrase,
 	}, nil
 }
 
@@ -375,20 +378,7 @@ func (gl *GitLabHost) getAPIURL() string {
 	return gl.APIURL
 }
 
-func gitlabWorker(logLevel int, userName, token, backupDIR, diffRemoteMethod string, backupsToKeep int, backupLFS bool, jobs <-chan repository, results chan<- RepoBackupResults) {
-	config := WorkerConfig{
-		LogLevel:         logLevel,
-		BackupDir:        backupDIR,
-		DiffRemoteMethod: diffRemoteMethod,
-		BackupsToKeep:    backupsToKeep,
-		BackupLFS:        backupLFS,
-		DefaultDelay:     gitlabDefaultWorkerDelay,
-		DelayEnvVar:      gitlabEnvVarWorkerDelay,
-		Secrets:          []string{token},
-		SetupRepo: func(repo *repository) {
-			repo.URLWithToken = urlWithToken(repo.HTTPSUrl, userName+":"+stripTrailing(token, "\n"))
-		},
-	}
+func gitlabWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	genericWorker(config, jobs, results)
 }
 
@@ -427,7 +417,20 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 	results := make(chan RepoBackupResults, maxConcurrent)
 
 	for w := 1; w <= maxConcurrent; w++ {
-		go gitlabWorker(gl.LogLevel, gl.User.UserName, gl.Token, gl.BackupDir, gl.diffRemoteMethod(), gl.BackupsToRetain, gl.BackupLFS, jobs, results)
+		go gitlabWorker(WorkerConfig{
+			LogLevel:         gl.LogLevel,
+			BackupDir:        gl.BackupDir,
+			DiffRemoteMethod: gl.diffRemoteMethod(),
+			BackupsToKeep:    gl.BackupsToRetain,
+			BackupLFS:        gl.BackupLFS,
+			DefaultDelay:     gitlabDefaultWorkerDelay,
+			DelayEnvVar:      gitlabEnvVarWorkerDelay,
+			Secrets:          []string{gl.Token},
+			SetupRepo: func(repo *repository) {
+				repo.URLWithToken = urlWithToken(repo.HTTPSUrl, gl.User.UserName+":"+stripTrailing(gl.Token, "\n"))
+			},
+			EncryptionPassphrase: gl.EncryptionPassphrase,
+		}, jobs, results)
 	}
 
 	var providerBackupResults ProviderBackupResult
