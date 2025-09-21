@@ -331,7 +331,7 @@ func TestDescribeGithubReposWithWildcard(t *testing.T) {
 	}))
 }
 
-func TestDescribeGithubReposWithWildcardAndLimitUserOwned(t *testing.T) {
+func TestDescribeGithubReposWithWildcardAndLimitUserOwned(t *testing.T) { //nolint:dupl // test pattern similarity is acceptable
 	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)
 	}
@@ -411,7 +411,7 @@ func TestDescribeGithubReposWithWildcardAndLimitUserOwned(t *testing.T) {
 	}))
 }
 
-func TestDescribeGithubReposWithWildcardAndNoLimitUserOwned(t *testing.T) {
+func TestDescribeGithubReposWithWildcardAndNoLimitUserOwned(t *testing.T) { //nolint:dupl // test pattern similarity is acceptable
 	// will return all user's repos and those they're affiliated with (collaborators on)
 	if os.Getenv(envGithubToken) == "" {
 		t.Skip(msgSkipGitHubTokenMissing)

@@ -19,14 +19,15 @@ func TestBundlePassphraseEnvironmentIntegration(t *testing.T) {
 		// Create temporary directories
 		tempDir, err := os.MkdirTemp("", "bundle-no-encryption")
 		require.NoError(t, err)
+
 		defer os.RemoveAll(tempDir)
 
 		repoDir := filepath.Join(tempDir, "test-repo")
-		require.NoError(t, os.MkdirAll(repoDir, 0755))
+		require.NoError(t, os.MkdirAll(repoDir, 0o755))
 		setupTestRepo(t, repoDir)
 
 		backupDir := filepath.Join(tempDir, "backup")
-		require.NoError(t, os.MkdirAll(backupDir, 0755))
+		require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 		repo := repository{
 			Name:              "test-repo",
@@ -55,11 +56,13 @@ func TestBundlePassphraseEnvironmentIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		var plainBundles []string
+
 		for _, f := range bundleFiles {
 			if !strings.HasSuffix(f, ".bundle.age") {
 				plainBundles = append(plainBundles, f)
 			}
 		}
+
 		assert.Len(t, plainBundles, 1, "Should have exactly one unencrypted bundle")
 
 		// Verify no encrypted bundles
@@ -73,14 +76,15 @@ func TestBundlePassphraseEnvironmentIntegration(t *testing.T) {
 		// Create temporary directories
 		tempDir, err := os.MkdirTemp("", "bundle-with-encryption")
 		require.NoError(t, err)
+
 		defer os.RemoveAll(tempDir)
 
 		repoDir := filepath.Join(tempDir, "test-repo")
-		require.NoError(t, os.MkdirAll(repoDir, 0755))
+		require.NoError(t, os.MkdirAll(repoDir, 0o755))
 		setupTestRepo(t, repoDir)
 
 		backupDir := filepath.Join(tempDir, "backup")
-		require.NoError(t, os.MkdirAll(backupDir, 0755))
+		require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 		repo := repository{
 			Name:              "test-repo",
@@ -112,12 +116,15 @@ func TestBundlePassphraseEnvironmentIntegration(t *testing.T) {
 		// Verify no unencrypted bundles
 		bundleFiles, err := filepath.Glob(filepath.Join(backupRepoDir, "*.bundle"))
 		require.NoError(t, err)
+
 		var plainBundles []string
+
 		for _, f := range bundleFiles {
 			if !strings.HasSuffix(f, ".bundle.age") {
 				plainBundles = append(plainBundles, f)
 			}
 		}
+
 		assert.Len(t, plainBundles, 0, "Should have no unencrypted bundles")
 
 		// Verify encrypted manifest
@@ -130,6 +137,7 @@ func TestBundlePassphraseEnvironmentIntegration(t *testing.T) {
 	t.Run("Host_With_EncryptionPassphrase", func(t *testing.T) {
 		tempDir, err := os.MkdirTemp("", "bundle-host-test")
 		require.NoError(t, err)
+
 		defer os.RemoveAll(tempDir)
 
 		backupDir := filepath.Join(tempDir, "backup")
@@ -209,4 +217,3 @@ func TestBundlePassphraseEnvironmentIntegration(t *testing.T) {
 		assert.Equal(t, testPassphrase, shHost.EncryptionPassphrase)
 	})
 }
-

@@ -21,9 +21,10 @@ const (
 	contentTypeApplicationJSON   = "application/json; charset=utf-8"
 
 	// Concurrency limits
-	defaultMaxConcurrentGitHub = 10
-	defaultMaxConcurrentGitLab = 5
-	defaultMaxConcurrentOther  = 10
+	defaultMaxConcurrentGitHub    = 10
+	defaultMaxConcurrentGitLab    = 5
+	defaultMaxConcurrentOther     = 10
+	defaultMaxConcurrentSourcehut = 5
 
 	// Timeout values
 	backupTimeout = 120 * time.Second
@@ -42,6 +43,9 @@ const (
 	ContentTypeJSON        = "application/json"
 	ContentTypeFormEncoded = "application/x-www-form-urlencoded"
 	ContentTypeAny         = "*/*"
+
+	// Logging
+	maxGitOutputLines = 50
 )
 
 var logger *log.Logger

@@ -205,6 +205,7 @@ func TestPruneBackups(t *testing.T) {
 	t.Parallel()
 
 	backupDir := filepath.Join(t.TempDir(), "tmp_githosts-utils")
+
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
 			return
@@ -251,6 +252,7 @@ func TestPruneBackupsWithNonBundleFiles(t *testing.T) {
 	t.Parallel()
 
 	backupDir := filepath.Join(t.TempDir(), "tmp_githosts-utils")
+
 	defer func() {
 		if err := deleteBackupsDir(backupDir); err != nil {
 			return

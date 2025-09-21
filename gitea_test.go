@@ -283,6 +283,7 @@ func TestGetAllUserRepos(t *testing.T) {
 		userCount++
 
 		var allUserRepos []repository
+
 		allUserRepos, err = gHost.getAllUserRepos(user.Login)
 
 		require.NoError(t, err)

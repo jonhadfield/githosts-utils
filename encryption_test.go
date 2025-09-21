@@ -13,12 +13,13 @@ func TestEncryptDecryptFile(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "encryption-test")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Create a test file
 	testFile := filepath.Join(tempDir, "test.bundle")
 	testContent := []byte("This is a test bundle content")
-	err = os.WriteFile(testFile, testContent, 0644)
+	err = os.WriteFile(testFile, testContent, 0o644)
 	require.NoError(t, err)
 
 	// Test encryption

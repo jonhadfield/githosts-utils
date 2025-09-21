@@ -271,9 +271,11 @@ func processBackup(in processBackupInput) errors.E {
 	}
 
 	isUpdated := true
+	//nolint:nestif // complex bundle management logic requires nested conditions
 	if isDuplicate && !shouldReplace {
 		// Bundle is a duplicate and doesn't need replacement, don't move it
 		logger.Printf("bundle is duplicate, not moving to backup directory")
+
 		isUpdated = false
 	} else {
 		// Bundle is not a duplicate OR needs to replace existing (encrypted replacing unencrypted)
@@ -291,9 +293,11 @@ func processBackup(in processBackupInput) errors.E {
 			oldBundlePath, err := getLatestBundlePath(backupPath)
 			if err == nil && !isEncryptedBundle(oldBundlePath) {
 				logger.Printf("removing unencrypted bundle to replace with encrypted: %s", filepath.Base(oldBundlePath))
+
 				if removeErr := os.Remove(oldBundlePath); removeErr != nil {
 					logger.Printf("warning: failed to remove old unencrypted bundle: %s", removeErr)
 				}
+
 				// Also remove old manifest if it exists
 				oldManifestPath := strings.TrimSuffix(oldBundlePath, bundleExtension) + manifestExtension
 				if _, err := os.Stat(oldManifestPath); err == nil {
@@ -385,12 +389,11 @@ func cloneRepository(in cloneRepositoryInput) errors.E {
 	cloneCmd := buildCloneCommand(in.CloneURL, in.WorkingPath, in.BackupDIR)
 
 	// Log the command being executed for debugging, with URL credentials masked
-	//maskedCmd := maskGitCommand(cloneCmd.Args)
-	//logger.Printf("executing git command: %s", maskedCmd)
-	//logger.Printf("working directory: %s", cloneCmd.Dir)
+	// maskedCmd := maskGitCommand(cloneCmd.Args)
+	// logger.Printf("executing git command: %s", maskedCmd)
+	// logger.Printf("working directory: %s", cloneCmd.Dir)
 
 	cloneOut, cloneErr := cloneCmd.CombinedOutput()
-
 	if cloneErr != nil {
 		return handleCloneError(in.Repo, cloneOut, cloneErr, in.CloneURL, in.Secrets)
 	}
@@ -428,21 +431,26 @@ func handleCloneError(repo repository, cloneOut []byte, cloneErr error, cloneURL
 	logger.Printf("Exit error: %v", cloneErr)
 
 	// Extract exit code if available
-	if exitError, ok := cloneErr.(*exec.ExitError); ok {
+	var exitError *exec.ExitError
+	if errors.As(cloneErr, &exitError) {
 		logger.Printf("Exit code: %d", exitError.ExitCode())
 	}
 
-	logger.Printf("Git output (last 50 lines):")
+	logger.Printf("Git output (last %d lines):", maxGitOutputLines)
+
 	outputLines := strings.Split(string(cloneOut), "\n")
+
 	startLine := 0
-	if len(outputLines) > 50 {
-		startLine = len(outputLines) - 50
+	if len(outputLines) > maxGitOutputLines {
+		startLine = len(outputLines) - maxGitOutputLines
 	}
+
 	for i := startLine; i < len(outputLines); i++ {
 		if outputLines[i] != "" {
 			logger.Printf("  > %s", maskSecrets(outputLines[i], secrets))
 		}
 	}
+
 	logger.Printf("==============================")
 
 	if os.Getenv(envVarGitHostsLog) == "debug" {
@@ -520,9 +528,10 @@ func determineLFSBackupNeeds(backupPath string, repo repository, isUpdated bool)
 
 func checkForLFSFiles(workingPath string) (bool, errors.E) {
 	lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
-	lfsFilesCmd.Dir = workingPath
-	lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
 
+	lfsFilesCmd.Dir = workingPath
+
+	lfsFilesOut, lfsFilesErr := lfsFilesCmd.CombinedOutput()
 	if lfsFilesErr != nil {
 		return false, errors.Errorf("git lfs ls-files failed: %s: %s", strings.TrimSpace(string(lfsFilesOut)), lfsFilesErr)
 	}

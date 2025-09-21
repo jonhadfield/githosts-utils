@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -54,9 +55,9 @@ type NewBitBucketHostInput struct {
 	// API OAuthToken
 	APIToken string
 	// OAuth2
-	User            string
-	Key             string
-	Secret          string
+	User                 string
+	Key                  string
+	Secret               string
 	OAuthToken           string
 	Username             string
 	BackupsToRetain      int
@@ -397,6 +398,7 @@ func bitBucketWorker(config WorkerConfig, jobs <-chan repository, results chan<-
 		if repo.URLWithBasicAuth == "" {
 			logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
 			results <- repoBackupResult(repo, errors.New("no authentication available for cloning"))
+
 			continue
 		}
 
@@ -430,7 +432,7 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	maxConcurrent := 5
+	maxConcurrent := defaultMaxConcurrentGitLab
 
 	drO, err := bb.describeRepos()
 	if err != nil {
@@ -455,14 +457,15 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 			Secrets:          []string{bb.OAuthToken, bb.APIToken},
 			SetupRepo: func(repo *repository) {
 				var fUser, fToken string
-				if bb.OAuthToken != "" {
+				switch {
+				case bb.OAuthToken != "":
 					fUser = "x-token-auth"
 					fToken = bb.OAuthToken
 					logger.Printf("BitBucket clone: using OAuth token for repository %s", repo.PathWithNameSpace)
-				} else if bb.APIToken != "" {
+				case bb.APIToken != "":
 					fUser = bitbucketStaticUserName
 					fToken = bb.APIToken
-				} else {
+				default:
 					logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
 					return
 				}
@@ -511,10 +514,10 @@ type BitbucketHost struct {
 	APIToken  string
 	BasicAuth BasicAuth
 	// OAuth2
-	User       string
-	OAuthToken string
-	Key        string
-	Secret     string
+	User                 string
+	OAuthToken           string
+	Key                  string
+	Secret               string
 	LogLevel             int
 	BackupLFS            bool
 	EncryptionPassphrase string

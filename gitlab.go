@@ -202,7 +202,7 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 
 		var rErr errors.E
 
-		resp, body, rErr = makeGitLabRequest(&client, reqUrl, gl.Token)
+		resp, body, rErr = makeGitLabRequest(&client, reqUrl, gl.Token) //nolint:bodyclose // response body is closed in makeGitLabRequest
 		if rErr != nil {
 			logger.Print(rErr)
 

@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -164,7 +165,7 @@ func (g *GiteaHost) makeGiteaRequest(reqUrl string) (*http.Response, []byte, err
 
 	_ = resp.Body.Close()
 
-	return resp, body, err
+	return resp, body, err //nolint:wrapcheck // error already wrapped by io.ReadAll caller
 }
 
 type repoExistsInput struct {
@@ -433,7 +434,7 @@ func (g *GiteaHost) getAllUsers() ([]giteaUser, errors.E) {
 	err := g.paginateGiteaAPI(config, func(body []byte) error {
 		var respObj giteaGetUsersResponse
 		if unmarshalErr := json.Unmarshal(body, &respObj); unmarshalErr != nil {
-			return unmarshalErr
+			return unmarshalErr //nolint:wrapcheck // error context is sufficient from caller
 		}
 
 		users = append(users, respObj...)
@@ -510,7 +511,7 @@ func (g *GiteaHost) getOrganization(orgName string) (giteaOrganization, errors.E
 
 	var resp *http.Response
 
-	resp, body, err = g.makeGiteaRequest(reqUrl)
+	resp, body, err = g.makeGiteaRequest(reqUrl) //nolint:bodyclose // response body is closed in makeGiteaRequest
 	if err != nil {
 		return giteaOrganization{}, errors.Wrap(err, fmt.Sprintf("failed to get organization: %s", orgName))
 	}
@@ -565,7 +566,7 @@ func (g *GiteaHost) getAllOrganizations() ([]giteaOrganization, errors.E) {
 	err := g.paginateGiteaAPI(config, func(body []byte) error {
 		var respObj giteaGetOrganizationsResponse
 		if unmarshalErr := json.Unmarshal(body, &respObj); unmarshalErr != nil {
-			return unmarshalErr
+			return unmarshalErr //nolint:wrapcheck // error context is sufficient from caller
 		}
 
 		organizations = append(organizations, respObj...)
@@ -696,7 +697,7 @@ func (g *GiteaHost) getOrganizationRepos(organizationName string) ([]giteaReposi
 	for {
 		var resp *http.Response
 
-		resp, body, err = g.makeGiteaRequest(reqUrl)
+		resp, body, err = g.makeGiteaRequest(reqUrl) //nolint:bodyclose // response body is closed in makeGiteaRequest
 		if err != nil {
 			return nil, errors.Errorf("failed to make Gitea request: %s", err)
 		}
@@ -780,7 +781,7 @@ func (g *GiteaHost) getAllUserRepos(userName string) ([]repository, errors.E) {
 	for {
 		var resp *http.Response
 
-		resp, body, err = g.makeGiteaRequest(reqUrl)
+		resp, body, err = g.makeGiteaRequest(reqUrl) //nolint:bodyclose // response body is closed in makeGiteaRequest
 		if err != nil {
 			logger.Printf("failed to get repos: %v", err)
 
@@ -894,7 +895,7 @@ func (g *GiteaHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	maxConcurrent := 5
+	maxConcurrent := defaultMaxConcurrentGitLab
 
 	repoDesc, err := g.describeRepos()
 	if err != nil {
@@ -1011,7 +1012,7 @@ func (g *GiteaHost) paginateGiteaAPI(config paginationConfig, processResponse fu
 	reqUrl := u.String()
 
 	for {
-		resp, body, err := g.makeGiteaRequest(reqUrl)
+		resp, body, err := g.makeGiteaRequest(reqUrl) //nolint:bodyclose // response body is closed in makeGiteaRequest
 		if err != nil {
 			logger.Printf("failed to get %s: %v", config.resource, err)
 			return errors.Wrapf(err, "failed to make Gitea request for %s", config.resource)
