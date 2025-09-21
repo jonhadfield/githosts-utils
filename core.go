@@ -328,7 +328,7 @@ func processBackup(in processBackupInput) errors.E {
 	}
 
 	if in.BackupLFS {
-		if err := handleLFSBackup(in.LogLevel, workingPath, backupPath, in.Repo, isUpdated); err != nil {
+		if err := handleLFSBackup(in.LogLevel, workingPath, backupPath, in.Repo, isUpdated, in.EncryptionPassphrase); err != nil {
 			return err
 		}
 	}
@@ -461,7 +461,7 @@ func handleCloneError(repo repository, cloneOut []byte, cloneErr error, cloneURL
 	return errors.Wrapf(cloneErr, "cloning failed for repository: %s - exit status: %v", repo.Name, cloneErr)
 }
 
-func handleLFSBackup(logLevel int, workingPath, backupPath string, repo repository, isUpdated bool) errors.E {
+func handleLFSBackup(logLevel int, workingPath, backupPath string, repo repository, isUpdated bool, encryptionPassphrase string) errors.E {
 	needsLFSBackup, useExistingTimestamp := determineLFSBackupNeeds(backupPath, repo, isUpdated)
 
 	if !needsLFSBackup {
@@ -484,10 +484,10 @@ func handleLFSBackup(logLevel int, workingPath, backupPath string, repo reposito
 	}
 
 	if useExistingTimestamp != "" {
-		return createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp)
+		return createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp, encryptionPassphrase)
 	}
 
-	return createLFSArchive(logLevel, workingPath, backupPath, repo)
+	return createLFSArchive(logLevel, workingPath, backupPath, repo, encryptionPassphrase)
 }
 
 func determineLFSBackupNeeds(backupPath string, repo repository, isUpdated bool) (needsBackup bool, timestamp string) {
