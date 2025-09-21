@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -39,7 +40,7 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := 10
+	maxConcurrent := defaultMaxConcurrentOther
 
 	repoDesc, err := ad.describeRepos()
 	if err != nil {
@@ -54,13 +55,13 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 
 	for w := 1; w <= maxConcurrent; w++ {
 		go azureDevOpsWorker(WorkerConfig{
-			LogLevel:             ad.LogLevel,
-			BackupDir:            ad.BackupDir,
-			DiffRemoteMethod:     ad.DiffRemoteMethod,
-			BackupsToKeep:        ad.BackupsToRetain,
-			BackupLFS:            ad.BackupLFS,
-			DefaultDelay:         azureDevOpsDefaultWorkerDelay,
-			DelayEnvVar:          azureDevOpsEnvVarWorkerDelay,
+			LogLevel:         ad.LogLevel,
+			BackupDir:        ad.BackupDir,
+			DiffRemoteMethod: ad.DiffRemoteMethod,
+			BackupsToKeep:    ad.BackupsToRetain,
+			BackupLFS:        ad.BackupLFS,
+			DefaultDelay:     azureDevOpsDefaultWorkerDelay,
+			DelayEnvVar:      azureDevOpsEnvVarWorkerDelay,
 			SetupRepo: func(repo *repository) {
 				// Azure DevOps uses BasicAuthPass and URLWithToken for secrets
 				// No additional URL setup needed as it's already configured

@@ -13,14 +13,15 @@ func TestGetLatestBundleRefsWithEncryption(t *testing.T) {
 	// Create temporary directories
 	tempDir, err := os.MkdirTemp("", "test-encrypted-refs")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	testPassphrase := "test-refs-passphrase-123"
 
@@ -59,12 +60,15 @@ func TestGetLatestBundleRefsWithEncryption(t *testing.T) {
 
 	// Verify we got actual git refs
 	found := false
+
 	for refName := range refs {
 		if refName == "refs/heads/master" || refName == "refs/heads/main" {
 			found = true
+
 			break
 		}
 	}
+
 	assert.True(t, found, "Should find master or main ref")
 
 	// Test 2: Try reading refs from encrypted bundle without passphrase
@@ -81,14 +85,15 @@ func TestRemoteRefsMatchWithEncryptedBundle(t *testing.T) {
 	// Create temporary directories
 	tempDir, err := os.MkdirTemp("", "test-encrypted-refs-match")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	testPassphrase := "test-refs-match-passphrase-456"
 

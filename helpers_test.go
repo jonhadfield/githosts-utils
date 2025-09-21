@@ -127,6 +127,7 @@ func TestGetResponseBody(t *testing.T) {
 	assert.Equal(t, "hello", string(out))
 
 	var gzBuf bytes.Buffer
+
 	gz := gzip.NewWriter(&gzBuf)
 	_, _ = gz.Write([]byte("hello"))
 	gz.Close()

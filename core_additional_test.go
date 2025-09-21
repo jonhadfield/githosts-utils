@@ -43,11 +43,13 @@ func TestSetLoggerPrefix(t *testing.T) {
 	prev := logger.Prefix()
 
 	setLoggerPrefix("prefix")
+
 	if logger.Prefix() != "prefix: " {
 		t.Errorf("unexpected prefix %q", logger.Prefix())
 	}
 
 	setLoggerPrefix("")
+
 	if logger.Prefix() != "prefix: " {
 		t.Errorf("empty prefix should not change")
 	}
@@ -59,9 +61,11 @@ func TestValidDiffRemoteMethod(t *testing.T) {
 	if err := validDiffRemoteMethod("clone"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if err := validDiffRemoteMethod("refs"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if err := validDiffRemoteMethod("bad"); err == nil {
 		t.Fatalf("expected error")
 	}
@@ -88,9 +92,11 @@ func TestGetHTTPClient(t *testing.T) {
 	if c == nil || c.HTTPClient == nil {
 		t.Fatal("nil client")
 	}
+
 	if c.RetryMax != 2 {
 		t.Errorf("expected retry max 2")
 	}
+
 	if c.HTTPClient.Timeout != 120*time.Second {
 		t.Errorf("unexpected timeout")
 	}

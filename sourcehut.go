@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -21,7 +22,13 @@ const (
 	sourcehutProviderName       = "sourcehut"
 	sourcehutDefaultWorkerDelay = 500
 	envSourcehutAPIURL          = "SOURCEHUT_APIURL"
-	envSourcehutToken           = "SOURCEHUT_PAT"
+	envSourcehutToken           = "SOURCEHUT_PAT" // nolint:gosec
+	sourcehutRepoCountPerPage   = 20
+	sourcehutMaxConcurrency     = defaultMaxConcurrentSourcehut
+	sourcehutGitHost            = "https://git.sr.ht/"
+	sourcehutSSHHost            = "git@git.sr.ht:"
+	sourcehutVisibilityPublic   = "public"
+	sourcehutTildePrefix        = "~"
 )
 
 type NewSourcehutHostInput struct {
@@ -83,7 +90,7 @@ func (sh *SourcehutHost) getAPIURL() string {
 	return sh.APIURL
 }
 
-func NewSourcehutHost(input NewSourcehutHostInput) (*SourcehutHost, error) {
+func NewSourcehutHost(input NewSourcehutHostInput) (*SourcehutHost, error) { //nolint:dupl // similar pattern across providers is intentional
 	setLoggerPrefix(input.Caller)
 
 	apiURL := sourcehutAPIURL
@@ -195,9 +202,9 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 	for {
 		var reqBody string
 		if cursor == nil {
-			reqBody = `{"query": "query { repositories(filter: {count: 20}) { results { id name description visibility owner { ... on User { username } } } cursor } }"}`
+			reqBody = `{"query": "query { repositories(filter: {count: ` + strconv.Itoa(sourcehutRepoCountPerPage) + `}) { results { id name description visibility owner { ... on User { username } } } cursor } }"}`
 		} else {
-			reqBody = `{"query": "query { repositories(cursor: \"` + *cursor + `\", filter: {count: 20}) { results { id name description visibility owner { ... on User { username } } } cursor } }"}`
+			reqBody = `{"query": "query { repositories(cursor: \"` + *cursor + `\", filter: {count: ` + strconv.Itoa(sourcehutRepoCountPerPage) + `}) { results { id name description visibility owner { ... on User { username } } } cursor } }"}`
 		}
 
 		bodyStr, err := sh.makeSourcehutRequest(reqBody)
@@ -221,7 +228,7 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 		for _, repo := range respObj.Data.Repositories.Results {
 			// SourceHut private repositories cannot be cloned via HTTPS with personal access tokens
 			// Only backup public repositories due to authentication limitations
-			if strings.ToLower(repo.Visibility) != "public" {
+			if strings.ToLower(repo.Visibility) != sourcehutVisibilityPublic {
 				logger.Printf("Skipping private SourceHut repository %s (visibility: %s) - HTTPS cloning not supported for private repos", repo.Name, repo.Visibility)
 
 				continue
@@ -232,16 +239,16 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 
 			// Ensure canonical name has the ~ prefix if it doesn't already
 			canonicalName := repo.Owner.Username
-			if !strings.HasPrefix(canonicalName, "~") {
-				canonicalName = "~" + canonicalName
+			if !strings.HasPrefix(canonicalName, sourcehutTildePrefix) {
+				canonicalName = sourcehutTildePrefix + canonicalName
 			}
 
 			// Construct URLs following SourceHut convention (no .git suffix)
-			httpsURL := "https://git.sr.ht/" + canonicalName + "/" + repo.Name
-			sshURL := "git@git.sr.ht:" + canonicalName + "/" + repo.Name
+			httpsURL := sourcehutGitHost + canonicalName + "/" + repo.Name
+			sshURL := sourcehutSSHHost + canonicalName + "/" + repo.Name
 
 			// For PathWithNameSpace, use the canonical name without ~ for file paths
-			pathCanonicalName := strings.TrimPrefix(canonicalName, "~")
+			pathCanonicalName := strings.TrimPrefix(canonicalName, sourcehutTildePrefix)
 
 			repos = append(repos, repository{
 				Name:              repo.Name,
@@ -331,7 +338,7 @@ func (sh *SourcehutHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := 5 // Lower concurrency for SourceHut to be respectful
+	maxConcurrent := sourcehutMaxConcurrency // Lower concurrency for SourceHut to be respectful
 
 	repoDesc, err := sh.describeRepos()
 	if err != nil {

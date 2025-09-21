@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -107,6 +108,7 @@ func getOriginalBundleName(encryptedBundlePath string) string {
 	if isEncryptedBundle(encryptedBundlePath) {
 		return strings.TrimSuffix(encryptedBundlePath, encryptedBundleExtension)
 	}
+
 	return encryptedBundlePath
 }
 

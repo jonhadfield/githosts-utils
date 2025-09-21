@@ -45,7 +45,7 @@ func (gh *GitHubHost) getAPIURL() string {
 	return gh.APIURL
 }
 
-func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) {
+func NewGitHubHost(input NewGitHubHostInput) (*GitHubHost, error) { //nolint:dupl // similar pattern across providers is intentional
 	setLoggerPrefix(input.Caller)
 
 	apiURL := githubAPIURL
@@ -185,7 +185,6 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	defer cancel()
 
 	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
-
 	if newReqErr != nil {
 		logger.Println(newReqErr)
 

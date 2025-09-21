@@ -29,6 +29,7 @@ func TestRemoteRefsMatchLocalRefsTrue(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("bundle: %v %s", err, out)
 	}
+
 	if !remoteRefsMatchLocalRefs(remoteDir, backupDir, "") {
 		t.Errorf("expected refs to match")
 	}
@@ -42,6 +43,7 @@ func TestRemoteRefsMatchLocalRefsFalse(t *testing.T) {
 	if err := os.MkdirAll(remoteDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.MkdirAll(backupDir, 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ const (
 	// Error message limits
 	maxErrorLines = 5
 	// Git count-objects parsing
-	minFieldsForCountObjects = 2
+	minFieldsForCountObjects  = 2
 	expectedCountObjectFields = 2
 )
 
@@ -216,23 +216,23 @@ func maskURLCredentials(str string) string {
 		if protocolEnd == -1 {
 			return str
 		}
-		
+
 		protocol := str[:protocolEnd+3]
 		remainder := str[protocolEnd+3:]
-		
+
 		// Check if there's an @ sign indicating credentials
 		atIndex := strings.Index(remainder, "@")
 		if atIndex == -1 {
 			return str // No credentials in URL
 		}
-		
+
 		// Everything before @ contains credentials, everything after is the domain/path
 		domainPath := remainder[atIndex+1:]
-		
+
 		// Return protocol + masked credentials + @ + domain/path
 		return protocol + "********@" + domainPath
 	}
-	
+
 	return str
 }
 
@@ -262,7 +262,7 @@ func httpRequest(in httpRequestInput) ([]byte, http.Header, int, error) {
 
 	var resp *http.Response
 
-	resp, err = in.client.Do(req)
+	resp, err = in.client.Do(req) //nolint:bodyclose // response body is closed with defer
 	if err != nil {
 		return nil, nil, 0, fmt.Errorf("request failed: %w", err)
 	}

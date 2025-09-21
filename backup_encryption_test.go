@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -29,7 +30,7 @@ func setupTestRepo(t *testing.T, repoDir string) {
 
 	// Add some content
 	testFile := filepath.Join(tempWorkDir, "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0o644))
 
 	// Add and commit
 	cmd = exec.Command("git", "add", ".")
@@ -58,11 +59,11 @@ func TestBackupWithoutEncryption(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	// Create a test repository
 	repo := repository{
@@ -75,13 +76,13 @@ func TestBackupWithoutEncryption(t *testing.T) {
 
 	// Test backup without encryption (empty passphrase)
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: "", // No encryption
 	})
 	require.NoError(t, err)
@@ -111,11 +112,11 @@ func TestBackupWithEncryption(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	// Create a test repository
 	repo := repository{
@@ -129,13 +130,13 @@ func TestBackupWithEncryption(t *testing.T) {
 	// Test backup with encryption
 	passphrase := "test-passphrase-123"
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: passphrase,
 	})
 	require.NoError(t, err)
@@ -185,11 +186,11 @@ func TestEncryptionWithExistingUnencryptedBundles(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	// Create a test repository
 	repo := repository{
@@ -202,13 +203,13 @@ func TestEncryptionWithExistingUnencryptedBundles(t *testing.T) {
 
 	// First backup without encryption
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: "", // No encryption
 	})
 	require.NoError(t, err)
@@ -230,13 +231,13 @@ func TestEncryptionWithExistingUnencryptedBundles(t *testing.T) {
 	// Second backup with encryption (same content, should replace unencrypted with encrypted)
 	passphrase := "test-passphrase-456"
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: passphrase,
 	})
 	require.NoError(t, err)
@@ -274,11 +275,11 @@ func TestNoEncryptionWithExistingEncryptedBundles(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	// Create a test repository
 	repo := repository{
@@ -292,13 +293,13 @@ func TestNoEncryptionWithExistingEncryptedBundles(t *testing.T) {
 	// First backup with encryption
 	passphrase := "test-passphrase-789"
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: passphrase,
 	})
 	require.NoError(t, err)
@@ -321,13 +322,13 @@ func TestNoEncryptionWithExistingEncryptedBundles(t *testing.T) {
 	// Second backup without encryption (same content)
 	// This should create a new unencrypted bundle but recognize it's identical via manifest hash comparison
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: "", // No encryption this time
 	})
 	require.NoError(t, err)
@@ -371,11 +372,11 @@ func TestManifestHashComparisonWithEncryptedBundles(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	// Create a test repository
 	repo := repository{
@@ -390,13 +391,13 @@ func TestManifestHashComparisonWithEncryptedBundles(t *testing.T) {
 
 	// First backup with encryption
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: passphrase,
 	})
 	require.NoError(t, err)
@@ -414,13 +415,13 @@ func TestManifestHashComparisonWithEncryptedBundles(t *testing.T) {
 
 	// Second backup with encryption (identical content)
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: passphrase,
 	})
 	require.NoError(t, err)
@@ -485,11 +486,11 @@ func TestBackupWithBundlePassphraseEnvVar(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	// Create a test repository
 	repo := repository{
@@ -506,13 +507,13 @@ func TestBackupWithBundlePassphraseEnvVar(t *testing.T) {
 
 	// Test backup with environment variable passphrase (no passphrase in input)
 	err = processBackup(processBackupInput{
-		LogLevel:            1,
-		Repo:                repo,
-		BackupDIR:           backupDir,
-		BackupsToKeep:       5,
-		DiffRemoteMethod:    "clone",
-		BackupLFS:           false,
-		Secrets:             []string{},
+		LogLevel:             1,
+		Repo:                 repo,
+		BackupDIR:            backupDir,
+		BackupsToKeep:        5,
+		DiffRemoteMethod:     "clone",
+		BackupLFS:            false,
+		Secrets:              []string{},
 		EncryptionPassphrase: "", // Empty - should use env var
 	})
 
@@ -616,11 +617,11 @@ func TestProviderHostsWithBundlePassphrase(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	testPassphrase := "provider-test-passphrase-456"
 
@@ -725,11 +726,11 @@ func TestWrongPassphraseScenarios(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	repo := repository{
 		Name:              "test-repo",
@@ -802,11 +803,11 @@ func TestWrongPassphraseScenarios(t *testing.T) {
 	// Test 4: Try to check if bundle is duplicate with wrong passphrase
 	t.Run("CheckBundleIsDuplicateWithWrongPassphrase", func(t *testing.T) {
 		workingDir := filepath.Join(tempDir, "working-wrong")
-		require.NoError(t, os.MkdirAll(workingDir, 0755))
+		require.NoError(t, os.MkdirAll(workingDir, 0o755))
 
 		// Create a test bundle in working directory
 		testBundle := filepath.Join(workingDir, "test.20250920000000.bundle")
-		err := os.WriteFile(testBundle, []byte("test bundle content"), 0644)
+		err := os.WriteFile(testBundle, []byte("test bundle content"), 0o644)
 		require.NoError(t, err)
 
 		// Try to check if duplicate with wrong passphrase
@@ -828,11 +829,11 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	repoDir := filepath.Join(tempDir, "test-repo")
-	require.NoError(t, os.MkdirAll(repoDir, 0755))
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
 	setupTestRepo(t, repoDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	repo := repository{
 		Name:              "test-repo",
@@ -878,19 +879,19 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		bundleData, err := os.ReadFile(originalBundle)
 		require.NoError(t, err)
-		err = os.WriteFile(backupBundle, bundleData, 0644)
+		err = os.WriteFile(backupBundle, bundleData, 0o644)
 		require.NoError(t, err)
 
 		manifestData, err := os.ReadFile(originalManifest)
 		require.NoError(t, err)
-		err = os.WriteFile(backupManifest, manifestData, 0644)
+		err = os.WriteFile(backupManifest, manifestData, 0o644)
 		require.NoError(t, err)
 
 		// Corrupt both the bundle and manifest to force bundle decryption
 		corruptData := []byte("This is corrupted data that will break decryption")
-		err = os.WriteFile(originalBundle, corruptData, 0644)
+		err = os.WriteFile(originalBundle, corruptData, 0o644)
 		require.NoError(t, err)
-		err = os.WriteFile(originalManifest, corruptData, 0644)
+		err = os.WriteFile(originalManifest, corruptData, 0o644)
 		require.NoError(t, err)
 
 		// Try to read refs from corrupted bundle (should fail when trying to decrypt bundle)
@@ -917,12 +918,12 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		manifestData, err := os.ReadFile(originalManifest)
 		require.NoError(t, err)
-		err = os.WriteFile(backupManifest, manifestData, 0644)
+		err = os.WriteFile(backupManifest, manifestData, 0o644)
 		require.NoError(t, err)
 
 		// Corrupt the manifest by writing random data
 		corruptData := []byte("Corrupted manifest data")
-		err = os.WriteFile(originalManifest, corruptData, 0644)
+		err = os.WriteFile(originalManifest, corruptData, 0o644)
 		require.NoError(t, err)
 
 		// Try to read refs (should fall back to decrypting bundle directly)
@@ -948,7 +949,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		bundleData, err := os.ReadFile(originalBundle)
 		require.NoError(t, err)
-		err = os.WriteFile(backupBundle, bundleData, 0644)
+		err = os.WriteFile(backupBundle, bundleData, 0o644)
 		require.NoError(t, err)
 
 		// Temporarily remove manifest to force bundle decryption
@@ -957,7 +958,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		// Truncate the file to simulate incomplete download/corruption
 		truncatedData := bundleData[:len(bundleData)/2]
-		err = os.WriteFile(originalBundle, truncatedData, 0644)
+		err = os.WriteFile(originalBundle, truncatedData, 0o644)
 		require.NoError(t, err)
 
 		// Try to read refs from truncated bundle
@@ -980,7 +981,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		bundleData, err := os.ReadFile(originalBundle)
 		require.NoError(t, err)
-		err = os.WriteFile(backupBundle, bundleData, 0644)
+		err = os.WriteFile(backupBundle, bundleData, 0o644)
 		require.NoError(t, err)
 
 		// Temporarily remove manifest to force bundle decryption
@@ -988,7 +989,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create empty file
-		err = os.WriteFile(originalBundle, []byte{}, 0644)
+		err = os.WriteFile(originalBundle, []byte{}, 0o644)
 		require.NoError(t, err)
 
 		// Try to read refs from empty bundle
@@ -1010,7 +1011,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	backupDir := filepath.Join(tempDir, "backup")
-	require.NoError(t, os.MkdirAll(backupDir, 0755))
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
 	repo := repository{
 		Name:              "test-repo",
@@ -1021,7 +1022,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 	}
 
 	backupRepoDir := filepath.Join(backupDir, repo.Domain, repo.PathWithNameSpace)
-	require.NoError(t, os.MkdirAll(backupRepoDir, 0755))
+	require.NoError(t, os.MkdirAll(backupRepoDir, 0o755))
 
 	passphrase := "test-passphrase-missing"
 
@@ -1035,7 +1036,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 	// Test 2: Try to read refs from empty backup directory
 	t.Run("EmptyBackupDirectory", func(t *testing.T) {
 		emptyDir := filepath.Join(tempDir, "empty")
-		require.NoError(t, os.MkdirAll(emptyDir, 0755))
+		require.NoError(t, os.MkdirAll(emptyDir, 0o755))
 
 		_, err := getLatestBundleRefs(emptyDir, passphrase)
 		assert.Error(t, err, "Should fail to read refs from empty backup directory")
@@ -1046,7 +1047,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 	t.Run("MissingBundleWithManifest", func(t *testing.T) {
 		// Create a manifest file without corresponding bundle
 		manifestFile := filepath.Join(backupRepoDir, "test.20250920000000.manifest.age")
-		err := os.WriteFile(manifestFile, []byte("fake encrypted manifest"), 0644)
+		err := os.WriteFile(manifestFile, []byte("fake encrypted manifest"), 0o644)
 		require.NoError(t, err)
 
 		_, err = getLatestBundleRefs(backupRepoDir, passphrase)
@@ -1058,11 +1059,11 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 		// Clean directory first
 		err := os.RemoveAll(backupRepoDir)
 		require.NoError(t, err)
-		require.NoError(t, os.MkdirAll(backupRepoDir, 0755))
+		require.NoError(t, os.MkdirAll(backupRepoDir, 0o755))
 
 		// Create a bundle file without corresponding manifest
 		bundleFile := filepath.Join(backupRepoDir, "test.20250920000000.bundle.age")
-		err = os.WriteFile(bundleFile, []byte("fake encrypted bundle"), 0644)
+		err = os.WriteFile(bundleFile, []byte("fake encrypted bundle"), 0o644)
 		require.NoError(t, err)
 
 		// This should attempt to decrypt the bundle directly since no manifest exists

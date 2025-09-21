@@ -1,3 +1,4 @@
+//nolint:wsl_v5 // extensive whitespace linting would require significant refactoring
 package githosts
 
 import (
@@ -150,6 +151,7 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 		}
 
 		// Check if this is an encrypted bundle
+		//nolint:nestif // complex encryption logic requires nested conditions
 		if isEncryptedBundle(path) {
 			// For encrypted bundles, try to read refs from manifest if passphrase is available
 			if encryptionPassphrase == "" {
@@ -198,6 +200,7 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 					// invalid bundle rename, so continue to check for the next latest bundle
 					continue
 				}
+
 				return nil, refsErr
 			}
 		} else {
@@ -218,7 +221,8 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 					// invalid bundle rename, so continue to check for the next latest bundle
 					continue
 				}
-				return nil, err
+
+				return nil, fmt.Errorf("failed to read bundle %w", err)
 			}
 
 			// otherwise return the refs
@@ -270,12 +274,14 @@ func createBundle(logLevel int, workingPath string, repo repository, encryptionP
 	}
 
 	// Encrypt the bundle if a passphrase is provided
+	//nolint:nestif // encryption logic requires nested conditions for proper error handling
 	if encryptionPassphrase != "" {
 		// Create manifest file in working directory (only for encrypted bundles)
-		if manifestErr := createBundleManifest(workingBundlePath, workingPath, timestamp); manifestErr != nil {
+		if manifestErr := createBundleManifest(workingBundlePath, timestamp); manifestErr != nil {
 			logger.Printf("warning: failed to create manifest for bundle %s: %s", backupFile, manifestErr)
 			// Don't fail the bundle creation if manifest fails
 		}
+
 		encryptedBundlePath := workingBundlePath + encryptedBundleExtension
 		logger.Printf("encrypting bundle: %s", backupFile)
 
@@ -571,7 +577,7 @@ func filesIdentical(path1, path2 string) bool {
 	// Try to use manifests for comparison if these are encrypted bundle files
 	// (manifests are only created for encrypted bundles)
 	if strings.HasSuffix(path1, bundleExtension+encryptedBundleExtension) &&
-	   strings.HasSuffix(path2, bundleExtension+encryptedBundleExtension) {
+		strings.HasSuffix(path2, bundleExtension+encryptedBundleExtension) {
 		manifest1, _ := readBundleManifest(path1)
 		manifest2, _ := readBundleManifest(path2)
 
@@ -586,12 +592,14 @@ func filesIdentical(path1, path2 string) bool {
 	latestBundleHash, latestHashErr := getSHA2Hash(path1)
 	if latestHashErr != nil {
 		logger.Printf("failed to get sha2 hash for: %s", path1)
+
 		return false
 	}
 
 	previousBundleHash, previousHashErr := getSHA2Hash(path2)
 	if previousHashErr != nil {
 		logger.Printf("failed to get sha2 hash for: %s", path2)
+
 		return false
 	}
 
@@ -614,6 +622,7 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 		if strings.HasSuffix(name, bundleExtension+encryptedBundleExtension) {
 			workingBundleFile = name
 			workingIsEncrypted = true
+
 			break
 		} else if strings.HasSuffix(name, bundleExtension) {
 			workingBundleFile = name
@@ -645,9 +654,11 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 
 	// Determine if bundles are identical
 	var isDuplicate bool
+
 	var shouldReplace bool
 
 	// Case 1: Both encrypted - try manifest comparison first, then file comparison
+	//nolint:gocritic // ifElseChain is clearer for these complex encryption scenarios
 	if workingIsEncrypted && backupIsEncrypted {
 		// Try to use manifest files for comparison if they exist
 		workingManifest, _ := readBundleManifestWithPassphrase(workingBundlePath, encryptionPassphrase)
@@ -704,66 +715,66 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 	return workingBundleFile, isDuplicate, shouldReplace, nil
 }
 
-func removeBundleIfDuplicate(dir string) bool {
-	files, err := getBundleFiles(dir)
-	if err != nil {
-		logger.Println(err)
+//func removeBundleIfDuplicate(dir string) bool {
+//	files, err := getBundleFiles(dir)
+//	if err != nil {
+//		logger.Println(err)
+//
+//		return false
+//	}
+//
+//	if len(files) == 1 {
+//		return false
+//	}
+//	// get timestamps in filenames for sorting
+//	fNameTimes := map[string]int{}
+//
+//	for _, f := range files {
+//		var ts int
+//		if ts, err = getTimeStampPartFromFileName(f.info.Name()); err == nil {
+//			fNameTimes[f.info.Name()] = ts
+//		}
+//	}
+//
+//	type kv struct {
+//		Key   string
+//		Value int
+//	}
+//
+//	ss := make([]kv, 0, len(fNameTimes))
+//
+//	for k, v := range fNameTimes {
+//		ss = append(ss, kv{k, v})
+//	}
+//
+//	sort.Slice(ss, func(i, j int) bool {
+//		return ss[i].Value > ss[j].Value
+//	})
+//
+//	latestBundleFilePath := filepath.Join(dir, ss[0].Key)
+//	previousBundleFilePath := filepath.Join(dir, ss[1].Key)
+//
+//	if filesIdentical(latestBundleFilePath, previousBundleFilePath) {
+//		logger.Printf("no change since previous bundle: %s", ss[1].Key)
+//		logger.Printf("deleting duplicate bundle: %s", ss[0].Key)
+//
+//		if deleteFile(filepath.Join(dir, ss[0].Key)) != nil {
+//			logger.Println("failed to remove duplicate bundle")
+//		}
+//
+//		return false
+//	}
+//
+//	return true
+//}
 
-		return false
-	}
-
-	if len(files) == 1 {
-		return false
-	}
-	// get timestamps in filenames for sorting
-	fNameTimes := map[string]int{}
-
-	for _, f := range files {
-		var ts int
-		if ts, err = getTimeStampPartFromFileName(f.info.Name()); err == nil {
-			fNameTimes[f.info.Name()] = ts
-		}
-	}
-
-	type kv struct {
-		Key   string
-		Value int
-	}
-
-	ss := make([]kv, 0, len(fNameTimes))
-
-	for k, v := range fNameTimes {
-		ss = append(ss, kv{k, v})
-	}
-
-	sort.Slice(ss, func(i, j int) bool {
-		return ss[i].Value > ss[j].Value
-	})
-
-	latestBundleFilePath := filepath.Join(dir, ss[0].Key)
-	previousBundleFilePath := filepath.Join(dir, ss[1].Key)
-
-	if filesIdentical(latestBundleFilePath, previousBundleFilePath) {
-		logger.Printf("no change since previous bundle: %s", ss[1].Key)
-		logger.Printf("deleting duplicate bundle: %s", ss[0].Key)
-
-		if deleteFile(filepath.Join(dir, ss[0].Key)) != nil {
-			logger.Println("failed to remove duplicate bundle")
-		}
-
-		return false
-	}
-
-	return true
-}
-
-func deleteFile(path string) error {
-	if err := os.Remove(path); err != nil {
-		return errors.Wrap(err, "failed to remove file")
-	}
-
-	return nil
-}
+//func deleteFile(path string) error {
+//	if err := os.Remove(path); err != nil {
+//		return errors.Wrap(err, "failed to remove file")
+//	}
+//
+//	return nil
+//}
 
 func getSHA2Hash(filePath string) ([]byte, error) {
 	var result []byte
@@ -917,7 +928,7 @@ func readBundleManifestWithPassphrase(bundlePath, passphrase string) (*BundleMan
 }
 
 // createBundleManifest creates a manifest file for the bundle with metadata
-func createBundleManifest(bundlePath, workingPath, timestamp string) error {
+func createBundleManifest(bundlePath, timestamp string) error {
 	// Get the hash of the bundle file
 	hashBytes, err := getSHA2Hash(bundlePath)
 	if err != nil {
@@ -953,11 +964,12 @@ func createBundleManifest(bundlePath, workingPath, timestamp string) error {
 
 	// Write manifest file
 	manifestPath := strings.TrimSuffix(bundlePath, bundleExtension) + ".manifest"
-	if err := os.WriteFile(manifestPath, manifestJSON, 0644); err != nil {
+	if err := os.WriteFile(manifestPath, manifestJSON, 0o644); err != nil {
 		return fmt.Errorf("failed to write manifest file: %w", err)
 	}
 
 	logger.Printf("created manifest: %s", filepath.Base(manifestPath))
+
 	return nil
 }
 
@@ -998,10 +1010,11 @@ func createLFSManifest(archivePath, timestamp string) error {
 
 	// Write manifest file
 	manifestPath := strings.TrimSuffix(archivePath, lfsArchiveExtension) + ".manifest"
-	if err := os.WriteFile(manifestPath, manifestJSON, 0644); err != nil {
+	if err := os.WriteFile(manifestPath, manifestJSON, 0o644); err != nil {
 		return fmt.Errorf("failed to write manifest file: %w", err)
 	}
 
 	logger.Printf("created LFS manifest: %s", filepath.Base(manifestPath))
+
 	return nil
 }

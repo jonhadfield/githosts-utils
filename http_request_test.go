@@ -16,6 +16,7 @@ func TestHTTPRequestSuccess(t *testing.T) {
 		if r.Method != http.MethodPost {
 			t.Errorf("unexpected method %s", r.Method)
 		}
+
 		if r.Header.Get("X-Test") != "true" {
 			t.Errorf("missing header")
 		}
@@ -43,7 +44,7 @@ func TestHTTPRequestSuccess(t *testing.T) {
 
 func TestHTTPRequestNoMethod(t *testing.T) {
 	client := retryablehttp.NewClient()
-	_, _, _, err := httpRequest(httpRequestInput{
+	_, _, _, err := httpRequest(httpRequestInput{ //nolint:dogsled // ignoring response values is intentional in test
 		client: client,
 		url:    "http://example.com",
 	})
