@@ -308,7 +308,7 @@ func createBundle(logLevel int, workingPath string, repo repository, encryptionP
 	return nil
 }
 
-func createLFSArchive(logLevel int, workingPath, backupPath string, repo repository) errors.E {
+func createLFSArchive(logLevel int, workingPath, backupPath string, repo repository, encryptionPassphrase string) errors.E {
 	timestamp := getTimestamp()
 	archiveFile := repo.Name + "." + timestamp + lfsArchiveExtension
 	archiveFilePath := filepath.Join(backupPath, archiveFile)
@@ -339,16 +339,18 @@ func createLFSArchive(logLevel int, workingPath, backupPath string, repo reposit
 		logger.Printf("git lfs archive create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startTar).String())
 	}
 
-	// Create manifest file for LFS archive
-	if manifestErr := createLFSManifest(archiveFilePath, timestamp); manifestErr != nil {
-		logger.Printf("warning: failed to create manifest for LFS archive %s: %s", archiveFile, manifestErr)
-		// Don't fail the archive creation if manifest fails
+	// Create manifest file for LFS archive (only for encrypted archives)
+	if encryptionPassphrase != "" {
+		if manifestErr := createLFSManifest(archiveFilePath, timestamp); manifestErr != nil {
+			logger.Printf("warning: failed to create manifest for LFS archive %s: %s", archiveFile, manifestErr)
+			// Don't fail the archive creation if manifest fails
+		}
 	}
 
 	return nil
 }
 
-func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string, repo repository, timestamp string) errors.E {
+func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string, repo repository, timestamp string, encryptionPassphrase string) errors.E {
 	archiveFile := repo.Name + "." + timestamp + lfsArchiveExtension
 	archiveFilePath := filepath.Join(backupPath, archiveFile)
 
@@ -378,10 +380,12 @@ func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string,
 		logger.Printf("git lfs archive create time for %s %s: %s", repo.Domain, repo.Name, time.Since(startTar).String())
 	}
 
-	// Create manifest file for LFS archive
-	if manifestErr := createLFSManifest(archiveFilePath, timestamp); manifestErr != nil {
-		logger.Printf("warning: failed to create manifest for LFS archive %s: %s", archiveFile, manifestErr)
-		// Don't fail the archive creation if manifest fails
+	// Create manifest file for LFS archive (only for encrypted archives)
+	if encryptionPassphrase != "" {
+		if manifestErr := createLFSManifest(archiveFilePath, timestamp); manifestErr != nil {
+			logger.Printf("warning: failed to create manifest for LFS archive %s: %s", archiveFile, manifestErr)
+			// Don't fail the archive creation if manifest fails
+		}
 	}
 
 	return nil
