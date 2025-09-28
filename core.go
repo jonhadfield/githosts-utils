@@ -106,6 +106,12 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase string)
 		return false
 	}
 
+	// If no valid bundles exist (lHeads is nil), we should proceed with backup
+	if lHeads == nil {
+		logger.Printf("no valid bundles for comparison, proceeding with backup")
+		return false
+	}
+
 	rHeads, err = getRemoteRefs(cloneURL)
 	if err != nil {
 		logger.Printf("failed to get remote refs")
@@ -237,6 +243,9 @@ func processBackup(in processBackupInput) errors.E {
 		return err
 	}
 
+	// Clean up any invalid bundles before starting the backup process
+	cleanupInvalidBundles(backupPath)
+
 	cloneURL := getCloneURL(in.Repo)
 
 	if shouldSkipBackup(in.DiffRemoteMethod, cloneURL, backupPath, in.Repo, in.EncryptionPassphrase) {
@@ -305,6 +314,9 @@ func processBackup(in processBackupInput) errors.E {
 						logger.Printf("warning: failed to remove old manifest: %s", removeErr)
 					}
 				}
+			} else if err != nil {
+				// Log but don't fail if we can't find the old bundle
+				logger.Printf("could not find old bundle to replace: %s", err)
 			}
 		}
 

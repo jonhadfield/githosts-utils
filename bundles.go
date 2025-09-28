@@ -38,7 +38,9 @@ func getLatestBundlePath(backupPath string) (string, error) {
 	}
 
 	if len(bFiles) == 0 {
-		return "", errors.New("no bundle files found in path")
+		// No valid bundle files found - this could be because all bundles have invalid timestamps
+		// Return a specific error that callers can handle appropriately
+		return "", errors.New("no valid bundle files found in path")
 	}
 
 	// get timestamps in filenames for sorting
@@ -147,6 +149,13 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 	for {
 		path, err := getLatestBundlePath(backupPath)
 		if err != nil {
+			// If no valid bundles found (e.g., all have invalid timestamps),
+			// return nil refs which will cause remoteRefsMatchLocalRefs to return false
+			// and allow the backup to proceed
+			if strings.Contains(err.Error(), "no valid bundle files found") {
+				logger.Printf("no valid bundles found for ref comparison: %s", err)
+				return nil, nil
+			}
 			return nil, err
 		}
 
@@ -397,6 +406,85 @@ func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string,
 	return nil
 }
 
+// renameBundleAsInvalid renames a bundle file with an invalid timestamp to have .invalid extension
+// If the bundle is encrypted and has a manifest, the manifest is also renamed
+func renameBundleAsInvalid(backupPath, bundleFileName string) error {
+	oldPath := filepath.Join(backupPath, bundleFileName)
+	newPath := oldPath + ".invalid"
+
+	// Rename the bundle file
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return fmt.Errorf("failed to rename bundle file: %w", err)
+	}
+
+	// Check if this is an encrypted bundle that might have a manifest
+	if strings.HasSuffix(bundleFileName, bundleExtension+encryptedBundleExtension) {
+		// Get the manifest filename by replacing .bundle.age with .manifest.age
+		manifestName := strings.TrimSuffix(bundleFileName, bundleExtension+encryptedBundleExtension) + manifestExtension + encryptedBundleExtension
+		manifestOldPath := filepath.Join(backupPath, manifestName)
+
+		// Check if manifest exists
+		if _, err := os.Stat(manifestOldPath); err == nil {
+			// Manifest exists, rename it too
+			manifestNewPath := manifestOldPath + ".invalid"
+			if err := os.Rename(manifestOldPath, manifestNewPath); err != nil {
+				logger.Printf("warning: failed to rename manifest file '%s': %s", manifestName, err)
+				// Don't return error here as the bundle was already renamed
+			}
+		}
+	}
+
+	return nil
+}
+
+// cleanupInvalidBundles scans the backup directory and renames any bundles with invalid timestamps
+// This ensures old invalid bundles don't cause issues during backup operations
+func cleanupInvalidBundles(backupPath string) {
+	// Check if directory exists
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return
+	}
+
+	// Read directory
+	files, err := os.ReadDir(backupPath)
+	if err != nil {
+		return
+	}
+
+	for _, f := range files {
+		name := f.Name()
+
+		// Skip already marked invalid files
+		if strings.HasSuffix(name, ".invalid") {
+			continue
+		}
+
+		// Check for both regular and encrypted bundles
+		isBundleFile := strings.HasSuffix(name, bundleExtension)
+		isEncryptedBundleFile := strings.HasSuffix(name, bundleExtension+encryptedBundleExtension)
+
+		if !isBundleFile && !isEncryptedBundleFile {
+			continue
+		}
+
+		// For encrypted bundles, we need to get the timestamp from the original bundle name
+		bundleName := name
+		if isEncryptedBundleFile {
+			bundleName = getOriginalBundleName(name)
+		}
+
+		// Check if timestamp is valid
+		_, err := timeStampFromBundleName(bundleName)
+		if err != nil {
+			// Bundle has invalid date - rename it
+			logger.Printf("cleaning up bundle with invalid timestamp: %s", name)
+			if renameErr := renameBundleAsInvalid(backupPath, name); renameErr != nil {
+				logger.Printf("failed to rename invalid bundle '%s': %s", name, renameErr)
+			}
+		}
+	}
+}
+
 func getBundleFiles(backupPath string) (bundleFiles, error) {
 	files, err := os.ReadDir(backupPath)
 	if err != nil {
@@ -407,6 +495,11 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 
 	for _, f := range files {
 		name := f.Name()
+		// Skip already marked invalid files
+		if strings.HasSuffix(name, ".invalid") {
+			continue
+		}
+
 		// Check for both regular and encrypted bundles
 		isBundleFile := strings.HasSuffix(name, bundleExtension)
 		isEncryptedBundleFile := strings.HasSuffix(name, bundleExtension+encryptedBundleExtension)
@@ -425,7 +518,13 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 
 		ts, err = timeStampFromBundleName(bundleName)
 		if err != nil {
-			return nil, err
+			// Bundle has invalid date - rename it
+			logger.Printf("bundle '%s' has invalid timestamp, marking as invalid: %s", name, err)
+			if renameErr := renameBundleAsInvalid(backupPath, name); renameErr != nil {
+				logger.Printf("failed to rename invalid bundle '%s': %s", name, renameErr)
+				// Even if rename fails, skip this bundle to avoid blocking the process
+			}
+			continue
 		}
 
 		var info os.FileInfo
@@ -459,10 +558,21 @@ func pruneBackups(backupPath string, keep int) errors.E {
 	var bfs bundleFiles
 
 	for _, f := range files {
-		if !strings.HasSuffix(f.Name(), bundleExtension) {
+		// Skip already marked invalid files
+		if strings.HasSuffix(f.Name(), ".invalid") {
+			continue
+		}
+
+		name := f.Name()
+		// Check for both regular and encrypted bundles
+		isBundleFile := strings.HasSuffix(name, bundleExtension)
+		isEncryptedBundleFile := strings.HasSuffix(name, bundleExtension+encryptedBundleExtension)
+
+		if !isBundleFile && !isEncryptedBundleFile {
 			// no need to mention skipping lfs archives, as they are not bundles
-			if !strings.HasSuffix(f.Name(), lfsArchiveExtension) && !strings.HasSuffix(f.Name(), manifestExtension) {
-				logger.Printf("skipping non bundle, non lfs, and non-manifest archive file '%s'", f.Name())
+			if !strings.HasSuffix(name, lfsArchiveExtension) && !strings.HasSuffix(name, manifestExtension) &&
+				!strings.HasSuffix(name, manifestExtension+encryptedBundleExtension) {
+				logger.Printf("skipping non bundle, non lfs, and non-manifest archive file '%s'", name)
 			}
 
 			continue
@@ -470,9 +580,21 @@ func pruneBackups(backupPath string, keep int) errors.E {
 
 		var ts time.Time
 
-		ts, err := timeStampFromBundleName(f.Name())
+		// For encrypted bundles, we need to get the timestamp from the original bundle name
+		bundleName := name
+		if isEncryptedBundleFile {
+			bundleName = getOriginalBundleName(name)
+		}
+
+		ts, err := timeStampFromBundleName(bundleName)
 		if err != nil {
-			return err
+			// Bundle has invalid date - rename it during pruning
+			logger.Printf("bundle '%s' has invalid timestamp during pruning, marking as invalid: %s", name, err)
+			if renameErr := renameBundleAsInvalid(backupPath, name); renameErr != nil {
+				logger.Printf("failed to rename invalid bundle '%s': %s", name, renameErr)
+				// Even if rename fails, skip this bundle to avoid blocking the process
+			}
+			continue
 		}
 
 		var info os.FileInfo
@@ -646,7 +768,9 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 	// Get the latest bundle in backup directory
 	latestBackupPath, err := getLatestBundlePath(backupPath)
 	if err != nil {
-		// If we can't find a latest bundle, assume it's not a duplicate
+		// If we can't find a valid latest bundle (e.g., all have invalid timestamps),
+		// treat this as having no existing bundles - not a duplicate
+		logger.Printf("could not find valid bundle for comparison: %s", err)
 		return workingBundleFile, false, false, nil
 	}
 
