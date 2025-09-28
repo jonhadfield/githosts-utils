@@ -2,6 +2,8 @@
 package githosts
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -113,22 +115,30 @@ func getOriginalBundleName(encryptedBundlePath string) string {
 }
 
 // compareEncryptedWithPlain compares an encrypted bundle with a plain bundle
-// by decrypting the encrypted one temporarily and comparing hashes
+// by comparing the hash of the plain bundle with the hash stored in the encrypted bundle's manifest
 func compareEncryptedWithPlain(encryptedPath, plainPath, passphrase string) (bool, error) {
-	// Create a temporary file for decryption
-	tempFile, err := os.CreateTemp("", "decrypted-bundle-*.bundle")
+	// Get hash of the plain bundle
+	plainHash, err := getSHA2Hash(plainPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to create temp file: %w", err)
-	}
-	tempPath := tempFile.Name()
-	tempFile.Close()
-	defer os.Remove(tempPath)
-
-	// Decrypt the encrypted bundle to temp file
-	if err = decryptFile(encryptedPath, tempPath, passphrase); err != nil {
-		return false, fmt.Errorf("failed to decrypt bundle for comparison: %w", err)
+		return false, fmt.Errorf("failed to hash plain bundle: %w", err)
 	}
 
-	// Compare the decrypted bundle with the plain bundle
-	return filesIdentical(tempPath, plainPath), nil
+	// Read the manifest from the encrypted bundle (only decrypts the manifest, not the bundle)
+	manifest, err := readBundleManifestWithPassphrase(encryptedPath, passphrase)
+	if err != nil {
+		return false, fmt.Errorf("failed to read encrypted manifest: %w", err)
+	}
+
+	if manifest == nil || manifest.BundleHash == "" {
+		return false, errors.New("encrypted bundle has no manifest or hash")
+	}
+
+	// Convert manifest hash string (hex) to bytes for comparison
+	manifestHashBytes, err := hex.DecodeString(manifest.BundleHash)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode manifest hash: %w", err)
+	}
+
+	// Compare hashes
+	return bytes.Equal(plainHash, manifestHashBytes), nil
 }
