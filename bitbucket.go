@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -120,7 +121,7 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 			return nil, errors.New("key and secret must be provided for BitBucket OAuth2 authentication")
 		}
 
-		oauthToken, err := auth(input.Key, input.Secret)
+		oauthToken, err := auth(httpClient, input.Key, input.Secret)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get BitBucket OAuth token")
 		}
@@ -134,9 +135,12 @@ func NewBitBucketHost(input NewBitBucketHostInput) (*BitbucketHost, error) {
 	return bitbucketHost, nil
 }
 
-func auth(key, secret string) (string, error) {
+func auth(httpClient *retryablehttp.Client, key, secret string) (string, error) {
+	// Disable debug logging to prevent credential exposure
+	httpClient.Logger = log.New(io.Discard, "", 0)
+
 	b, _, _, err := httpRequest(httpRequestInput{
-		client: retryablehttp.NewClient(),
+		client: httpClient,
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
 		method: http.MethodPost,
 		headers: http.Header{
@@ -178,8 +182,14 @@ func auth(key, secret string) (string, error) {
 
 // auth gets the OAuth2 access token for Bitbucket using the provided key and secret
 func (bb BitbucketHost) auth(key, secret string) (string, error) {
+	// Ensure the HTTP client has secure logging to prevent credential exposure
+	client := bb.HttpClient
+	if client.Logger != nil {
+		client.Logger = log.New(io.Discard, "", 0)
+	}
+
 	b, _, _, err := httpRequest(httpRequestInput{
-		client: bb.HttpClient,
+		client: client,
 		url:    fmt.Sprintf("https://%s:%s@bitbucket.org/site/oauth2/access_token", key, secret),
 		method: http.MethodPost,
 		headers: http.Header{
