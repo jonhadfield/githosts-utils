@@ -2,6 +2,7 @@
 package githosts
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -760,7 +761,7 @@ func TestWrongPassphraseScenarios(t *testing.T) {
 
 	// Test 1: Try to read refs from encrypted bundle with wrong passphrase
 	t.Run("GetLatestBundleRefsWithWrongPassphrase", func(t *testing.T) {
-		_, err := getLatestBundleRefs(backupRepoDir, wrongPassphrase)
+		_, err := getLatestBundleRefs(context.Background(), backupRepoDir, wrongPassphrase)
 		assert.Error(t, err, "Should fail to read refs with wrong passphrase")
 		assert.Contains(t, err.Error(), "failed to decrypt", "Error should indicate decryption failure")
 	})
@@ -768,7 +769,7 @@ func TestWrongPassphraseScenarios(t *testing.T) {
 	// Test 2: Try to compare refs with wrong passphrase
 	t.Run("RemoteRefsMatchWithWrongPassphrase", func(t *testing.T) {
 		repoURL := "file://" + repoDir
-		matches := remoteRefsMatchLocalRefs(repoURL, backupRepoDir, wrongPassphrase)
+		matches := remoteRefsMatchLocalRefs(context.Background(), repoURL, backupRepoDir, wrongPassphrase)
 		assert.False(t, matches, "Refs should not match when wrong passphrase is provided")
 	})
 
@@ -895,12 +896,12 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to read refs from corrupted bundle (should fail when trying to decrypt bundle)
-		_, err = getLatestBundleRefs(backupRepoDir, passphrase)
+		_, err = getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
 		assert.Error(t, err, "Should fail to read refs from corrupted encrypted bundle")
 
 		// Try refs comparison with corrupted bundle
 		repoURL := "file://" + repoDir
-		matches := remoteRefsMatchLocalRefs(repoURL, backupRepoDir, passphrase)
+		matches := remoteRefsMatchLocalRefs(context.Background(), repoURL, backupRepoDir, passphrase)
 		assert.False(t, matches, "Refs should not match when bundle is corrupted")
 
 		// Restore original files for other tests
@@ -927,7 +928,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to read refs (should fall back to decrypting bundle directly)
-		refs, err := getLatestBundleRefs(backupRepoDir, passphrase)
+		refs, err := getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
 		// This might succeed if it falls back to bundle decryption, or fail if manifest is required
 		if err != nil {
 			t.Logf("Failed to read refs with corrupted manifest (expected): %v", err)
@@ -962,7 +963,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to read refs from truncated bundle
-		_, err = getLatestBundleRefs(backupRepoDir, passphrase)
+		_, err = getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
 		assert.Error(t, err, "Should fail to read refs from truncated encrypted bundle")
 
 		// Restore original files
@@ -993,7 +994,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to read refs from empty bundle
-		_, err = getLatestBundleRefs(backupRepoDir, passphrase)
+		_, err = getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
 		assert.Error(t, err, "Should fail to read refs from empty encrypted bundle")
 
 		// Restore original files
@@ -1029,7 +1030,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 	// Test 1: Try to read refs from non-existent backup directory
 	t.Run("NonExistentBackupDirectory", func(t *testing.T) {
 		nonExistentDir := filepath.Join(tempDir, "nonexistent")
-		_, err := getLatestBundleRefs(nonExistentDir, passphrase)
+		_, err := getLatestBundleRefs(context.Background(), nonExistentDir, passphrase)
 		assert.Error(t, err, "Should fail to read refs from non-existent directory")
 	})
 
@@ -1038,7 +1039,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 		emptyDir := filepath.Join(tempDir, "empty")
 		require.NoError(t, os.MkdirAll(emptyDir, 0o755))
 
-		_, err := getLatestBundleRefs(emptyDir, passphrase)
+		_, err := getLatestBundleRefs(context.Background(), emptyDir, passphrase)
 		assert.Error(t, err, "Should fail to read refs from empty backup directory")
 		assert.Contains(t, err.Error(), "no bundle files found", "Error should indicate no bundles found")
 	})
@@ -1050,7 +1051,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 		err := os.WriteFile(manifestFile, []byte("fake encrypted manifest"), 0o644)
 		require.NoError(t, err)
 
-		_, err = getLatestBundleRefs(backupRepoDir, passphrase)
+		_, err = getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
 		assert.Error(t, err, "Should fail when manifest exists but bundle is missing")
 	})
 
@@ -1067,7 +1068,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// This should attempt to decrypt the bundle directly since no manifest exists
-		_, err = getLatestBundleRefs(backupRepoDir, passphrase)
+		_, err = getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
 		assert.Error(t, err, "Should fail to decrypt fake bundle content")
 	})
 }

@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"os/exec"
@@ -130,7 +131,7 @@ func TestGetRemoteRefs(t *testing.T) {
 		t.Fatalf("clone: %v %s", err, out)
 	}
 
-	refs, err := getRemoteRefs(remoteDir)
+	refs, err := getRemoteRefs(context.Background(), remoteDir)
 	if err != nil {
 		t.Fatalf("getRemoteRefs failed: %v", err)
 	}

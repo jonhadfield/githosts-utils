@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,7 +55,7 @@ func TestGetLatestBundleRefsWithEncryption(t *testing.T) {
 	require.Len(t, encryptedBundleFiles, 1, "Should have one encrypted bundle")
 
 	// Test reading refs from encrypted bundle with correct passphrase
-	refs, err := getLatestBundleRefs(backupRepoDir, testPassphrase)
+	refs, err := getLatestBundleRefs(context.Background(), backupRepoDir, testPassphrase)
 	require.NoError(t, err)
 	assert.NotEmpty(t, refs, "Should be able to read refs from encrypted bundle with passphrase")
 
@@ -72,12 +73,12 @@ func TestGetLatestBundleRefsWithEncryption(t *testing.T) {
 	assert.True(t, found, "Should find master or main ref")
 
 	// Test 2: Try reading refs from encrypted bundle without passphrase
-	refs, err = getLatestBundleRefs(backupRepoDir, "")
+	refs, err = getLatestBundleRefs(context.Background(), backupRepoDir, "")
 	assert.Error(t, err, "Should fail to read refs from encrypted bundle without passphrase")
 	assert.Contains(t, err.Error(), "encrypted bundle found but no passphrase provided", "Error should indicate passphrase needed")
 
 	// Test 3: Try reading refs with wrong passphrase
-	refs, err = getLatestBundleRefs(backupRepoDir, "wrong-passphrase")
+	refs, err = getLatestBundleRefs(context.Background(), backupRepoDir, "wrong-passphrase")
 	assert.Error(t, err, "Should fail to read refs from encrypted bundle with wrong passphrase")
 }
 
@@ -123,10 +124,10 @@ func TestRemoteRefsMatchWithEncryptedBundle(t *testing.T) {
 
 	// Test refs matching with encrypted bundle and correct passphrase
 	repoURL := "file://" + repoDir
-	matches := remoteRefsMatchLocalRefs(repoURL, backupRepoDir, testPassphrase)
+	matches := remoteRefsMatchLocalRefs(context.Background(), repoURL, backupRepoDir, testPassphrase)
 	assert.True(t, matches, "Refs should match when passphrase is provided for encrypted bundle")
 
 	// Test refs matching with encrypted bundle but no passphrase
-	matches = remoteRefsMatchLocalRefs(repoURL, backupRepoDir, "")
+	matches = remoteRefsMatchLocalRefs(context.Background(), repoURL, backupRepoDir, "")
 	assert.False(t, matches, "Refs should not match when no passphrase provided for encrypted bundle")
 }
