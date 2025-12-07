@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	"bytes"
 	"compress/gzip"
 	"io"
@@ -105,7 +106,7 @@ func TestIsEmpty(t *testing.T) {
 	cmd := exec.Command("git", "init", repo)
 	assert.NoError(t, cmd.Run())
 
-	empty, err := isEmpty(repo)
+	empty, err := isEmpty(context.Background(), repo)
 	assert.NoError(t, err)
 	assert.True(t, empty)
 
@@ -114,7 +115,7 @@ func TestIsEmpty(t *testing.T) {
 	assert.NoError(t, exec.Command("git", "-C", repo, "add", "file.txt").Run())
 	assert.NoError(t, exec.Command("git", "-C", repo, "-c", "user.email=a@b", "-c", "user.name=n", "commit", "-m", "c").Run())
 
-	empty, err = isEmpty(repo)
+	empty, err = isEmpty(context.Background(), repo)
 	assert.NoError(t, err)
 	assert.False(t, empty)
 }
@@ -139,7 +140,7 @@ func TestGetResponseBody(t *testing.T) {
 }
 
 func TestGetBundleRefs(t *testing.T) {
-	refs, err := getBundleRefs("testfiles/example-bundles/example.20221102202522.bundle")
+	refs, err := getBundleRefs(context.Background(), "testfiles/example-bundles/example.20221102202522.bundle")
 	assert.NoError(t, err)
 	assert.Equal(t, "2c84a508078d81eae0246ae3f3097befd0bcb7dc", refs["refs/heads/master"])
 }

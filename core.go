@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -84,7 +85,7 @@ type gitProvider interface {
 // gitRefs is a mapping of references to SHAs.
 type gitRefs map[string]string
 
-func remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase string) bool {
+func remoteRefsMatchLocalRefs(ctx context.Context, cloneURL, backupPath, encryptionPassphrase string) bool {
 	// if there's no backup path then return false
 	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 		return false
@@ -99,7 +100,7 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase string)
 
 	var err error
 
-	lHeads, err = getLatestBundleRefs(backupPath, encryptionPassphrase)
+	lHeads, err = getLatestBundleRefs(ctx, backupPath, encryptionPassphrase)
 	if err != nil {
 		logger.Printf("failed to get latest bundle refs for %s", backupPath)
 
@@ -112,7 +113,7 @@ func remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase string)
 		return false
 	}
 
-	rHeads, err = getRemoteRefs(cloneURL)
+	rHeads, err = getRemoteRefs(ctx, cloneURL)
 	if err != nil {
 		logger.Printf("failed to get remote refs")
 
@@ -186,10 +187,10 @@ func generateMapFromRefsCmdOutput(in []byte) (refs gitRefs) {
 	return
 }
 
-func getRemoteRefs(cloneURL string) (refs gitRefs, err error) {
+func getRemoteRefs(ctx context.Context, cloneURL string) (refs gitRefs, err error) {
 	// --refs ignores pseudo-refs like HEAD and FETCH_HEAD, and also peeled tags that reference other objects
 	// this enables comparison with refs from existing bundles
-	remoteHeadsCmd := exec.Command("git", "ls-remote", "--refs", cloneURL)
+	remoteHeadsCmd := exec.CommandContext(ctx, "git", "ls-remote", "--refs", cloneURL)
 
 	out, err := remoteHeadsCmd.CombinedOutput()
 	if err != nil {
@@ -234,10 +235,22 @@ type processBackupInput struct {
 	DiffRemoteMethod     string
 	BackupLFS            bool
 	Secrets              []string
-	EncryptionPassphrase string // Optional passphrase for age encryption
+	EncryptionPassphrase string        // Optional passphrase for age encryption
+	Timeout              time.Duration // Optional timeout for git operations, defaults to 10 minutes
 }
 
+const defaultCommandTimeout = 10 * time.Minute
+
 func processBackup(in processBackupInput) errors.E {
+	// Create context with timeout
+	timeout := in.Timeout
+	if timeout == 0 {
+		timeout = defaultCommandTimeout
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	workingPath, backupPath, err := setupBackupPaths(in.Repo, in.BackupDIR)
 	if err != nil {
 		return err
@@ -248,11 +261,12 @@ func processBackup(in processBackupInput) errors.E {
 
 	cloneURL := getCloneURL(in.Repo)
 
-	if shouldSkipBackup(in.DiffRemoteMethod, cloneURL, backupPath, in.Repo, in.EncryptionPassphrase) {
+	if shouldSkipBackup(ctx, in.DiffRemoteMethod, cloneURL, backupPath, in.Repo, in.EncryptionPassphrase) {
 		return nil
 	}
 
 	if err = cloneRepository(cloneRepositoryInput{
+		Ctx:         ctx,
 		Repo:        in.Repo,
 		CloneURL:    cloneURL,
 		WorkingPath: workingPath,
@@ -263,7 +277,7 @@ func processBackup(in processBackupInput) errors.E {
 		return err
 	}
 
-	if err = createBundle(in.LogLevel, workingPath, in.Repo, in.EncryptionPassphrase); err != nil {
+	if err = createBundle(ctx, in.LogLevel, workingPath, in.Repo, in.EncryptionPassphrase); err != nil {
 		if strings.HasSuffix(err.Error(), "is empty") {
 			logger.Printf("skipping empty %s repository %s", in.Repo.Domain, in.Repo.PathWithNameSpace)
 
@@ -344,7 +358,7 @@ func processBackup(in processBackupInput) errors.E {
 	}
 
 	if in.BackupLFS {
-		if err := handleLFSBackup(in.LogLevel, workingPath, backupPath, in.Repo, isUpdated, in.EncryptionPassphrase); err != nil {
+		if err := handleLFSBackup(ctx, in.LogLevel, workingPath, backupPath, in.Repo, isUpdated, in.EncryptionPassphrase); err != nil {
 			return err
 		}
 	}
@@ -370,9 +384,9 @@ func setupBackupPaths(repo repository, backupDIR string) (workingPath, backupPat
 	return workingPath, backupPath, nil
 }
 
-func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo repository, encryptionPassphrase string) bool {
+func shouldSkipBackup(ctx context.Context, diffRemoteMethod, cloneURL, backupPath string, repo repository, encryptionPassphrase string) bool {
 	if diffRemoteMethod == refsMethod {
-		if remoteRefsMatchLocalRefs(cloneURL, backupPath, encryptionPassphrase) {
+		if remoteRefsMatchLocalRefs(ctx, cloneURL, backupPath, encryptionPassphrase) {
 			logger.Printf("skipping clone of %s repo '%s' as refs match existing bundle", repo.Domain, repo.PathWithNameSpace)
 
 			return true
@@ -383,6 +397,7 @@ func shouldSkipBackup(diffRemoteMethod, cloneURL, backupPath string, repo reposi
 }
 
 type cloneRepositoryInput struct {
+	Ctx         context.Context
 	Repo        repository
 	CloneURL    string
 	WorkingPath string
@@ -398,7 +413,7 @@ func cloneRepository(in cloneRepositoryInput) errors.E {
 	//	logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))
 	//}
 
-	cloneCmd := buildCloneCommand(in.CloneURL, in.WorkingPath, in.BackupDIR)
+	cloneCmd := buildCloneCommand(in.Ctx, in.CloneURL, in.WorkingPath, in.BackupDIR)
 
 	// Log the command being executed for debugging, with URL credentials masked
 	// maskedCmd := maskGitCommand(cloneCmd.Args)
@@ -413,10 +428,10 @@ func cloneRepository(in cloneRepositoryInput) errors.E {
 	return nil
 }
 
-func buildCloneCommand(cloneURL, workingPath, backupDIR string) *exec.Cmd {
+func buildCloneCommand(ctx context.Context, cloneURL, workingPath, backupDIR string) *exec.Cmd {
 	var cloneCmd *exec.Cmd
 	if strings.Contains(cloneURL, "git.sr.ht") {
-		cloneCmd = exec.Command("git",
+		cloneCmd = exec.CommandContext(ctx, "git",
 			"-c", "http.followRedirects=false",
 			"-c", "http.postBuffer=524288000",
 			"-c", "http.maxRequestBuffer=100M",
@@ -424,7 +439,7 @@ func buildCloneCommand(cloneURL, workingPath, backupDIR string) *exec.Cmd {
 			"-c", "http.extraHeader=User-Agent: git/2.39.0",
 			"clone", "-v", "--mirror", cloneURL, workingPath)
 	} else {
-		cloneCmd = exec.Command("git", "clone", "-v", "--mirror", cloneURL, workingPath)
+		cloneCmd = exec.CommandContext(ctx, "git", "clone", "-v", "--mirror", cloneURL, workingPath)
 	}
 
 	cloneCmd.Dir = backupDIR
@@ -481,14 +496,14 @@ func handleCloneError(repo repository, cloneOut []byte, cloneErr error, cloneURL
 	return errors.Wrapf(cloneErr, "cloning failed for repository: %s - exit status: %v", repo.Name, cloneErr)
 }
 
-func handleLFSBackup(logLevel int, workingPath, backupPath string, repo repository, isUpdated bool, encryptionPassphrase string) errors.E {
+func handleLFSBackup(ctx context.Context, logLevel int, workingPath, backupPath string, repo repository, isUpdated bool, encryptionPassphrase string) errors.E {
 	needsLFSBackup, useExistingTimestamp := determineLFSBackupNeeds(backupPath, repo, isUpdated)
 
 	if !needsLFSBackup {
 		return nil
 	}
 
-	hasLFSFiles, err := checkForLFSFiles(workingPath)
+	hasLFSFiles, err := checkForLFSFiles(ctx, workingPath)
 	if err != nil {
 		return err
 	}
@@ -499,15 +514,15 @@ func handleLFSBackup(logLevel int, workingPath, backupPath string, repo reposito
 		return nil
 	}
 
-	if err := fetchLFSFiles(workingPath); err != nil {
+	if err := fetchLFSFiles(ctx, workingPath); err != nil {
 		return err
 	}
 
 	if useExistingTimestamp != "" {
-		return createLFSArchiveWithTimestamp(logLevel, workingPath, backupPath, repo, useExistingTimestamp, encryptionPassphrase)
+		return createLFSArchiveWithTimestamp(ctx, logLevel, workingPath, backupPath, repo, useExistingTimestamp, encryptionPassphrase)
 	}
 
-	return createLFSArchive(logLevel, workingPath, backupPath, repo, encryptionPassphrase)
+	return createLFSArchive(ctx, logLevel, workingPath, backupPath, repo, encryptionPassphrase)
 }
 
 func determineLFSBackupNeeds(backupPath string, repo repository, isUpdated bool) (needsBackup bool, timestamp string) {
@@ -538,8 +553,8 @@ func determineLFSBackupNeeds(backupPath string, repo repository, isUpdated bool)
 	return true, ""
 }
 
-func checkForLFSFiles(workingPath string) (bool, errors.E) {
-	lfsFilesCmd := exec.Command("git", "lfs", "ls-files")
+func checkForLFSFiles(ctx context.Context, workingPath string) (bool, errors.E) {
+	lfsFilesCmd := exec.CommandContext(ctx, "git", "lfs", "ls-files")
 
 	lfsFilesCmd.Dir = workingPath
 
@@ -551,8 +566,8 @@ func checkForLFSFiles(workingPath string) (bool, errors.E) {
 	return len(strings.TrimSpace(string(lfsFilesOut))) > 0, nil
 }
 
-func fetchLFSFiles(workingPath string) errors.E {
-	lfsCmd := exec.Command("git", "lfs", "fetch", "--all")
+func fetchLFSFiles(ctx context.Context, workingPath string) errors.E {
+	lfsCmd := exec.CommandContext(ctx, "git", "lfs", "fetch", "--all")
 	lfsCmd.Dir = workingPath
 
 	if out, err := lfsCmd.CombinedOutput(); err != nil {

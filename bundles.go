@@ -3,6 +3,7 @@ package githosts
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -74,8 +75,8 @@ func getLatestBundlePath(backupPath string) (string, error) {
 	return filepath.Join(backupPath, ss[0].Key), nil
 }
 
-func getBundleRefs(bundlePath string) (gitRefs, error) {
-	bundleRefsCmd := exec.Command("git", "bundle", "list-heads", bundlePath)
+func getBundleRefs(ctx context.Context, bundlePath string) (gitRefs, error) {
+	bundleRefsCmd := exec.CommandContext(ctx, "git", "bundle", "list-heads", bundlePath)
 
 	out, bundleRefsCmdErr := bundleRefsCmd.CombinedOutput()
 	if bundleRefsCmdErr != nil {
@@ -144,7 +145,7 @@ func lfsArchiveExistsForLatestBundle(backupPath, repoName string) (bool, error) 
 	return true, nil
 }
 
-func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, error) {
+func getLatestBundleRefs(ctx context.Context, backupPath, encryptionPassphrase string) (gitRefs, error) {
 	// if we encounter an invalid bundle, then we need to repeat until we find a valid one or run out
 	for {
 		path, err := getLatestBundlePath(backupPath)
@@ -193,7 +194,7 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 			}
 
 			// Read refs from decrypted bundle
-			if refs, refsErr := getBundleRefs(tempPath); refsErr == nil {
+			if refs, refsErr := getBundleRefs(ctx, tempPath); refsErr == nil {
 				return refs, nil
 			} else {
 				// Check if it's an invalid bundle
@@ -216,7 +217,7 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 			// Unencrypted bundle - use existing logic
 			var refs gitRefs
 
-			if refs, err = getBundleRefs(path); err != nil {
+			if refs, err = getBundleRefs(ctx, path); err != nil {
 				// failed to get refs
 				if strings.Contains(err.Error(), invalidBundleStringCheck) {
 					// rename the invalid bundle
@@ -240,7 +241,7 @@ func getLatestBundleRefs(backupPath, encryptionPassphrase string) (gitRefs, erro
 	}
 }
 
-func createBundle(logLevel int, workingPath string, repo repository, encryptionPassphrase string) errors.E {
+func createBundle(ctx context.Context, logLevel int, workingPath string, repo repository, encryptionPassphrase string) errors.E {
 	objectsPath := filepath.Join(workingPath, "objects")
 
 	dirs, readErr := os.ReadDir(objectsPath)
@@ -248,7 +249,7 @@ func createBundle(logLevel int, workingPath string, repo repository, encryptionP
 		return errors.Errorf("failed to read objectsPath: %s: %s", objectsPath, readErr)
 	}
 
-	emptyClone, err := isEmpty(workingPath)
+	emptyClone, err := isEmpty(ctx, workingPath)
 	if err != nil {
 		return errors.Errorf("failed to check if clone is empty: %s", err)
 	}
@@ -264,7 +265,7 @@ func createBundle(logLevel int, workingPath string, repo repository, encryptionP
 
 	logger.Printf("creating bundle for: %s", repo.Name)
 
-	bundleCmd := exec.Command("git", "bundle", "create", workingBundlePath, "--all")
+	bundleCmd := exec.CommandContext(ctx, "git", "bundle", "create", workingBundlePath, "--all")
 	bundleCmd.Dir = workingPath
 
 	var bundleOut bytes.Buffer
@@ -286,7 +287,7 @@ func createBundle(logLevel int, workingPath string, repo repository, encryptionP
 	//nolint:nestif // encryption logic requires nested conditions for proper error handling
 	if encryptionPassphrase != "" {
 		// Create manifest file in working directory (only for encrypted bundles)
-		if manifestErr := createBundleManifest(workingBundlePath, timestamp); manifestErr != nil {
+		if manifestErr := createBundleManifest(ctx, workingBundlePath, timestamp); manifestErr != nil {
 			logger.Printf("warning: failed to create manifest for bundle %s: %s", backupFile, manifestErr)
 			// Don't fail the bundle creation if manifest fails
 		}
@@ -323,7 +324,7 @@ func createBundle(logLevel int, workingPath string, repo repository, encryptionP
 	return nil
 }
 
-func createLFSArchive(logLevel int, workingPath, backupPath string, repo repository, encryptionPassphrase string) errors.E {
+func createLFSArchive(ctx context.Context, logLevel int, workingPath, backupPath string, repo repository, encryptionPassphrase string) errors.E {
 	timestamp := getTimestamp()
 	archiveFile := repo.Name + "." + timestamp + lfsArchiveExtension
 	archiveFilePath := filepath.Join(backupPath, archiveFile)
@@ -335,7 +336,7 @@ func createLFSArchive(logLevel int, workingPath, backupPath string, repo reposit
 
 	logger.Printf("creating git lfs archive for: %s", repo.Name)
 
-	tarCmd := exec.Command("tar", "-czf", archiveFilePath, "lfs")
+	tarCmd := exec.CommandContext(ctx, "tar", "-czf", archiveFilePath, "lfs")
 	tarCmd.Dir = workingPath
 
 	var tarOut bytes.Buffer
@@ -365,7 +366,7 @@ func createLFSArchive(logLevel int, workingPath, backupPath string, repo reposit
 	return nil
 }
 
-func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string, repo repository, timestamp string, encryptionPassphrase string) errors.E {
+func createLFSArchiveWithTimestamp(ctx context.Context, logLevel int, workingPath, backupPath string, repo repository, timestamp string, encryptionPassphrase string) errors.E {
 	archiveFile := repo.Name + "." + timestamp + lfsArchiveExtension
 	archiveFilePath := filepath.Join(backupPath, archiveFile)
 
@@ -376,7 +377,7 @@ func createLFSArchiveWithTimestamp(logLevel int, workingPath, backupPath string,
 
 	logger.Printf("creating git lfs archive for: %s", repo.Name)
 
-	tarCmd := exec.Command("tar", "-czf", archiveFilePath, "lfs")
+	tarCmd := exec.CommandContext(ctx, "tar", "-czf", archiveFilePath, "lfs")
 	tarCmd.Dir = workingPath
 
 	var tarOut bytes.Buffer
@@ -1052,7 +1053,7 @@ func readBundleManifestWithPassphrase(bundlePath, passphrase string) (*BundleMan
 }
 
 // createBundleManifest creates a manifest file for the bundle with metadata
-func createBundleManifest(bundlePath, timestamp string) error {
+func createBundleManifest(ctx context.Context, bundlePath, timestamp string) error {
 	// Get the hash of the bundle file
 	hashBytes, err := getSHA2Hash(bundlePath)
 	if err != nil {
@@ -1061,7 +1062,7 @@ func createBundleManifest(bundlePath, timestamp string) error {
 	hashStr := hex.EncodeToString(hashBytes)
 
 	// Get git refs from the bundle
-	refs, err := getBundleRefs(bundlePath)
+	refs, err := getBundleRefs(ctx, bundlePath)
 	if err != nil {
 		return fmt.Errorf("failed to get bundle refs: %w", err)
 	}
@@ -1088,7 +1089,7 @@ func createBundleManifest(bundlePath, timestamp string) error {
 
 	// Write manifest file
 	manifestPath := strings.TrimSuffix(bundlePath, bundleExtension) + ".manifest"
-	if err := os.WriteFile(manifestPath, manifestJSON, 0o644); err != nil {
+	if err := os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
 		return fmt.Errorf("failed to write manifest file: %w", err)
 	}
 
@@ -1134,7 +1135,7 @@ func createLFSManifest(archivePath, timestamp string) error {
 
 	// Write manifest file
 	manifestPath := strings.TrimSuffix(archivePath, lfsArchiveExtension) + ".manifest"
-	if err := os.WriteFile(manifestPath, manifestJSON, 0o644); err != nil {
+	if err := os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
 		return fmt.Errorf("failed to write manifest file: %w", err)
 	}
 

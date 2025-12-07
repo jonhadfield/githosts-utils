@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	b64 "encoding/base64"
 	"fmt"
 	"log"
@@ -76,7 +77,7 @@ func TestAllTrue(t *testing.T) {
 func TestGetLatestBundleRefs(t *testing.T) {
 	t.Parallel()
 
-	refs, err := getLatestBundleRefs("testfiles/example-bundles", "")
+	refs, err := getLatestBundleRefs(context.Background(), "testfiles/example-bundles", "")
 	require.NoError(t, err)
 
 	var found int

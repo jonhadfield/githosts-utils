@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,7 +31,7 @@ func TestRemoteRefsMatchLocalRefsTrue(t *testing.T) {
 		t.Fatalf("bundle: %v %s", err, out)
 	}
 
-	if !remoteRefsMatchLocalRefs(remoteDir, backupDir, "") {
+	if !remoteRefsMatchLocalRefs(context.Background(), remoteDir, backupDir, "") {
 		t.Errorf("expected refs to match")
 	}
 }
@@ -69,7 +70,7 @@ func TestRemoteRefsMatchLocalRefsFalse(t *testing.T) {
 		t.Fatalf("commit: %v %s", err, out)
 	}
 
-	if remoteRefsMatchLocalRefs(remoteDir, backupDir, "") {
+	if remoteRefsMatchLocalRefs(context.Background(), remoteDir, backupDir, "") {
 		t.Errorf("expected refs to differ")
 	}
 }

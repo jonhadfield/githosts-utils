@@ -3,6 +3,7 @@ package githosts
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -117,8 +118,8 @@ func parseGitError(out []byte) string {
 	return strings.Join(lines, "; ")
 }
 
-func isEmpty(clonedRepoPath string) (bool, errors.E) {
-	remoteHeadsCmd := exec.Command("git", "count-objects", "-v")
+func isEmpty(ctx context.Context, clonedRepoPath string) (bool, errors.E) {
+	remoteHeadsCmd := exec.CommandContext(ctx, "git", "count-objects", "-v")
 	remoteHeadsCmd.Dir = clonedRepoPath
 
 	out, err := remoteHeadsCmd.CombinedOutput()
