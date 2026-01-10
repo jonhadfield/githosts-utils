@@ -1039,9 +1039,11 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 		emptyDir := filepath.Join(tempDir, "empty")
 		require.NoError(t, os.MkdirAll(emptyDir, 0o755))
 
-		_, err := getLatestBundleRefs(context.Background(), emptyDir, passphrase)
-		assert.Error(t, err, "Should fail to read refs from empty backup directory")
-		assert.Contains(t, err.Error(), "no bundle files found", "Error should indicate no bundles found")
+		refs, err := getLatestBundleRefs(context.Background(), emptyDir, passphrase)
+		// Empty directory should return nil refs and nil error (by design)
+		// This allows backups to proceed when no existing bundles exist
+		assert.NoError(t, err, "Empty directory should not return error")
+		assert.Nil(t, refs, "Should return nil refs for empty directory")
 	})
 
 	// Test 3: Backup directory with only manifest file (missing bundle)
@@ -1051,8 +1053,11 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 		err := os.WriteFile(manifestFile, []byte("fake encrypted manifest"), 0o644)
 		require.NoError(t, err)
 
-		_, err = getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
-		assert.Error(t, err, "Should fail when manifest exists but bundle is missing")
+		refs, err := getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
+		// Manifest-only directory should return nil refs and nil error (by design)
+		// Bundle files are required; manifest files alone are not sufficient
+		assert.NoError(t, err, "Manifest without bundle should not return error")
+		assert.Nil(t, refs, "Should return nil refs when only manifest exists")
 	})
 
 	// Test 4: Bundle exists but manifest is missing

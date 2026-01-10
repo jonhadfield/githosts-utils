@@ -194,7 +194,7 @@ func TestGetLatestBundlePath(t *testing.T) {
 	require.NoError(t, err)
 	bundlePath, err = getLatestBundlePath(dir)
 	require.Empty(t, bundlePath)
-	require.Contains(t, err.Error(), "no bundle files found in path")
+	require.Contains(t, err.Error(), "no valid bundle files found in path")
 
 	// directory with two bundles
 	bundlePath, err = getLatestBundlePath("testfiles/example-bundles")
