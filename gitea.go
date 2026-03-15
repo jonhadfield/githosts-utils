@@ -1015,6 +1015,7 @@ func (g *GiteaHost) paginateGiteaAPI(config paginationConfig, processResponse fu
 		resp, body, err := g.makeGiteaRequest(reqUrl) //nolint:bodyclose // response body is closed in makeGiteaRequest
 		if err != nil {
 			logger.Printf("failed to get %s: %v", config.resource, err)
+
 			return errors.Wrapf(err, "failed to make Gitea request for %s", config.resource)
 		}
 
@@ -1051,12 +1052,15 @@ func (g *GiteaHost) handleGiteaAPIResponse(resp *http.Response, resource string)
 		if g.LogLevel > 0 {
 			logger.Printf("%s retrieved successfully", resource)
 		}
+
 		return nil
 	case http.StatusForbidden:
 		logger.Printf("failed to get %s due to invalid or missing credentials (HTTP 403)", resource)
+
 		return errors.Errorf("forbidden response to Gitea request for %s", resource)
 	default:
 		logger.Printf("failed to get %s with unexpected response: %d (%s)", resource, resp.StatusCode, resp.Status)
+
 		return errors.Errorf("unexpected errors making Gitea request for %s: %d (%s)", resource, resp.StatusCode, resp.Status)
 	}
 }

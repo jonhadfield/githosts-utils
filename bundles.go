@@ -155,8 +155,10 @@ func getLatestBundleRefs(ctx context.Context, backupPath, encryptionPassphrase s
 			// and allow the backup to proceed
 			if strings.Contains(err.Error(), "no valid bundle files found") {
 				logger.Printf("no valid bundles found for ref comparison: %s", err)
+
 				return nil, nil
 			}
+
 			return nil, err
 		}
 
@@ -525,6 +527,7 @@ func getBundleFiles(backupPath string) (bundleFiles, error) {
 				logger.Printf("failed to rename invalid bundle '%s': %s", name, renameErr)
 				// Even if rename fails, skip this bundle to avoid blocking the process
 			}
+
 			continue
 		}
 
@@ -595,6 +598,7 @@ func pruneBackups(backupPath string, keep int) errors.E {
 				logger.Printf("failed to rename invalid bundle '%s': %s", name, renameErr)
 				// Even if rename fails, skip this bundle to avoid blocking the process
 			}
+
 			continue
 		}
 
@@ -763,6 +767,7 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 	// Check if backup directory exists and has bundles
 	if !dirHasBundles(backupPath) {
 		// No existing bundles, so this is not a duplicate
+
 		return workingBundleFile, false, false, nil
 	}
 
@@ -772,6 +777,7 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 		// If we can't find a valid latest bundle (e.g., all have invalid timestamps),
 		// treat this as having no existing bundles - not a duplicate
 		logger.Printf("could not find valid bundle for comparison: %s", err)
+
 		return workingBundleFile, false, false, nil
 	}
 
@@ -840,7 +846,7 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 	return workingBundleFile, isDuplicate, shouldReplace, nil
 }
 
-//func removeBundleIfDuplicate(dir string) bool {
+// func removeBundleIfDuplicate(dir string) bool {
 //	files, err := getBundleFiles(dir)
 //	if err != nil {
 //		logger.Println(err)
@@ -890,10 +896,10 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 //		return false
 //	}
 //
-//	return true
-//}
+// 	return true
+// }
 
-//func deleteFile(path string) error {
+// func deleteFile(path string) error {
 //	if err := os.Remove(path); err != nil {
 //		return errors.Wrap(err, "failed to remove file")
 //	}
@@ -1089,7 +1095,7 @@ func createBundleManifest(ctx context.Context, bundlePath, timestamp string) err
 
 	// Write manifest file
 	manifestPath := strings.TrimSuffix(bundlePath, bundleExtension) + ".manifest"
-	if err := os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
+	if err := os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil { //nolint:mnd // 0o600 is secure file permission
 		return fmt.Errorf("failed to write manifest file: %w", err)
 	}
 
@@ -1135,7 +1141,7 @@ func createLFSManifest(archivePath, timestamp string) error {
 
 	// Write manifest file
 	manifestPath := strings.TrimSuffix(archivePath, lfsArchiveExtension) + ".manifest"
-	if err := os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil {
+	if err := os.WriteFile(manifestPath, manifestJSON, 0o600); err != nil { //nolint:mnd // 0o600 is secure file permission
 		return fmt.Errorf("failed to write manifest file: %w", err)
 	}
 

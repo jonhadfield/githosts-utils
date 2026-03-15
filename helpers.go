@@ -53,6 +53,7 @@ func timeStampToTime(s string) (time.Time, errors.E) {
 	return ptime, nil
 }
 
+//nolint:unparam // toStrip parameter kept for flexibility
 func stripTrailing(input string, toStrip string) string {
 	if strings.HasSuffix(input, toStrip) {
 		return input[:len(input)-len(toStrip)]
@@ -115,6 +116,7 @@ func parseGitError(out []byte) string {
 	if len(lines) > maxErrorLines {
 		return strings.Join(lines[:maxErrorLines], "; ") + "... (truncated)"
 	}
+
 	return strings.Join(lines, "; ")
 }
 
@@ -128,6 +130,7 @@ func isEmpty(ctx context.Context, clonedRepoPath string) (bool, errors.E) {
 		if gitErr != "" {
 			return true, errors.Wrapf(err, "failed to count objects in %s: %s", clonedRepoPath, gitErr)
 		}
+
 		return true, errors.Wrapf(err, "failed to count objects in %s", clonedRepoPath)
 	}
 
@@ -205,6 +208,7 @@ func maskGitCommand(args []string) string {
 	for i, arg := range args {
 		maskedArgs[i] = maskURLCredentials(arg)
 	}
+
 	return strings.Join(maskedArgs, " ")
 }
 

@@ -13,6 +13,7 @@ func TestPruneBackupsWithInvalidBundles(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "prune-invalid-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Create test files with various timestamps
@@ -49,7 +50,7 @@ func TestPruneBackupsWithInvalidBundles(t *testing.T) {
 	// Create all test files
 	for _, tf := range testFiles {
 		filePath := filepath.Join(tempDir, tf.name)
-		err := os.WriteFile(filePath, []byte("test content"), 0644)
+		err := os.WriteFile(filePath, []byte("test content"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err, "Failed to create test file: %s", tf.name)
 	}
 
@@ -84,6 +85,7 @@ func TestPruneBackupsSkipsAlreadyInvalid(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "prune-skip-invalid-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Create files already marked as invalid

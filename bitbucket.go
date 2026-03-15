@@ -181,6 +181,8 @@ func auth(httpClient *retryablehttp.Client, key, secret string) (string, error) 
 }
 
 // auth gets the OAuth2 access token for Bitbucket using the provided key and secret
+//
+//nolint:unused // Kept for potential future use
 func (bb BitbucketHost) auth(key, secret string) (string, error) {
 	// Ensure the HTTP client has secure logging to prevent credential exposure
 	client := bb.HttpClient
@@ -249,6 +251,7 @@ type bitbucketErrorResponse struct {
 	} `json:"error"`
 }
 
+//nolint:unused // Kept for potential future use
 func urlWithBasicAuth(httpsURL, user, password string) string {
 	parts := strings.SplitN(httpsURL, "//", urlProtocolParts)
 	if len(parts) != urlProtocolParts {
@@ -477,6 +480,7 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 					fToken = bb.APIToken
 				default:
 					logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
+
 					return
 				}
 				repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)

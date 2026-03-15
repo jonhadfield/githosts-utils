@@ -55,12 +55,15 @@ func TestManifestFilePermissions(t *testing.T) {
 		require.NoError(t, readErr)
 
 		var bundleFile string
+
 		for _, f := range files {
 			if filepath.Ext(f.Name()) == bundleExtension {
 				bundleFile = filepath.Join(workingDir, f.Name())
+
 				break
 			}
 		}
+
 		require.NotEmpty(t, bundleFile, "No bundle file found")
 
 		// Now create a manifest for this bundle - note: manifests are only created for encrypted bundles
@@ -69,6 +72,7 @@ func TestManifestFilePermissions(t *testing.T) {
 		bundleBasename := filepath.Base(bundleFile)
 		actualTimestamp, tsErr := getTimeStampPartFromFileName(bundleBasename)
 		require.NoError(t, tsErr)
+
 		actualTimestampStr := fmt.Sprintf("%014d", actualTimestamp)
 
 		manifestErr := createBundleManifest(context.Background(), bundleFile, actualTimestampStr)
@@ -90,7 +94,7 @@ func TestManifestFilePermissions(t *testing.T) {
 		archivePath := filepath.Join(backupDir, repoName+"."+timestamp+lfsArchiveExtension)
 
 		// Create a dummy LFS archive file
-		err := os.WriteFile(archivePath, []byte("test archive"), 0o644)
+		err := os.WriteFile(archivePath, []byte("test archive"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Create LFS manifest
@@ -131,11 +135,13 @@ func TestManifestFilePermissions(t *testing.T) {
 		require.NoError(t, readErr)
 
 		var encryptedManifestFile string
+
 		for _, f := range files {
 			if filepath.Ext(f.Name()) == encryptedBundleExtension {
 				baseName := getOriginalBundleName(f.Name())
 				manifestName := filepath.Base(baseName[:len(baseName)-len(bundleExtension)] + manifestExtension + encryptedBundleExtension)
 				encryptedManifestFile = filepath.Join(workingDir, manifestName)
+
 				break
 			}
 		}
@@ -185,18 +191,22 @@ func TestManifestFileSecurityScenarios(t *testing.T) {
 		require.NoError(t, readErr)
 
 		var bundleFile string
+
 		for _, f := range files {
 			if filepath.Ext(f.Name()) == bundleExtension {
 				bundleFile = filepath.Join(workingDir, f.Name())
+
 				break
 			}
 		}
+
 		require.NotEmpty(t, bundleFile)
 
 		// Create manifest - extract timestamp from actual bundle file
 		bundleBasename := filepath.Base(bundleFile)
 		actualTimestamp, tsErr := getTimeStampPartFromFileName(bundleBasename)
 		require.NoError(t, tsErr)
+
 		actualTimestampStr := fmt.Sprintf("%014d", actualTimestamp)
 
 		manifestErr := createBundleManifest(context.Background(), bundleFile, actualTimestampStr)

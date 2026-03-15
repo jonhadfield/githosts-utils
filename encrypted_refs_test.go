@@ -24,7 +24,7 @@ func TestGetLatestBundleRefsWithEncryption(t *testing.T) {
 	backupDir := filepath.Join(tempDir, "backup")
 	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
-	testPassphrase := "test-refs-passphrase-123"
+	testPassphrase := "test-refs-passphrase-123" //nolint:gosec // Test passphrase
 
 	// Create a test repository
 	repo := repository{
@@ -73,12 +73,12 @@ func TestGetLatestBundleRefsWithEncryption(t *testing.T) {
 	assert.True(t, found, "Should find master or main ref")
 
 	// Test 2: Try reading refs from encrypted bundle without passphrase
-	refs, err = getLatestBundleRefs(context.Background(), backupRepoDir, "")
+	_, err = getLatestBundleRefs(context.Background(), backupRepoDir, "")
 	assert.Error(t, err, "Should fail to read refs from encrypted bundle without passphrase")
 	assert.Contains(t, err.Error(), "encrypted bundle found but no passphrase provided", "Error should indicate passphrase needed")
 
 	// Test 3: Try reading refs with wrong passphrase
-	refs, err = getLatestBundleRefs(context.Background(), backupRepoDir, "wrong-passphrase")
+	_, err = getLatestBundleRefs(context.Background(), backupRepoDir, "wrong-passphrase") //nolint:gosec // Test passphrase
 	assert.Error(t, err, "Should fail to read refs from encrypted bundle with wrong passphrase")
 }
 
@@ -96,7 +96,7 @@ func TestRemoteRefsMatchWithEncryptedBundle(t *testing.T) {
 	backupDir := filepath.Join(tempDir, "backup")
 	require.NoError(t, os.MkdirAll(backupDir, 0o755))
 
-	testPassphrase := "test-refs-match-passphrase-456"
+	testPassphrase := "test-refs-match-passphrase-456" //nolint:gosec // Test passphrase
 
 	// Create a test repository
 	repo := repository{

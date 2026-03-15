@@ -177,14 +177,17 @@ func (sh *SourcehutHost) makeSourcehutRequest(payload string) (string, errors.E)
 	switch resp.StatusCode {
 	case http.StatusUnauthorized:
 		logger.Printf("SourceHut authorisation failed: %s", bodyStr)
+
 		return "", errors.Errorf("SourceHut authorisation failed: %s", bodyStr)
 	case http.StatusForbidden:
 		logger.Printf("SourceHut access forbidden: %s", bodyStr)
+
 		return "", errors.Errorf("SourceHut access forbidden: %s", bodyStr)
 	case http.StatusOK:
 		// authorisation successful
 	default:
 		logger.Printf("SourceHut request failed with status %d: %s", resp.StatusCode, bodyStr)
+
 		return "", errors.Errorf("SourceHut request failed with status %d: %s", resp.StatusCode, bodyStr)
 	}
 
@@ -215,6 +218,7 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 		var respObj sourcehutRepositoriesResponse
 		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); uErr != nil {
 			logger.Print(uErr)
+
 			return nil, errors.Wrap(uErr, "failed to unmarshal response")
 		}
 
@@ -222,6 +226,7 @@ func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
 			for _, err := range respObj.Errors {
 				logger.Printf("SourceHut API error: %s", err.Message)
 			}
+
 			return nil, errors.New("SourceHut API returned errors")
 		}
 
