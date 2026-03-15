@@ -16,8 +16,12 @@ import (
 
 // setupTestRepo creates a test git repository in the specified directory
 func setupTestRepo(t *testing.T, repoDir string) {
+	t.Helper()
+
+	ctx := context.Background()
+
 	// Initialize git repo
-	cmd := exec.Command("git", "init", "--bare")
+	cmd := exec.CommandContext(ctx, "git", "init", "--bare")
 	cmd.Dir = repoDir
 	require.NoError(t, cmd.Run())
 
@@ -26,28 +30,28 @@ func setupTestRepo(t *testing.T, repoDir string) {
 	defer os.RemoveAll(tempWorkDir)
 
 	// Clone the bare repo to working directory
-	cmd = exec.Command("git", "clone", repoDir, tempWorkDir)
+	cmd = exec.CommandContext(ctx, "git", "clone", repoDir, tempWorkDir)
 	require.NoError(t, cmd.Run())
 
 	// Add some content
 	testFile := filepath.Join(tempWorkDir, "test.txt")
-	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0o644))
+	require.NoError(t, os.WriteFile(testFile, []byte("test content"), 0o600)) //nolint:gosec // Test file permissions
 
 	// Add and commit
-	cmd = exec.Command("git", "add", ".")
+	cmd = exec.CommandContext(ctx, "git", "add", ".")
 	cmd.Dir = tempWorkDir
 	require.NoError(t, cmd.Run())
 
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd = exec.CommandContext(ctx, "git", "commit", "-m", "Initial commit") //nolint:noctx // Context already used
 	cmd.Dir = tempWorkDir
 	require.NoError(t, cmd.Run())
 
 	// Push to bare repo (try both main and master branch names)
-	cmd = exec.Command("git", "push", "origin", "main")
+	cmd = exec.CommandContext(ctx, "git", "push", "origin", "main")
 	cmd.Dir = tempWorkDir
 	if err := cmd.Run(); err != nil {
 		// Try master branch if main doesn't work
-		cmd = exec.Command("git", "push", "origin", "master")
+		cmd = exec.CommandContext(ctx, "git", "push", "origin", "master")
 		cmd.Dir = tempWorkDir
 		require.NoError(t, cmd.Run())
 	}
@@ -503,11 +507,11 @@ func TestBackupWithBundlePassphraseEnvVar(t *testing.T) {
 	}
 
 	// Set BUNDLE_PASSPHRASE environment variable
-	testPassphrase := "test-env-passphrase-secure-123"
+	testPassphrase := "test-env-passphrase-secure-123" //nolint:gosec // Test passphrase
 	os.Setenv("BUNDLE_PASSPHRASE", testPassphrase)
 
 	// Test backup with environment variable passphrase (no passphrase in input)
-	err = processBackup(processBackupInput{
+	_ = processBackup(processBackupInput{
 		LogLevel:             1,
 		Repo:                 repo,
 		BackupDIR:            backupDir,
@@ -808,7 +812,7 @@ func TestWrongPassphraseScenarios(t *testing.T) {
 
 		// Create a test bundle in working directory
 		testBundle := filepath.Join(workingDir, "test.20250920000000.bundle")
-		err := os.WriteFile(testBundle, []byte("test bundle content"), 0o644)
+		err := os.WriteFile(testBundle, []byte("test bundle content"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Try to check if duplicate with wrong passphrase
@@ -880,19 +884,19 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		bundleData, err := os.ReadFile(originalBundle)
 		require.NoError(t, err)
-		err = os.WriteFile(backupBundle, bundleData, 0o644)
+		err = os.WriteFile(backupBundle, bundleData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		manifestData, err := os.ReadFile(originalManifest)
 		require.NoError(t, err)
-		err = os.WriteFile(backupManifest, manifestData, 0o644)
+		err = os.WriteFile(backupManifest, manifestData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Corrupt both the bundle and manifest to force bundle decryption
 		corruptData := []byte("This is corrupted data that will break decryption")
-		err = os.WriteFile(originalBundle, corruptData, 0o644)
+		err = os.WriteFile(originalBundle, corruptData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
-		err = os.WriteFile(originalManifest, corruptData, 0o644)
+		err = os.WriteFile(originalManifest, corruptData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Try to read refs from corrupted bundle (should fail when trying to decrypt bundle)
@@ -919,12 +923,12 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		manifestData, err := os.ReadFile(originalManifest)
 		require.NoError(t, err)
-		err = os.WriteFile(backupManifest, manifestData, 0o644)
+		err = os.WriteFile(backupManifest, manifestData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Corrupt the manifest by writing random data
 		corruptData := []byte("Corrupted manifest data")
-		err = os.WriteFile(originalManifest, corruptData, 0o644)
+		err = os.WriteFile(originalManifest, corruptData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Try to read refs (should fall back to decrypting bundle directly)
@@ -950,7 +954,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		bundleData, err := os.ReadFile(originalBundle)
 		require.NoError(t, err)
-		err = os.WriteFile(backupBundle, bundleData, 0o644)
+		err = os.WriteFile(backupBundle, bundleData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Temporarily remove manifest to force bundle decryption
@@ -959,7 +963,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		// Truncate the file to simulate incomplete download/corruption
 		truncatedData := bundleData[:len(bundleData)/2]
-		err = os.WriteFile(originalBundle, truncatedData, 0o644)
+		err = os.WriteFile(originalBundle, truncatedData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Try to read refs from truncated bundle
@@ -982,7 +986,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 
 		bundleData, err := os.ReadFile(originalBundle)
 		require.NoError(t, err)
-		err = os.WriteFile(backupBundle, bundleData, 0o644)
+		err = os.WriteFile(backupBundle, bundleData, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Temporarily remove manifest to force bundle decryption
@@ -990,7 +994,7 @@ func TestCorruptEncryptedFileScenarios(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create empty file
-		err = os.WriteFile(originalBundle, []byte{}, 0o644)
+		err = os.WriteFile(originalBundle, []byte{}, 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Try to read refs from empty bundle
@@ -1050,7 +1054,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 	t.Run("MissingBundleWithManifest", func(t *testing.T) {
 		// Create a manifest file without corresponding bundle
 		manifestFile := filepath.Join(backupRepoDir, "test.20250920000000.manifest.age")
-		err := os.WriteFile(manifestFile, []byte("fake encrypted manifest"), 0o644)
+		err := os.WriteFile(manifestFile, []byte("fake encrypted manifest"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		refs, err := getLatestBundleRefs(context.Background(), backupRepoDir, passphrase)
@@ -1069,7 +1073,7 @@ func TestMissingEncryptedFileScenarios(t *testing.T) {
 
 		// Create a bundle file without corresponding manifest
 		bundleFile := filepath.Join(backupRepoDir, "test.20250920000000.bundle.age")
-		err = os.WriteFile(bundleFile, []byte("fake encrypted bundle"), 0o644)
+		err = os.WriteFile(bundleFile, []byte("fake encrypted bundle"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// This should attempt to decrypt the bundle directly since no manifest exists

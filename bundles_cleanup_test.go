@@ -13,11 +13,12 @@ func TestCleanupInvalidBundles(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "cleanup-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Create bundles with invalid timestamps like the real error case
 	testCases := []struct {
-		name           string
+		name            string
 		shouldBeRenamed bool
 	}{
 		// Valid bundles
@@ -26,10 +27,10 @@ func TestCleanupInvalidBundles(t *testing.T) {
 		{"valid-repo.20250128122009.manifest.age", false},
 
 		// Invalid bundles like the actual error case
-		{"goclone.202501028122009.bundle", true},         // 15 digits instead of 14
-		{"other-repo.20249999999999.bundle", true},       // impossible date
-		{"bad-repo.invaliddate.bundle", true},            // non-numeric
-		{"encrypted-bad.202501028122009.bundle.age", true}, // encrypted with 15 digits
+		{"goclone.202501028122009.bundle", true},             // 15 digits instead of 14
+		{"other-repo.20249999999999.bundle", true},           // impossible date
+		{"bad-repo.invaliddate.bundle", true},                // non-numeric
+		{"encrypted-bad.202501028122009.bundle.age", true},   // encrypted with 15 digits
 		{"encrypted-bad.202501028122009.manifest.age", true}, // manifest for encrypted
 
 		// Already invalid (should be ignored)
@@ -39,7 +40,7 @@ func TestCleanupInvalidBundles(t *testing.T) {
 	// Create all test files
 	for _, tc := range testCases {
 		filePath := filepath.Join(tempDir, tc.name)
-		err := os.WriteFile(filePath, []byte("test content"), 0644)
+		err := os.WriteFile(filePath, []byte("test content"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 	}
 
@@ -73,6 +74,7 @@ func TestCleanupInvalidBundlesEmptyDir(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "cleanup-empty-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Run cleanup on empty directory - should not fail

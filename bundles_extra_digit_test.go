@@ -15,12 +15,13 @@ func TestBundleWithExtraDigitInTimestamp(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "extra-digit-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	// Create a bundle with 15-digit timestamp (extra digit) like the error case
 	invalidBundleName := "goclone.202501028122009.bundle"
 	invalidBundlePath := filepath.Join(tempDir, invalidBundleName)
-	err = os.WriteFile(invalidBundlePath, []byte("test bundle content"), 0644)
+	err = os.WriteFile(invalidBundlePath, []byte("test bundle content"), 0o600) //nolint:gosec // Test file permissions
 	require.NoError(t, err)
 
 	// Try to get bundle files - should handle the invalid timestamp
@@ -47,15 +48,15 @@ func TestGetLatestBundlePathWithAllInvalid(t *testing.T) {
 
 	// Create multiple bundles with invalid timestamps
 	invalidBundles := []string{
-		"repo.202501028122009.bundle",     // 15 digits
-		"repo.20249999999999.bundle",      // impossible date
-		"repo.invalidtimestamp.bundle",    // non-numeric
-		"repo.123.bundle",                 // too short
+		"repo.202501028122009.bundle",  // 15 digits
+		"repo.20249999999999.bundle",   // impossible date
+		"repo.invalidtimestamp.bundle", // non-numeric
+		"repo.123.bundle",              // too short
 	}
 
 	for _, name := range invalidBundles {
 		bundlePath := filepath.Join(tempDir, name)
-		err := os.WriteFile(bundlePath, []byte("invalid bundle"), 0644)
+		err := os.WriteFile(bundlePath, []byte("invalid bundle"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 	}
 
@@ -83,22 +84,24 @@ func TestCheckBundleIsDuplicateWithInvalidBundles(t *testing.T) {
 	// Create temporary directories
 	workingDir, err := os.MkdirTemp("", "working-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(workingDir)
 
 	backupDir, err := os.MkdirTemp("", "backup-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(backupDir)
 
 	// Create an invalid bundle in backup directory
 	invalidBundleName := "repo.202501028122009.bundle"
 	invalidBundlePath := filepath.Join(backupDir, invalidBundleName)
-	err = os.WriteFile(invalidBundlePath, []byte("invalid bundle"), 0644)
+	err = os.WriteFile(invalidBundlePath, []byte("invalid bundle"), 0o600) //nolint:gosec // Test file permissions
 	require.NoError(t, err)
 
 	// Create a valid bundle in working directory
 	validBundleName := "repo.20250128122009.bundle"
 	validBundlePath := filepath.Join(workingDir, validBundleName)
-	err = os.WriteFile(validBundlePath, []byte("valid bundle"), 0644)
+	err = os.WriteFile(validBundlePath, []byte("valid bundle"), 0o600) //nolint:gosec // Test file permissions
 	require.NoError(t, err)
 
 	// Check for duplicate

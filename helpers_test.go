@@ -1,9 +1,9 @@
 package githosts
 
 import (
-	"context"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"io"
 	"net/http"
 	"os"

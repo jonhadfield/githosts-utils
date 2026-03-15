@@ -30,7 +30,7 @@ const (
 	envSourcehutWorkerDelay   = "SOURCEHUT_WORKER_DELAY"
 
 	// Skip test messages
-	msgSkipGiteaTokenMissing     = "Skipping Gitea test as GITEA_TOKEN is missing"
+	msgSkipGiteaTokenMissing     = "Skipping Gitea test as GITEA_TOKEN is missing" //nolint:gosec // Not a credential, just a message
 	msgSkipGitLabTokenMissing    = "Skipping GitLab test as GITLAB_TOKEN is missing"
 	msgSkipBitbucketEmailMissing = "Skipping Bitbucket test as BITBUCKET_EMAIL is missing"
 	msgSkipSourcehutTokenMissing = "Skipping sourcehut test as SOURCEHUT_PAT is missing"

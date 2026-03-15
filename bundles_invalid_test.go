@@ -13,6 +13,7 @@ func TestInvalidBundleHandling(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "invalid-bundle-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	testCases := []struct {
@@ -69,23 +70,23 @@ func TestInvalidBundleHandling(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create test directory for this case
 			testPath := filepath.Join(tempDir, tc.name)
-			err := os.MkdirAll(testPath, 0755)
+			err := os.MkdirAll(testPath, 0o755)
 			require.NoError(t, err)
 
 			// Create bundle file
 			bundlePath := filepath.Join(testPath, tc.bundleFileName)
-			err = os.WriteFile(bundlePath, []byte("test bundle content"), 0644)
+			err = os.WriteFile(bundlePath, []byte("test bundle content"), 0o600) //nolint:gosec // Test file permissions
 			require.NoError(t, err)
 
 			// Create manifest if specified
 			if tc.manifestFileName != "" {
 				manifestPath := filepath.Join(testPath, tc.manifestFileName)
-				err = os.WriteFile(manifestPath, []byte("test manifest content"), 0644)
+				err = os.WriteFile(manifestPath, []byte("test manifest content"), 0o600) //nolint:gosec // Test file permissions
 				require.NoError(t, err)
 			}
 
 			// Call getBundleFiles which should handle invalid dates
-			_, err = getBundleFiles(testPath)
+			_, _ = getBundleFiles(testPath)
 			// We don't check error as getBundleFiles returns bundles it can parse
 
 			// Check if files were renamed as expected
@@ -127,6 +128,7 @@ func TestRenameBundleAsInvalid(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "rename-invalid-test-")
 	require.NoError(t, err)
+
 	defer os.RemoveAll(tempDir)
 
 	t.Run("rename unencrypted bundle", func(t *testing.T) {
@@ -134,7 +136,7 @@ func TestRenameBundleAsInvalid(t *testing.T) {
 		bundlePath := filepath.Join(tempDir, bundleName)
 
 		// Create bundle file
-		err := os.WriteFile(bundlePath, []byte("test content"), 0644)
+		err := os.WriteFile(bundlePath, []byte("test content"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Rename as invalid
@@ -158,9 +160,9 @@ func TestRenameBundleAsInvalid(t *testing.T) {
 		manifestPath := filepath.Join(tempDir, manifestName)
 
 		// Create bundle and manifest files
-		err := os.WriteFile(bundlePath, []byte("encrypted bundle"), 0644)
+		err := os.WriteFile(bundlePath, []byte("encrypted bundle"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
-		err = os.WriteFile(manifestPath, []byte("encrypted manifest"), 0644)
+		err = os.WriteFile(manifestPath, []byte("encrypted manifest"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Rename as invalid
@@ -188,7 +190,7 @@ func TestRenameBundleAsInvalid(t *testing.T) {
 		bundlePath := filepath.Join(tempDir, bundleName)
 
 		// Create only bundle file (no manifest)
-		err := os.WriteFile(bundlePath, []byte("encrypted bundle"), 0644)
+		err := os.WriteFile(bundlePath, []byte("encrypted bundle"), 0o600) //nolint:gosec // Test file permissions
 		require.NoError(t, err)
 
 		// Rename as invalid

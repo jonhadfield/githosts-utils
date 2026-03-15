@@ -110,6 +110,7 @@ func remoteRefsMatchLocalRefs(ctx context.Context, cloneURL, backupPath, encrypt
 	// If no valid bundles exist (lHeads is nil), we should proceed with backup
 	if lHeads == nil {
 		logger.Printf("no valid bundles for comparison, proceeding with backup")
+
 		return false
 	}
 
@@ -345,8 +346,8 @@ func processBackup(in processBackupInput) errors.E {
 
 		// Check for encrypted manifest first
 		if isEncryptedBundle(bundleFileName) {
-			workingManifestPath = workingManifestPath + encryptedBundleExtension
-			backupManifestPath = backupManifestPath + encryptedBundleExtension
+			workingManifestPath += encryptedBundleExtension
+			backupManifestPath += encryptedBundleExtension
 		}
 
 		// Check if manifest exists and move it (don't fail if it doesn't exist)
@@ -397,7 +398,7 @@ func shouldSkipBackup(ctx context.Context, diffRemoteMethod, cloneURL, backupPat
 }
 
 type cloneRepositoryInput struct {
-	Ctx         context.Context
+	Ctx         context.Context //nolint:containedctx // context required for git operations with timeout
 	Repo        repository
 	CloneURL    string
 	WorkingPath string
@@ -409,9 +410,9 @@ type cloneRepositoryInput struct {
 func cloneRepository(in cloneRepositoryInput) errors.E {
 	logger.Printf("cloning: %s to: %s", maskURLCredentials(in.CloneURL), in.WorkingPath)
 
-	//if in.LogLevel == 0 {
-	//	logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))
-	//}
+	// if in.LogLevel == 0 {
+	// 	logger.Printf("git clone command will use URL: %s", maskSecrets(in.CloneURL, in.Secrets))
+	// }
 
 	cloneCmd := buildCloneCommand(in.Ctx, in.CloneURL, in.WorkingPath, in.BackupDIR)
 
