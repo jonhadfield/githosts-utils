@@ -102,7 +102,7 @@ func remoteRefsMatchLocalRefs(ctx context.Context, cloneURL, backupPath, encrypt
 
 	lHeads, err = getLatestBundleRefs(ctx, backupPath, encryptionPassphrase)
 	if err != nil {
-		logger.Printf("failed to get latest bundle refs for %s", backupPath)
+		logger.Printf("failed to get latest bundle refs for %s: %s", backupPath, err)
 
 		return false
 	}
