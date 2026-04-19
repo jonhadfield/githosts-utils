@@ -326,7 +326,7 @@ func (bb BitbucketHost) getWorkspaces() ([]string, errors.E) {
 
 	var workspaces []string
 
-	rawRequestURL := bb.APIURL + "/workspaces?role=member"
+	rawRequestURL := bb.APIURL + "/user/workspaces"
 
 	for {
 		body, err := bb.bitbucketAuthenticatedGet(ctx, rawRequestURL)
@@ -340,7 +340,7 @@ func (bb BitbucketHost) getWorkspaces() ([]string, errors.E) {
 		}
 
 		for _, w := range respObj.Values {
-			workspaces = append(workspaces, w.Slug)
+			workspaces = append(workspaces, w.Workspace.Slug)
 		}
 
 		if respObj.Next != "" {
@@ -598,10 +598,14 @@ type bitbucketWorkspace struct {
 	UUID string `json:"uuid"`
 }
 
+type bitbucketWorkspaceMembership struct {
+	Workspace bitbucketWorkspace `json:"workspace"`
+}
+
 type bitbucketGetWorkspacesResponse struct {
-	Pagelen int                  `json:"pagelen"`
-	Values  []bitbucketWorkspace `json:"values"`
-	Next    string               `json:"next"`
+	Pagelen int                            `json:"pagelen"`
+	Values  []bitbucketWorkspaceMembership `json:"values"`
+	Next    string                         `json:"next"`
 }
 
 // return normalised method.
