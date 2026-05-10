@@ -184,7 +184,7 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
 	defer cancel()
 
-	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, "https://api.github.com/graphql", contentReader)
+	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, gh.APIURL, contentReader)
 	if newReqErr != nil {
 		logger.Println(newReqErr)
 

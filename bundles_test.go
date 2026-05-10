@@ -1,3 +1,5 @@
+//go:build integration
+
 package githosts
 
 import (
@@ -9,9 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	testBundleName1 = "repo0.20200401111111.bundle"
-)
 
 func TestRenameInvalidBundle(t *testing.T) {
 	if getEnvOrFile(envGithubToken) == "" {
