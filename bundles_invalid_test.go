@@ -1,7 +1,9 @@
 package githosts
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -122,6 +124,54 @@ func TestInvalidBundleHandling(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestInvalidBundleAlongsideValid is a regression test for soba issue #130
+// (Redundant backups created under certain condition). When a bundle with an
+// invalid timestamp coexists with a valid one in the backup directory, the
+// invalid one must be renamed to .invalid and the valid one must remain
+// readable for ref comparison so subsequent backups can be skipped when the
+// remote refs match.
+func TestInvalidBundleAlongsideValid(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Build a real git repo so we can create a valid bundle with readable refs.
+	repoDir := filepath.Join(tempDir, "src")
+	require.NoError(t, os.MkdirAll(repoDir, 0o755))
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "--allow-empty", "-q", "-m", "init"},
+	} {
+		c := exec.Command("git", args...)
+		c.Dir = repoDir
+		require.NoError(t, c.Run(), "git %v", args)
+	}
+
+	backupDir := filepath.Join(tempDir, "backup")
+	require.NoError(t, os.MkdirAll(backupDir, 0o755))
+
+	validBundle := filepath.Join(backupDir, "repo.20240101000000.bundle")
+	c := exec.Command("git", "bundle", "create", validBundle, "--all")
+	c.Dir = repoDir
+	require.NoError(t, c.Run(), "create valid bundle")
+
+	invalidBundle := filepath.Join(backupDir, "repo.999BAD999.bundle")
+	require.NoError(t, os.WriteFile(invalidBundle, []byte("not a real bundle"), 0o600))
+
+	// Mirrors the call processBackup makes before checking refs.
+	cleanupInvalidBundles(backupDir)
+
+	_, err := os.Stat(validBundle)
+	require.NoError(t, err, "valid bundle should remain after cleanup")
+	_, err = os.Stat(invalidBundle)
+	require.True(t, os.IsNotExist(err), "invalid bundle should be renamed away")
+	_, err = os.Stat(invalidBundle + ".invalid")
+	require.NoError(t, err, "invalid bundle should be marked as .invalid")
+
+	refs, err := getLatestBundleRefs(context.Background(), backupDir, "")
+	require.NoError(t, err)
+	require.NotNil(t, refs, "refs must be readable from the valid sibling bundle")
+	require.NotEmpty(t, refs, "refs must not be empty when a valid bundle is present")
 }
 
 func TestRenameBundleAsInvalid(t *testing.T) {
