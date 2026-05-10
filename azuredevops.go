@@ -379,8 +379,13 @@ func generateBasicAuth(userName string, pat string) string {
 }
 
 func ListAllRepositories(httpClient *retryablehttp.Client, basicAuth, projectName, orgName string) ([]AzureDevOpsRepo, error) {
+	return listAllRepositoriesWithURL(httpClient, basicAuth, projectName, orgName,
+		fmt.Sprintf("https://%s", azureDevOpsDomain))
+}
+
+func listAllRepositoriesWithURL(httpClient *retryablehttp.Client, basicAuth, projectName, orgName, baseURL string) ([]AzureDevOpsRepo, error) {
 	req, err := retryablehttp.NewRequest(http.MethodGet,
-		fmt.Sprintf("https://%s/%s/%s/_apis/git/repositories", azureDevOpsDomain, orgName, projectName), nil)
+		fmt.Sprintf("%s/%s/%s/_apis/git/repositories", baseURL, orgName, projectName), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

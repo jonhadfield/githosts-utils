@@ -34,6 +34,8 @@ const (
 	msgSkipGitLabTokenMissing    = "Skipping GitLab test as GITLAB_TOKEN is missing"
 	msgSkipBitbucketEmailMissing = "Skipping Bitbucket test as BITBUCKET_EMAIL is missing"
 	msgSkipSourcehutTokenMissing = "Skipping sourcehut test as SOURCEHUT_PAT is missing"
+
+	testBundleName1 = "repo0.20200401111111.bundle"
 )
 
 func TestMain(m *testing.M) {
@@ -44,7 +46,7 @@ func TestMain(m *testing.M) {
 }
 
 var sobaEnvVarKeys = []string{
-	envVarGitBackupDir, gitlabEnvVarToken, gitlabEnvVarAPIUrl,
+	envVarGitBackupDir, "GITLAB_TOKEN", "GITLAB_APIURL",
 	bitbucketEnvVarEmail, bitbucketEnvVarAPIToken, bitbucketEnvVarSecret, bitbucketEnvVarKey,
 	envSourcehutToken, envSourcehutAPIURL,
 	envGitHubWorkerDelay, envGitLabWorkerDelay, envBitbucketWorkerDelay,
