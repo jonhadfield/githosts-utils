@@ -17,7 +17,7 @@ const (
 )
 
 func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
-	resetBackups()
+	resetBackups(t)
 
 	if os.Getenv(sourcehutEnvVarToken) == "" {
 		t.Skip("Skipping sourcehut test as SOURCEHUT_PAT is missing")
@@ -75,7 +75,7 @@ func TestPublicsourcehutRepositoryBackupCloneMethod(t *testing.T) {
 }
 
 func TestPublicsourcehutRepositoryBackupRefsMethod(t *testing.T) {
-	resetBackups()
+	resetBackups(t)
 
 	if os.Getenv(sourcehutEnvVarToken) == "" {
 		t.Skip("Skipping sourcehut test as SOURCEHUT_PAT is missing")

@@ -97,7 +97,7 @@ func TestAzureDevOpsOrgBackup(t *testing.T) {
 	logger.SetOutput(&buf)
 	defer logger.SetOutput(os.Stdout)
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 

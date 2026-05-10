@@ -17,7 +17,7 @@ const (
 )
 
 func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
-	resetBackups()
+	resetBackups(t)
 
 	if os.Getenv(gitlabEnvVarToken) == "" {
 		t.Skip(msgSkipGitLabTokenMissing)
@@ -57,7 +57,7 @@ func TestPublicGitLabRepositoryBackupCloneMethod(t *testing.T) {
 }
 
 func TestPublicGitLabRepositoryBackupRefsMethod(t *testing.T) {
-	resetBackups()
+	resetBackups(t)
 
 	if os.Getenv(gitlabEnvVarToken) == "" {
 		t.Skip(msgSkipGitLabTokenMissing)
