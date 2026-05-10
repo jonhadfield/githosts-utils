@@ -26,7 +26,7 @@ func TestPublicBitbucketRepositoryRefsCompare(t *testing.T) {
 	logger.SetOutput(&buf)
 	defer logger.SetOutput(os.Stdout)
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 
@@ -108,8 +108,8 @@ func TestPublicBitbucketRepositoryCloneCompareAPIKey(t *testing.T) {
 	logger.SetOutput(&buf)
 	defer logger.SetOutput(os.Stdout)
 
-	resetBackups()
-	defer resetBackups()
+	resetBackups(t)
+	defer resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 
@@ -178,7 +178,7 @@ func TestPublicBitbucketRepositoryCloneCompareOAuth(t *testing.T) {
 	logger.SetOutput(&buf)
 	defer logger.SetOutput(os.Stdout)
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 

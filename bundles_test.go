@@ -17,7 +17,7 @@ func TestRenameInvalidBundle(t *testing.T) {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	backupDir := os.Getenv(envVarGitBackupDir)
 	dfDir := path.Join(backupDir, gitHubDomain, "go-soba", "repo0")

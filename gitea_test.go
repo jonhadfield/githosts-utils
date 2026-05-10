@@ -34,7 +34,7 @@ func TestGiteaGetUsers(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
@@ -72,7 +72,7 @@ func TestGiteaGetOrganisations(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 
@@ -129,7 +129,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 
@@ -183,7 +183,7 @@ func TestGetAllOrganizationRepos(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
@@ -261,7 +261,7 @@ func TestGetAllUserRepos(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
@@ -359,7 +359,7 @@ func TestGiteaRepositoryBackup(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)
@@ -409,7 +409,7 @@ func TestGiteaRepositoryBackupWithoutBackupDir(t *testing.T) {
 		t.Skipf("Skipping Gitea test as %s are missing", giteaEnvVarAPIUrl)
 	}
 
-	resetBackups()
+	resetBackups(t)
 
 	envBackup := backupEnvironmentVariables()
 	defer restoreEnvironmentVariables(envBackup)

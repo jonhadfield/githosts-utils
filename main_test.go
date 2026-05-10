@@ -105,15 +105,17 @@ func dirContents(path string) ([]os.DirEntry, error) {
 	return entries, nil
 }
 
-func resetBackups() {
+func resetBackups(t *testing.T) {
+	t.Helper()
+
 	backupDir := os.Getenv(envVarGitBackupDir)
 	if backupDir == "" {
-		log.Fatalf("backup dir not set with env var %s", envVarGitBackupDir)
+		t.Skipf("skipping: %s is not set", envVarGitBackupDir)
 	}
 
 	_ = os.RemoveAll(backupDir)
 
 	if err := os.MkdirAll(backupDir, 0o755); err != nil {
-		log.Fatal(err)
+		t.Fatalf("failed to create backup dir %s: %s", backupDir, err)
 	}
 }
