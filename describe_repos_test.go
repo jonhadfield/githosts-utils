@@ -19,6 +19,73 @@ func testHTTPClient() *retryablehttp.Client {
 	return rc
 }
 
+// writeJSON writes v as a JSON response. Shared by the mock handlers below to
+// avoid repeating the header/encode boilerplate.
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// mockServer starts an httptest server that is closed when the test ends.
+func mockServer(t *testing.T, h http.Handler) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// mockGiteaRepoOwner / mockGiteaRepo model the subset of Gitea's repo response
+// the describeRepos tests assert on; shared across the Gitea test cases.
+type mockGiteaRepoOwner struct {
+	Login string `json:"login"`
+}
+
+type mockGiteaRepo struct {
+	Name     string             `json:"name"`
+	FullName string             `json:"full_name"`
+	CloneUrl string             `json:"clone_url"`
+	SshUrl   string             `json:"ssh_url"`
+	Owner    mockGiteaRepoOwner `json:"owner"`
+}
+
+// giteaReposHandler answers a Gitea repos endpoint with the given repos.
+func giteaReposHandler(repos ...mockGiteaRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, repos)
+	}
+}
+
+// newTestGiteaHost builds a Gitea host pointing at apiBaseURL (the test
+// server root; "/api/v1" is appended) with the shared test credentials.
+func newTestGiteaHost(t *testing.T, apiBaseURL string, orgs ...string) *GiteaHost {
+	t.Helper()
+
+	host, err := NewGiteaHost(NewGiteaHostInput{
+		HTTPClient: testHTTPClient(),
+		APIURL:     apiBaseURL + "/api/v1",
+		BackupDir:  t.TempDir(),
+		Token:      "test-gitea-token",
+		Orgs:       orgs,
+	})
+	require.NoError(t, err)
+
+	return host
+}
+
+// ghEdge builds a GitHub GraphQL repository edge for owner/name.
+func ghEdge(owner, name string) edge {
+	var e edge
+
+	e.Node.Name = name
+	e.Node.NameWithOwner = owner + "/" + name
+	e.Node.URL = "https://github.com/" + owner + "/" + name
+	e.Node.SSHURL = "git@github.com:" + owner + "/" + name + ".git"
+
+	return e
+}
+
 // --- Bitbucket ---
 
 func TestBitbucketDescribeRepos_APIToken(t *testing.T) {
@@ -37,8 +104,7 @@ func TestBitbucketDescribeRepos_APIToken(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
 	mux.HandleFunc("/repositories/my-workspace", func(w http.ResponseWriter, r *http.Request) {
@@ -49,8 +115,7 @@ func TestBitbucketDescribeRepos_APIToken(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
 	mux.HandleFunc("/repositories/other-ws", func(w http.ResponseWriter, r *http.Request) {
@@ -62,12 +127,10 @@ func TestBitbucketDescribeRepos_APIToken(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv := mockServer(t, mux)
 
 	host, err := NewBitBucketHost(NewBitBucketHostInput{
 		HTTPClient: testHTTPClient(),
@@ -108,17 +171,14 @@ func TestBitbucketDescribeRepos_WorkspacePagination(t *testing.T) {
 			}
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
 	mux.HandleFunc("/repositories/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(bitbucketGetProjectsResponse{Pagelen: 10})
+		writeJSON(w, bitbucketGetProjectsResponse{Pagelen: 10})
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv := mockServer(t, mux)
 
 	host, err := NewBitBucketHost(NewBitBucketHostInput{
 		HTTPClient: testHTTPClient(),
@@ -147,12 +207,10 @@ func TestBitbucketDescribeRepos_ConfiguredWorkspaces(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv := mockServer(t, mux)
 
 	host, err := NewBitBucketHost(NewBitBucketHostInput{
 		HTTPClient: testHTTPClient(),
@@ -172,10 +230,9 @@ func TestBitbucketDescribeRepos_ConfiguredWorkspaces(t *testing.T) {
 }
 
 func TestBitbucketDescribeRepos_APIError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusGone)
 	}))
-	defer srv.Close()
 
 	host, err := NewBitBucketHost(NewBitBucketHostInput{
 		HTTPClient: testHTTPClient(),
@@ -204,8 +261,7 @@ func TestBitbucketDescribeRepos_BearerToken(t *testing.T) {
 			Values:  []bitbucketWorkspaceMembership{{Workspace: bitbucketWorkspace{Slug: "oauth-ws"}}},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
 	mux.HandleFunc("/repositories/oauth-ws", func(w http.ResponseWriter, r *http.Request) {
@@ -216,12 +272,10 @@ func TestBitbucketDescribeRepos_BearerToken(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv := mockServer(t, mux)
 
 	host := &BitbucketHost{
 		HttpClient: testHTTPClient(),
@@ -240,30 +294,16 @@ func TestBitbucketDescribeRepos_BearerToken(t *testing.T) {
 // --- GitHub ---
 
 func TestGitHubDescribeRepos_UserRepos(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "Bearer test-gh-token", r.Header.Get("Authorization"))
 
 		resp := githubQueryNamesResponse{}
-		resp.Data.Viewer.Repositories.Edges = []edge{
-			{Node: struct {
-				Name          string
-				NameWithOwner string
-				URL           string `json:"Url"`
-				SSHURL        string `json:"sshUrl"`
-			}{
-				Name:          "my-repo",
-				NameWithOwner: "user/my-repo",
-				URL:           "https://github.com/user/my-repo",
-				SSHURL:        "git@github.com:user/my-repo.git",
-			}},
-		}
+		resp.Data.Viewer.Repositories.Edges = []edge{ghEdge("user", "my-repo")}
 		resp.Data.Viewer.Repositories.PageInfo.HasNextPage = false
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	}))
-	defer srv.Close()
 
 	host, err := NewGitHubHost(NewGitHubHostInput{
 		HTTPClient: testHTTPClient(),
@@ -282,27 +322,13 @@ func TestGitHubDescribeRepos_UserRepos(t *testing.T) {
 }
 
 func TestGitHubDescribeRepos_OrgRepos(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := githubQueryOrgResponse{}
-		resp.Data.Organization.Repositories.Edges = []edge{
-			{Node: struct {
-				Name          string
-				NameWithOwner string
-				URL           string `json:"Url"`
-				SSHURL        string `json:"sshUrl"`
-			}{
-				Name:          "org-repo",
-				NameWithOwner: "my-org/org-repo",
-				URL:           "https://github.com/my-org/org-repo",
-				SSHURL:        "git@github.com:my-org/org-repo.git",
-			}},
-		}
+		resp.Data.Organization.Repositories.Edges = []edge{ghEdge("my-org", "org-repo")}
 		resp.Data.Organization.Repositories.PageInfo.HasNextPage = false
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	}))
-	defer srv.Close()
 
 	host, err := NewGitHubHost(NewGitHubHostInput{
 		HTTPClient:    testHTTPClient(),
@@ -322,11 +348,10 @@ func TestGitHubDescribeRepos_OrgRepos(t *testing.T) {
 }
 
 func TestGitHubDescribeRepos_Unauthorized(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"message": "Bad credentials"}`)
 	}))
-	defer srv.Close()
 
 	host, err := NewGitHubHost(NewGitHubHostInput{
 		HTTPClient: testHTTPClient(),
@@ -365,12 +390,10 @@ func TestGitLabDescribeRepos(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(projects)
+		writeJSON(w, projects)
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv := mockServer(t, mux)
 
 	host, err := NewGitLabHost(NewGitLabHostInput{
 		HTTPClient: testHTTPClient(),
@@ -396,11 +419,10 @@ func TestGitLabDescribeRepos(t *testing.T) {
 }
 
 func TestGitLabDescribeRepos_Unauthorized(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"message": "401 Unauthorized"}`)
 	}))
-	defer srv.Close()
 
 	host, err := NewGitLabHost(NewGitLabHostInput{
 		HTTPClient: testHTTPClient(),
@@ -427,47 +449,18 @@ func TestGiteaDescribeRepos_UserRepos(t *testing.T) {
 			{ID: 1, Login: "admin", Username: "admin"},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(users)
+		writeJSON(w, users)
 	})
 
-	mux.HandleFunc("/api/v1/users/admin/repos", func(w http.ResponseWriter, r *http.Request) {
-		type giteaRepoOwner struct {
-			Login string `json:"login"`
-		}
+	mux.HandleFunc("/api/v1/users/admin/repos", giteaReposHandler(mockGiteaRepo{
+		Name:     "test-repo",
+		FullName: "admin/test-repo",
+		CloneUrl: "https://gitea.example.com/admin/test-repo.git",
+		SshUrl:   "git@gitea.example.com:admin/test-repo.git",
+		Owner:    mockGiteaRepoOwner{Login: "admin"},
+	}))
 
-		type giteaRepo struct {
-			Name     string         `json:"name"`
-			FullName string         `json:"full_name"`
-			CloneUrl string         `json:"clone_url"`
-			SshUrl   string         `json:"ssh_url"`
-			Owner    giteaRepoOwner `json:"owner"`
-		}
-
-		repos := []giteaRepo{
-			{
-				Name:     "test-repo",
-				FullName: "admin/test-repo",
-				CloneUrl: "https://gitea.example.com/admin/test-repo.git",
-				SshUrl:   "git@gitea.example.com:admin/test-repo.git",
-				Owner:    giteaRepoOwner{Login: "admin"},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(repos)
-	})
-
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	host, err := NewGiteaHost(NewGiteaHostInput{
-		HTTPClient: testHTTPClient(),
-		APIURL:     srv.URL + "/api/v1",
-		BackupDir:  t.TempDir(),
-		Token:      "test-gitea-token",
-	})
-	require.NoError(t, err)
+	host := newTestGiteaHost(t, mockServer(t, mux).URL)
 
 	result, err := host.describeRepos()
 	require.NoError(t, err)
@@ -487,48 +480,18 @@ func TestGiteaDescribeRepos_WithOrgs(t *testing.T) {
 	mux.HandleFunc("/api/v1/orgs/my-org", func(w http.ResponseWriter, r *http.Request) {
 		org := giteaOrganization{ID: 1, Name: "my-org", Username: "my-org"}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(org)
+		writeJSON(w, org)
 	})
 
-	mux.HandleFunc("/api/v1/orgs/my-org/repos", func(w http.ResponseWriter, r *http.Request) {
-		type giteaRepoOwner struct {
-			Login string `json:"login"`
-		}
+	mux.HandleFunc("/api/v1/orgs/my-org/repos", giteaReposHandler(mockGiteaRepo{
+		Name:     "org-repo",
+		FullName: "my-org/org-repo",
+		CloneUrl: "https://gitea.example.com/my-org/org-repo.git",
+		SshUrl:   "git@gitea.example.com:my-org/org-repo.git",
+		Owner:    mockGiteaRepoOwner{Login: "my-org"},
+	}))
 
-		type giteaRepo struct {
-			Name     string         `json:"name"`
-			FullName string         `json:"full_name"`
-			CloneUrl string         `json:"clone_url"`
-			SshUrl   string         `json:"ssh_url"`
-			Owner    giteaRepoOwner `json:"owner"`
-		}
-
-		repos := []giteaRepo{
-			{
-				Name:     "org-repo",
-				FullName: "my-org/org-repo",
-				CloneUrl: "https://gitea.example.com/my-org/org-repo.git",
-				SshUrl:   "git@gitea.example.com:my-org/org-repo.git",
-				Owner:    giteaRepoOwner{Login: "my-org"},
-			},
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(repos)
-	})
-
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	host, err := NewGiteaHost(NewGiteaHostInput{
-		HTTPClient: testHTTPClient(),
-		APIURL:     srv.URL + "/api/v1",
-		BackupDir:  t.TempDir(),
-		Token:      "test-gitea-token",
-		Orgs:       []string{"my-org"},
-	})
-	require.NoError(t, err)
+	host := newTestGiteaHost(t, mockServer(t, mux).URL, "my-org")
 
 	result, err := host.describeRepos()
 	require.NoError(t, err)
@@ -539,7 +502,7 @@ func TestGiteaDescribeRepos_WithOrgs(t *testing.T) {
 // --- Sourcehut ---
 
 func TestSourcehutDescribeRepos(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "Bearer test-srht-token", r.Header.Get("Authorization"))
 
@@ -549,21 +512,23 @@ func TestSourcehutDescribeRepos(t *testing.T) {
 				ID:         1,
 				Name:       "my-repo",
 				Visibility: "public",
-				Owner:      struct{ Username string `json:"username"` }{Username: "~testuser"},
+				Owner: struct {
+					Username string `json:"username"`
+				}{Username: "~testuser"},
 			},
 			{
 				ID:         2,
 				Name:       "private-repo",
 				Visibility: "private",
-				Owner:      struct{ Username string `json:"username"` }{Username: "~testuser"},
+				Owner: struct {
+					Username string `json:"username"`
+				}{Username: "~testuser"},
 			},
 		}
 		resp.Data.Repositories.Cursor = nil
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	}))
-	defer srv.Close()
 
 	host, err := NewSourcehutHost(NewSourcehutHostInput{
 		HTTPClient:          testHTTPClient(),
@@ -583,7 +548,7 @@ func TestSourcehutDescribeRepos(t *testing.T) {
 
 func TestSourcehutDescribeRepos_Pagination(t *testing.T) {
 	callCount := 0
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		callCount++
 
 		resp := sourcehutRepositoriesResponse{}
@@ -591,21 +556,23 @@ func TestSourcehutDescribeRepos_Pagination(t *testing.T) {
 			cursor := "cursor-page-2"
 			resp.Data.Repositories.Results = []sourcehutRepository{
 				{ID: 1, Name: "repo-1", Visibility: "public",
-					Owner: struct{ Username string `json:"username"` }{Username: "~user"}},
+					Owner: struct {
+						Username string `json:"username"`
+					}{Username: "~user"}},
 			}
 			resp.Data.Repositories.Cursor = &cursor
 		} else {
 			resp.Data.Repositories.Results = []sourcehutRepository{
 				{ID: 2, Name: "repo-2", Visibility: "public",
-					Owner: struct{ Username string `json:"username"` }{Username: "~user"}},
+					Owner: struct {
+						Username string `json:"username"`
+					}{Username: "~user"}},
 			}
 			resp.Data.Repositories.Cursor = nil
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		writeJSON(w, resp)
 	}))
-	defer srv.Close()
 
 	host, err := NewSourcehutHost(NewSourcehutHostInput{
 		HTTPClient:          testHTTPClient(),
@@ -622,11 +589,10 @@ func TestSourcehutDescribeRepos_Pagination(t *testing.T) {
 }
 
 func TestSourcehutDescribeRepos_Unauthorized(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"errors": [{"message": "unauthorized"}]}`)
 	}))
-	defer srv.Close()
 
 	host, err := NewSourcehutHost(NewSourcehutHostInput{
 		HTTPClient:          testHTTPClient(),
@@ -661,12 +627,10 @@ func TestAzureDevOpsListAllRepositories(t *testing.T) {
 			},
 		}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(repos)
+		writeJSON(w, repos)
 	})
 
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	srv := mockServer(t, mux)
 
 	client := testHTTPClient()
 	basicAuth := generateBasicAuth("testuser", "test-pat")
