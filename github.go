@@ -24,12 +24,15 @@ const (
 	gitHubDomain               = "github.com"
 	gitHubProviderName         = "GitHub"
 	githubDefaultWorkerDelay   = 500
-	// defaultGitHubRequestTimeout bounds a single GraphQL request. It is
-	// larger than the generic per-request timeout so that retryablehttp's
-	// backoff (which honours GitHub secondary-rate-limit Retry-After values,
-	// commonly 60s) can complete within the request context rather than being
-	// cut short by the deadline. Override with GITHUB_REQUEST_TIMEOUT (seconds).
-	defaultGitHubRequestTimeout = 120 * time.Second
+	// defaultGitHubRequestTimeout bounds a whole GraphQL operation, including
+	// retries. It must exceed the per-attempt HTTP timeout (backupTimeout, the
+	// retryablehttp client's http.Client.Timeout) plus the retry backoff,
+	// otherwise the context deadline cuts the operation short before
+	// retryablehttp can honour GitHub's secondary-rate-limit Retry-After values
+	// (commonly 60s). It is therefore derived as one full-length attempt plus
+	// defaultRetryMax backoff waits of defaultRetryWait seconds each. Override
+	// with GITHUB_REQUEST_TIMEOUT (seconds).
+	defaultGitHubRequestTimeout = backupTimeout + (defaultRetryWait*defaultRetryMax)*time.Second
 )
 
 type NewGitHubHostInput struct {
