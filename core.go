@@ -30,6 +30,7 @@ const (
 	msgBackupSkippedNoDir           = "backup skipped as backup directory not specified"
 	msgBackupDirNotSpecified        = "backup directory not specified"
 	defaultRetryWait                = 60
+	defaultRetryMax                 = 2
 )
 
 type repository struct {
@@ -596,7 +597,7 @@ func getHTTPClient() *retryablehttp.Client {
 	rc.Logger = nil
 	rc.RetryWaitMax = backupTimeout
 	rc.RetryWaitMin = defaultRetryWait * time.Second
-	rc.RetryMax = 2
+	rc.RetryMax = defaultRetryMax
 
 	return rc
 }
