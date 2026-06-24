@@ -17,12 +17,19 @@ import (
 )
 
 const (
-	gitHubCallSize           = 100
-	githubEnvVarCallSize     = "GITHUB_CALL_SIZE"
-	githubEnvVarWorkerDelay  = "GITHUB_WORKER_DELAY"
-	gitHubDomain             = "github.com"
-	gitHubProviderName       = "GitHub"
-	githubDefaultWorkerDelay = 500
+	gitHubCallSize             = 100
+	githubEnvVarCallSize       = "GITHUB_CALL_SIZE"
+	githubEnvVarWorkerDelay    = "GITHUB_WORKER_DELAY"
+	githubEnvVarRequestTimeout = "GITHUB_REQUEST_TIMEOUT"
+	gitHubDomain               = "github.com"
+	gitHubProviderName         = "GitHub"
+	githubDefaultWorkerDelay   = 500
+	// defaultGitHubRequestTimeout bounds a single GraphQL request. It is
+	// larger than the generic per-request timeout so that retryablehttp's
+	// backoff (which honours GitHub secondary-rate-limit Retry-After values,
+	// commonly 60s) can complete within the request context rather than being
+	// cut short by the deadline. Override with GITHUB_REQUEST_TIMEOUT (seconds).
+	defaultGitHubRequestTimeout = 120 * time.Second
 )
 
 type NewGitHubHostInput struct {
@@ -178,10 +185,24 @@ type graphQLRequest struct {
 	Variables string `json:"variables"`
 }
 
+// githubRequestTimeout returns the per-request timeout for GitHub GraphQL
+// calls, honouring the GITHUB_REQUEST_TIMEOUT env var (in seconds) and
+// falling back to defaultGitHubRequestTimeout. Non-positive or unparsable
+// values are ignored so a misconfiguration cannot disable the timeout.
+func githubRequestTimeout() time.Duration {
+	if v := os.Getenv(githubEnvVarRequestTimeout); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+
+	return defaultGitHubRequestTimeout
+}
+
 func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	contentReader := bytes.NewReader([]byte(payload))
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), githubRequestTimeout())
 	defer cancel()
 
 	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, gh.APIURL, contentReader)
