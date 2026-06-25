@@ -258,6 +258,23 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	return bodyStr, nil
 }
 
+// userReposQuery builds the GraphQL query for the authenticated user's owned
+// repositories. A non-empty after requests the page following that cursor, and
+// owner affiliations are applied when LimitUserOwned is set. The raw query is
+// wrapped into a JSON request body by createGithubRequestPayload.
+func (gh *GitHubHost) userReposQuery(first int, after string) string {
+	args := "first:" + strconv.Itoa(first)
+	if after != "" {
+		args += " after:\"" + after + "\""
+	}
+
+	if gh.LimitUserOwned {
+		args += " affiliations: OWNER ownerAffiliations: OWNER"
+	}
+
+	return "query { viewer { repositories(" + args + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage } } } }"
+}
+
 // describeGithubUserRepos returns a list of repositories owned by authenticated user.
 func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 	logger.Println("listing GitHub user's owned repositories")
@@ -273,16 +290,15 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 
 	var repos []repository
 
-	var reqBody string
-
-	if gh.LimitUserOwned {
-		reqBody = "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ", affiliations: OWNER, ownerAffiliations: OWNER) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
-	} else {
-		reqBody = "{\"query\": \"query { viewer { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\""
-	}
+	endCursor := ""
 
 	for {
-		bodyStr, err := gh.makeGithubRequest(reqBody)
+		payload, pErr := createGithubRequestPayload(gh.userReposQuery(gcs, endCursor))
+		if pErr != nil {
+			return nil, errors.Wrap(pErr, "failed to create request payload")
+		}
+
+		bodyStr, err := gh.makeGithubRequest(payload)
 		if err != nil {
 			return nil, errors.Wrap(err, "GitHub request failed")
 		}
@@ -306,13 +322,9 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 
 		if !respObj.Data.Viewer.Repositories.PageInfo.HasNextPage {
 			break
-		} else {
-			if gh.LimitUserOwned {
-				reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after, affiliations: OWNER, ownerAffiliations: OWNER) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gcs) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
-			} else {
-				reqBody = "{\"query\": \"query($first:Int $after:String){ viewer { repositories(first:$first after:$after) { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }} } }\", \"variables\":{\"first\":" + strconv.Itoa(gcs) + ",\"after\":\"" + respObj.Data.Viewer.Repositories.PageInfo.EndCursor + "\"} }"
-			}
 		}
+
+		endCursor = respObj.Data.Viewer.Repositories.PageInfo.EndCursor
 	}
 
 	return repos, nil
@@ -323,9 +335,12 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 
 	var orgs []githubOrganization
 
-	reqBody := "{\"query\": \"{ viewer { organizations(first:100) { edges { node { name } } } } }\""
+	payload, pErr := createGithubRequestPayload("{ viewer { organizations(first:100) { edges { node { name } } } } }")
+	if pErr != nil {
+		return nil, errors.Wrap(pErr, "failed to create request payload")
+	}
 
-	bodyStr, err := gh.makeGithubRequest(reqBody)
+	bodyStr, err := gh.makeGithubRequest(payload)
 	if err != nil {
 		logger.Print(err)
 
