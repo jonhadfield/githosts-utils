@@ -1,4 +1,4 @@
-module github.com/jonhadfield/githosts-utils
+module github.com/jonhadfield/githosts-utils/v2
 
 go 1.25.1
 
