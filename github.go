@@ -33,6 +33,23 @@ const (
 	// defaultRetryMax backoff waits of defaultRetryWait seconds each. Override
 	// with GITHUB_REQUEST_TIMEOUT (seconds).
 	defaultGitHubRequestTimeout = backupTimeout + (defaultRetryWait*defaultRetryMax)*time.Second
+
+	githubEnvVarRateLimitMaxWait = "GITHUB_RATE_LIMIT_MAX_WAIT"
+	// defaultGitHubRateLimitMaxWait caps how long a run will pause for GitHub's
+	// *primary* (hourly quota) rate limit to reset before giving up. Unlike the
+	// secondary limit this is not solved by retry/backoff — the quota only
+	// refills at the time reported by X-RateLimit-Reset. GitHub's primary limit
+	// resets on a rolling hour, so an hour covers the worst case. Override with
+	// GITHUB_RATE_LIMIT_MAX_WAIT (seconds); 0 disables waiting (fail fast).
+	defaultGitHubRateLimitMaxWait = time.Hour
+	// rateLimitResetBuffer is added to the computed wait so the run resumes just
+	// after the quota refills rather than racing the reset boundary.
+	rateLimitResetBuffer = 2 * time.Second
+	// rateLimitFallbackWait is used when a primary rate limit is detected but no
+	// reset time is advertised in the response headers.
+	rateLimitFallbackWait = 60 * time.Second
+	// githubRateLimitMaxRetries bounds the primary-rate-limit wait/retry cycles.
+	githubRateLimitMaxRetries = 2
 )
 
 type NewGitHubHostInput struct {
@@ -202,7 +219,45 @@ func githubRequestTimeout() time.Duration {
 	return defaultGitHubRequestTimeout
 }
 
+// makeGithubRequest performs a GraphQL request, transparently handling GitHub's
+// *primary* (hourly quota) rate limit. That limit is returned as a GraphQL error
+// in an otherwise-successful HTTP 200 response, so retryablehttp's backoff never
+// sees it; the quota only refills at X-RateLimit-Reset. When hit, the run pauses
+// until the reset (bounded by GITHUB_RATE_LIMIT_MAX_WAIT) and retries, otherwise
+// it returns a clear, actionable error.
 func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
+	for attempt := 0; ; attempt++ {
+		bodyStr, resp, err := gh.doGithubRequest(payload)
+		if err != nil {
+			return "", err
+		}
+
+		if !isGitHubPrimaryRateLimited(bodyStr) {
+			return bodyStr, nil
+		}
+
+		wait, resetAt := gitHubRateLimitWait(resp)
+		maxWait := gitHubRateLimitMaxWait()
+
+		if attempt >= githubRateLimitMaxRetries || maxWait <= 0 || wait > maxWait {
+			return "", errors.Errorf(
+				"GitHub primary rate limit exceeded; quota resets at %s (in %s). "+
+					"Set %s (seconds, >= wait) to pause and retry, or reduce API usage.",
+				resetAt.UTC().Format(time.RFC3339), wait.Round(time.Second), githubEnvVarRateLimitMaxWait)
+		}
+
+		if wait < 0 {
+			wait = 0
+		}
+
+		logger.Printf("GitHub primary rate limit hit; sleeping %s until quota resets at %s",
+			wait.Round(time.Second), resetAt.UTC().Format(time.RFC3339))
+
+		time.Sleep(wait + rateLimitResetBuffer)
+	}
+}
+
+func (gh *GitHubHost) doGithubRequest(payload string) (string, *http.Response, errors.E) {
 	contentReader := bytes.NewReader([]byte(payload))
 
 	ctx, cancel := context.WithTimeout(context.Background(), githubRequestTimeout())
@@ -212,7 +267,7 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	if newReqErr != nil {
 		logger.Println(newReqErr)
 
-		return "", errors.Wrap(newReqErr, "failed to create request")
+		return "", nil, errors.Wrap(newReqErr, "failed to create request")
 	}
 
 	req.Header.Set(HeaderAuthorization, AuthPrefixBearer+gh.Token)
@@ -223,14 +278,14 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 	if reqErr != nil {
 		logger.Print(reqErr)
 
-		return "", errors.Wrap(reqErr, "failed to make request")
+		return "", nil, errors.Wrap(reqErr, "failed to make request")
 	}
 
 	bodyB, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Print(err)
 
-		return "", errors.Wrap(err, "failed to read response body")
+		return "", nil, errors.Wrap(err, "failed to read response body")
 	}
 
 	defer resp.Body.Close()
@@ -243,19 +298,80 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 		if strings.Contains(bodyStr, "Personal access tokens with fine grained access do not support the GraphQL API") {
 			logger.Println("GitHub authorisation with fine grained PAT (Personal Access OAuthToken) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
 
-			return "", errors.New("GitHub authorisation with fine grained PAT (Personal Access OAuthToken) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
+			return "", nil, errors.New("GitHub authorisation with fine grained PAT (Personal Access OAuthToken) failed as their GraphQL endpoint currently only supports classic PATs: https://github.blog/2022-10-18-introducing-fine-grained-personal-access-tokens-for-github/#coming-next")
 		}
 
 		logger.Printf("GitHub authorisation failed: %s", bodyStr)
 
-		return "", errors.Errorf("GitHub authorisation failed: %s", bodyStr)
+		return "", nil, errors.Errorf("GitHub authorisation failed: %s", bodyStr)
 	case http.StatusOK:
 		// authorisation successful
 	default:
-		return "", errors.New("GitHub authorisation failed")
+		return "", nil, errors.New("GitHub authorisation failed")
 	}
 
-	return bodyStr, nil
+	return bodyStr, resp, nil
+}
+
+// isGitHubPrimaryRateLimited reports whether a GraphQL response body carries a
+// primary rate-limit error (returned with HTTP 200). GitHub uses the error type
+// RATE_LIMITED; older/edge responses use RATE_LIMIT, so match the prefix and
+// fall back to the message text.
+func isGitHubPrimaryRateLimited(body string) bool {
+	var parsed struct {
+		Errors []struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		return false
+	}
+
+	for _, e := range parsed.Errors {
+		if strings.HasPrefix(strings.ToUpper(e.Type), "RATE_LIMIT") ||
+			strings.Contains(strings.ToLower(e.Message), "rate limit") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// gitHubRateLimitWait returns how long to wait for the primary quota to reset,
+// preferring X-RateLimit-Reset (unix seconds) then Retry-After (seconds), and
+// the reset time. When neither header is present it falls back to a short wait.
+func gitHubRateLimitWait(resp *http.Response) (time.Duration, time.Time) {
+	if resp != nil {
+		if v := resp.Header.Get("X-RateLimit-Reset"); v != "" {
+			if secs, err := strconv.ParseInt(v, 10, 64); err == nil {
+				resetAt := time.Unix(secs, 0)
+
+				return time.Until(resetAt), resetAt
+			}
+		}
+
+		if v := resp.Header.Get("Retry-After"); v != "" {
+			if secs, err := strconv.Atoi(v); err == nil {
+				return time.Duration(secs) * time.Second, time.Now().Add(time.Duration(secs) * time.Second)
+			}
+		}
+	}
+
+	return rateLimitFallbackWait, time.Now().Add(rateLimitFallbackWait)
+}
+
+// gitHubRateLimitMaxWait is the configurable ceiling on primary-rate-limit
+// waiting. GITHUB_RATE_LIMIT_MAX_WAIT is in seconds; 0 disables waiting.
+func gitHubRateLimitMaxWait() time.Duration {
+	if v := os.Getenv(githubEnvVarRateLimitMaxWait); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil && secs >= 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+
+	return defaultGitHubRateLimitMaxWait
 }
 
 // userReposQuery builds the GraphQL query for the authenticated user's owned
