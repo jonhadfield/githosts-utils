@@ -130,7 +130,7 @@ func ghMockHandler(t *testing.T, repos ghMockRepos, orgNames []string, seen *[]s
 			for _, name := range orgNames {
 				var e orgsEdge
 
-				e.Node.Name = name
+				e.Node.Login = name
 
 				resp.Data.Viewer.Organizations.Edges = append(resp.Data.Viewer.Organizations.Edges, e)
 			}
@@ -138,7 +138,7 @@ func ghMockHandler(t *testing.T, repos ghMockRepos, orgNames []string, seen *[]s
 			writeJSON(w, resp)
 
 		case strings.Contains(req.Query, "organization(login:"):
-			org := between(req.Query, `organization(login: "`, `"`)
+			org := betweenQuotes(req.Query, `organization(login: "`)
 			names := repos[org]
 			idx := pageIndex(req.Query)
 
@@ -170,9 +170,9 @@ func ghMockHandler(t *testing.T, repos ghMockRepos, orgNames []string, seen *[]s
 // pageIndex reads the after: cursor out of a query, which the mock uses as a
 // zero-based page number. Absent cursor means the first page.
 func pageIndex(query string) int {
-	cursor := between(query, `after: "`, `"`)
+	cursor := betweenQuotes(query, `after: "`)
 	if cursor == "" {
-		cursor = between(query, `after:"`, `"`)
+		cursor = betweenQuotes(query, `after:"`)
 	}
 
 	idx, err := strconv.Atoi(cursor)
@@ -183,7 +183,9 @@ func pageIndex(query string) int {
 	return idx
 }
 
-func between(s, start, end string) string {
+// betweenQuotes returns the text between start and the next double quote,
+// which is how every value the mocks need is delimited in a GraphQL query.
+func betweenQuotes(s, start string) string {
 	i := strings.Index(s, start)
 	if i < 0 {
 		return ""
@@ -191,7 +193,7 @@ func between(s, start, end string) string {
 
 	s = s[i+len(start):]
 
-	j := strings.Index(s, end)
+	j := strings.Index(s, `"`)
 	if j < 0 {
 		return ""
 	}

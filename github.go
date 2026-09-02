@@ -188,7 +188,7 @@ type githubQueryOrgsResponse struct {
 }
 type orgsEdge struct {
 	Node struct {
-		Name string
+		Login string
 	}
 	Cursor string
 }
@@ -472,7 +472,7 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 
 	var orgs []githubOrganization
 
-	payload, pErr := createGithubRequestPayload("{ viewer { organizations(first:100) { edges { node { name } } } } }")
+	payload, pErr := createGithubRequestPayload("{ viewer { organizations(first:100) { edges { node { login } } } } }")
 	if pErr != nil {
 		return nil, errors.Wrap(pErr, "failed to create request payload")
 	}
@@ -501,7 +501,7 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 
 	for _, org := range respObj.Data.Viewer.Organizations.Edges {
 		orgs = append(orgs, githubOrganization{
-			Name: org.Node.Name,
+			Login: org.Node.Login,
 		})
 	}
 
@@ -510,8 +510,11 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 	return orgs, nil
 }
 
+// githubOrganization identifies an organization by its login - the immutable
+// handle in its URL - which is what organization(login:) resolves. The display
+// name is deliberately not carried here: it is not a valid lookup key.
 type githubOrganization struct {
-	Name string `json:"name"`
+	Login string `json:"login"`
 }
 
 func createGithubRequestPayload(body string) (string, errors.E) {
@@ -635,7 +638,7 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 		}
 
 		for _, gho := range githubOrgs {
-			orgs = append(orgs, gho.Name)
+			orgs = append(orgs, gho.Login)
 		}
 	}
 
