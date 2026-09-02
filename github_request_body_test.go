@@ -52,7 +52,7 @@ func TestGitHubRequestBodiesAreValidJSON(t *testing.T) {
 		switch q := string(body); {
 		case strings.Contains(q, "viewer { organizations"):
 			resp := githubQueryOrgsResponse{}
-			resp.Data.Viewer.Organizations.Edges = []orgsEdge{{Node: struct{ Name string }{Name: "my-org"}}}
+			resp.Data.Viewer.Organizations.Edges = []orgsEdge{{Node: struct{ Login string }{Login: "my-org"}}}
 			writeJSON(w, resp)
 		case strings.Contains(q, "organization(login:"):
 			resp := githubQueryOrgResponse{}

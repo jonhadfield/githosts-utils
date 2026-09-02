@@ -50,6 +50,21 @@ const (
 	rateLimitFallbackWait = 60 * time.Second
 	// githubRateLimitMaxRetries bounds the primary-rate-limit wait/retry cycles.
 	githubRateLimitMaxRetries = 2
+
+	// githubEnvVarLogAPIUsage enables logging of GitHub GraphQL API usage:
+	// the rate-limit headers returned by each call, and a per-run summary of
+	// how many requests each discovery pass issued and how many items it
+	// returned. Purely diagnostic - it changes no behaviour. Accepts any value
+	// strconv.ParseBool understands; when unset, GITHOSTS_LOG=debug also
+	// enables it.
+	githubEnvVarLogAPIUsage = "GITHUB_LOG_API_USAGE"
+
+	// githubEnvVarMaxConcurrent overrides how many repositories are backed up
+	// at once. Each worker holds a clone and its bundle in flight, so this is
+	// the primary lever on peak memory - the default of
+	// defaultMaxConcurrentGitHub suits a machine with memory to spare, not a
+	// small or contended container. Override with GITHUB_MAX_CONCURRENT.
+	githubEnvVarMaxConcurrent = "GITHUB_MAX_CONCURRENT"
 )
 
 type NewGitHubHostInput struct {
@@ -130,6 +145,10 @@ type GitHubHost struct {
 	LogLevel             int
 	BackupLFS            bool
 	EncryptionPassphrase string
+	// apiStats accumulates GraphQL usage for the current discovery run. It is
+	// (re)created at the start of each describeRepos call and is nil until
+	// then; every method on it tolerates a nil receiver.
+	apiStats *githubAPIStats
 }
 
 type edge struct {
@@ -176,7 +195,7 @@ type githubQueryOrgsResponse struct {
 }
 type orgsEdge struct {
 	Node struct {
-		Name string
+		Login string
 	}
 	Cursor string
 }
@@ -290,6 +309,9 @@ func (gh *GitHubHost) doGithubRequest(payload string) (string, *http.Response, e
 
 	defer resp.Body.Close()
 
+	gh.apiStats.recordRequest()
+	logGitHubRateLimitHeaders(resp)
+
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	// check response for errors
@@ -374,6 +396,20 @@ func gitHubRateLimitMaxWait() time.Duration {
 	return defaultGitHubRateLimitMaxWait
 }
 
+// githubMaxConcurrent returns how many repositories to back up concurrently,
+// honouring GITHUB_MAX_CONCURRENT and falling back to
+// defaultMaxConcurrentGitHub. Non-positive or unparsable values are ignored so
+// a misconfiguration cannot stall the backup with zero workers.
+func githubMaxConcurrent() int {
+	if v := os.Getenv(githubEnvVarMaxConcurrent); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+
+	return defaultMaxConcurrentGitHub
+}
+
 // userReposQuery builds the GraphQL query for the authenticated user's owned
 // repositories. A non-empty after requests the page following that cursor, and
 // owner affiliations are applied when LimitUserOwned is set. The raw query is
@@ -394,6 +430,8 @@ func (gh *GitHubHost) userReposQuery(first int, after string) string {
 // describeGithubUserRepos returns a list of repositories owned by authenticated user.
 func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 	logger.Println("listing GitHub user's owned repositories")
+
+	gh.apiStats.startPass("user repos", "repos")
 
 	gcs := gitHubCallSize
 
@@ -436,6 +474,8 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 			})
 		}
 
+		gh.apiStats.recordItems(len(respObj.Data.Viewer.Repositories.Edges))
+
 		if !respObj.Data.Viewer.Repositories.PageInfo.HasNextPage {
 			break
 		}
@@ -449,9 +489,11 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, errors.E) {
 	logger.Println("listing GitHub user's related Organizations")
 
+	gh.apiStats.startPass("orgs list", "orgs")
+
 	var orgs []githubOrganization
 
-	payload, pErr := createGithubRequestPayload("{ viewer { organizations(first:100) { edges { node { name } } } } }")
+	payload, pErr := createGithubRequestPayload("{ viewer { organizations(first:100) { edges { node { login } } } } }")
 	if pErr != nil {
 		return nil, errors.Wrap(pErr, "failed to create request payload")
 	}
@@ -480,15 +522,20 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 
 	for _, org := range respObj.Data.Viewer.Organizations.Edges {
 		orgs = append(orgs, githubOrganization{
-			Name: org.Node.Name,
+			Login: org.Node.Login,
 		})
 	}
+
+	gh.apiStats.recordItems(len(orgs))
 
 	return orgs, nil
 }
 
+// githubOrganization identifies an organization by its login - the immutable
+// handle in its URL - which is what organization(login:) resolves. The display
+// name is deliberately not carried here: it is not a valid lookup key.
 type githubOrganization struct {
-	Name string `json:"name"`
+	Login string `json:"login"`
 }
 
 func createGithubRequestPayload(body string) (string, errors.E) {
@@ -504,6 +551,8 @@ func createGithubRequestPayload(body string) (string, errors.E) {
 
 func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, errors.E) {
 	logger.Printf("listing GitHub organization %s's repositories", orgName)
+
+	gh.apiStats.startPass("org "+orgName, "repos")
 
 	gcs := gitHubCallSize
 
@@ -565,6 +614,8 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 			})
 		}
 
+		gh.apiStats.recordItems(len(respObj.Data.Organization.Repositories.Edges))
+
 		if !respObj.Data.Organization.Repositories.PageInfo.HasNextPage {
 			break
 		} else {
@@ -576,6 +627,8 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 }
 
 func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
+	gh.apiStats = newGitHubAPIStats()
+
 	var repos []repository
 
 	if !gh.SkipUserRepos {
@@ -606,7 +659,7 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 		}
 
 		for _, gho := range githubOrgs {
-			orgs = append(orgs, gho.Name)
+			orgs = append(orgs, gho.Login)
 		}
 	}
 
@@ -624,7 +677,10 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 
 	// remove any duplicate repos
 	// this can happen if the authenticated user is a member of an org and also has their own repos
+	beforeDedupe := len(repos)
 	repos = removeDuplicates(repos)
+
+	gh.apiStats.logSummary(beforeDedupe, len(repos))
 
 	return describeReposOutput{
 		Repos: repos,
@@ -661,7 +717,7 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := defaultMaxConcurrentGitHub
+	maxConcurrent := githubMaxConcurrent()
 
 	repoDesc, err := gh.describeRepos()
 	if err != nil {
