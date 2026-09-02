@@ -50,6 +50,14 @@ const (
 	rateLimitFallbackWait = 60 * time.Second
 	// githubRateLimitMaxRetries bounds the primary-rate-limit wait/retry cycles.
 	githubRateLimitMaxRetries = 2
+
+	// githubEnvVarLogAPIUsage enables logging of GitHub GraphQL API usage:
+	// the rate-limit headers returned by each call, and a per-run summary of
+	// how many requests each discovery pass issued and how many items it
+	// returned. Purely diagnostic - it changes no behaviour. Accepts any value
+	// strconv.ParseBool understands; when unset, GITHOSTS_LOG=debug also
+	// enables it.
+	githubEnvVarLogAPIUsage = "GITHUB_LOG_API_USAGE"
 )
 
 type NewGitHubHostInput struct {
@@ -130,6 +138,10 @@ type GitHubHost struct {
 	LogLevel             int
 	BackupLFS            bool
 	EncryptionPassphrase string
+	// apiStats accumulates GraphQL usage for the current discovery run. It is
+	// (re)created at the start of each describeRepos call and is nil until
+	// then; every method on it tolerates a nil receiver.
+	apiStats *githubAPIStats
 }
 
 type edge struct {
@@ -290,6 +302,9 @@ func (gh *GitHubHost) doGithubRequest(payload string) (string, *http.Response, e
 
 	defer resp.Body.Close()
 
+	gh.apiStats.recordRequest()
+	logGitHubRateLimitHeaders(resp)
+
 	bodyStr := string(bytes.ReplaceAll(bodyB, []byte("\r"), []byte("\r\n")))
 
 	// check response for errors
@@ -395,6 +410,8 @@ func (gh *GitHubHost) userReposQuery(first int, after string) string {
 func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 	logger.Println("listing GitHub user's owned repositories")
 
+	gh.apiStats.startPass("user repos", "repos")
+
 	gcs := gitHubCallSize
 
 	envCallSize := os.Getenv(githubEnvVarCallSize)
@@ -436,6 +453,8 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 			})
 		}
 
+		gh.apiStats.recordItems(len(respObj.Data.Viewer.Repositories.Edges))
+
 		if !respObj.Data.Viewer.Repositories.PageInfo.HasNextPage {
 			break
 		}
@@ -448,6 +467,8 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 
 func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, errors.E) {
 	logger.Println("listing GitHub user's related Organizations")
+
+	gh.apiStats.startPass("orgs list", "orgs")
 
 	var orgs []githubOrganization
 
@@ -484,6 +505,8 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 		})
 	}
 
+	gh.apiStats.recordItems(len(orgs))
+
 	return orgs, nil
 }
 
@@ -504,6 +527,8 @@ func createGithubRequestPayload(body string) (string, errors.E) {
 
 func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, errors.E) {
 	logger.Printf("listing GitHub organization %s's repositories", orgName)
+
+	gh.apiStats.startPass("org "+orgName, "repos")
 
 	gcs := gitHubCallSize
 
@@ -565,6 +590,8 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 			})
 		}
 
+		gh.apiStats.recordItems(len(respObj.Data.Organization.Repositories.Edges))
+
 		if !respObj.Data.Organization.Repositories.PageInfo.HasNextPage {
 			break
 		} else {
@@ -576,6 +603,8 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 }
 
 func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
+	gh.apiStats = newGitHubAPIStats()
+
 	var repos []repository
 
 	if !gh.SkipUserRepos {
@@ -624,7 +653,10 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 
 	// remove any duplicate repos
 	// this can happen if the authenticated user is a member of an org and also has their own repos
+	beforeDedupe := len(repos)
 	repos = removeDuplicates(repos)
+
+	gh.apiStats.logSummary(beforeDedupe, len(repos))
 
 	return describeReposOutput{
 		Repos: repos,
