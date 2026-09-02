@@ -58,6 +58,13 @@ const (
 	// strconv.ParseBool understands; when unset, GITHOSTS_LOG=debug also
 	// enables it.
 	githubEnvVarLogAPIUsage = "GITHUB_LOG_API_USAGE"
+
+	// githubEnvVarMaxConcurrent overrides how many repositories are backed up
+	// at once. Each worker holds a clone and its bundle in flight, so this is
+	// the primary lever on peak memory - the default of
+	// defaultMaxConcurrentGitHub suits a machine with memory to spare, not a
+	// small or contended container. Override with GITHUB_MAX_CONCURRENT.
+	githubEnvVarMaxConcurrent = "GITHUB_MAX_CONCURRENT"
 )
 
 type NewGitHubHostInput struct {
@@ -389,6 +396,20 @@ func gitHubRateLimitMaxWait() time.Duration {
 	return defaultGitHubRateLimitMaxWait
 }
 
+// githubMaxConcurrent returns how many repositories to back up concurrently,
+// honouring GITHUB_MAX_CONCURRENT and falling back to
+// defaultMaxConcurrentGitHub. Non-positive or unparsable values are ignored so
+// a misconfiguration cannot stall the backup with zero workers.
+func githubMaxConcurrent() int {
+	if v := os.Getenv(githubEnvVarMaxConcurrent); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+
+	return defaultMaxConcurrentGitHub
+}
+
 // userReposQuery builds the GraphQL query for the authenticated user's owned
 // repositories. A non-empty after requests the page following that cursor, and
 // owner affiliations are applied when LimitUserOwned is set. The raw query is
@@ -696,7 +717,7 @@ func (gh *GitHubHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := defaultMaxConcurrentGitHub
+	maxConcurrent := githubMaxConcurrent()
 
 	repoDesc, err := gh.describeRepos()
 	if err != nil {

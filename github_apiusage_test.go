@@ -415,3 +415,27 @@ func TestGitHubDiscoveryDedupeIsCounted(t *testing.T) {
 
 	require.Equal(t, 2, items, "pass counters report pre-dedupe totals")
 }
+
+func TestGitHubMaxConcurrent(t *testing.T) {
+	tests := []struct {
+		name string
+		env  string
+		want int
+	}{
+		{name: "unset uses default", env: "", want: defaultMaxConcurrentGitHub},
+		{name: "override lowers concurrency", env: "3", want: 3},
+		{name: "override raises concurrency", env: "20", want: 20},
+		{name: "one worker is valid", env: "1", want: 1},
+		{name: "zero ignored, would stall the backup", env: "0", want: defaultMaxConcurrentGitHub},
+		{name: "negative ignored", env: "-4", want: defaultMaxConcurrentGitHub},
+		{name: "unparsable ignored", env: "many", want: defaultMaxConcurrentGitHub},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(githubEnvVarMaxConcurrent, tc.env)
+
+			require.Equal(t, tc.want, githubMaxConcurrent())
+		})
+	}
+}
