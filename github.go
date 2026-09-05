@@ -401,13 +401,7 @@ func gitHubRateLimitMaxWait() time.Duration {
 // defaultMaxConcurrentGitHub. Non-positive or unparsable values are ignored so
 // a misconfiguration cannot stall the backup with zero workers.
 func githubMaxConcurrent() int {
-	if v := os.Getenv(githubEnvVarMaxConcurrent); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return n
-		}
-	}
-
-	return defaultMaxConcurrentGitHub
+	return maxConcurrentFromEnv(githubEnvVarMaxConcurrent, defaultMaxConcurrentGitHub)
 }
 
 // userReposQuery builds the GraphQL query for the authenticated user's owned

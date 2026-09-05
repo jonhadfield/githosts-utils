@@ -34,6 +34,7 @@ const (
 	giteaProviderName                = "Gitea"
 	txtNext                          = "next"
 	giteaEnvVarWorkerDelay           = "GITEA_WORKER_DELAY"
+	giteaEnvVarMaxConcurrent         = "GITEA_MAX_CONCURRENT"
 	giteaDefaultWorkerDelay          = 500
 )
 
@@ -895,7 +896,7 @@ func (g *GiteaHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	maxConcurrent := defaultMaxConcurrentGitLab
+	maxConcurrent := maxConcurrentFromEnv(giteaEnvVarMaxConcurrent, defaultMaxConcurrentGitLab)
 
 	repoDesc, err := g.describeRepos()
 	if err != nil {

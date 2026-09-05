@@ -24,6 +24,7 @@ const (
 	GitLabDefaultMinimumProjectAccessLevel = 20
 	gitLabDomain                           = "gitlab.com"
 	gitlabEnvVarWorkerDelay                = "GITLAB_WORKER_DELAY"
+	gitlabEnvVarMaxConcurrent              = "GITLAB_MAX_CONCURRENT"
 	gitlabDefaultWorkerDelay               = 500
 )
 
@@ -389,7 +390,7 @@ func (gl *GitLabHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	maxConcurrent := defaultMaxConcurrentGitLab
+	maxConcurrent := maxConcurrentFromEnv(gitlabEnvVarMaxConcurrent, defaultMaxConcurrentGitLab)
 
 	var err errors.E
 

@@ -63,6 +63,23 @@ type WorkerConfig struct {
 	EncryptionPassphrase string
 }
 
+// maxConcurrentFromEnv returns how many repositories a provider backs up at
+// once, honouring envVar and falling back to def. Each worker drives a clone
+// and a bundle write, so this is the primary lever on how much dirty page
+// cache a run generates - which, in a memory-limited container, decides
+// whether the run survives rather than how fast it goes. Non-positive and
+// unparsable values are ignored so a misconfiguration cannot stall a backup
+// with zero workers.
+func maxConcurrentFromEnv(envVar string, def int) int {
+	if v := os.Getenv(envVar); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+
+	return def
+}
+
 func genericWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {
 	for repo := range jobs {
 		// Set up authentication for the repo

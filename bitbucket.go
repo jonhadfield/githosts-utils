@@ -39,8 +39,9 @@ const (
 	AuthTypeBasicAuthHeader   = "basic-auth-header"
 	AuthTypeBearerToken       = "bearer-token"
 	// Worker delay
-	bitbucketEnvVarWorkerDelay  = "BITBUCKET_WORKER_DELAY"
-	bitbucketDefaultWorkerDelay = 500
+	bitbucketEnvVarWorkerDelay   = "BITBUCKET_WORKER_DELAY"
+	bitbucketEnvVarMaxConcurrent = "BITBUCKET_MAX_CONCURRENT"
+	bitbucketDefaultWorkerDelay  = 500
 )
 
 type NewBitBucketHostInput struct {
@@ -471,7 +472,7 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 		return ProviderBackupResult{}
 	}
 
-	maxConcurrent := defaultMaxConcurrentGitLab
+	maxConcurrent := maxConcurrentFromEnv(bitbucketEnvVarMaxConcurrent, defaultMaxConcurrentGitLab)
 
 	drO, err := bb.describeRepos()
 	if err != nil {

@@ -17,18 +17,19 @@ import (
 )
 
 const (
-	envVarSourcehutWorkerDelay  = "SOURCEHUT_WORKER_DELAY"
-	sourcehutDomain             = "sourcehut"
-	sourcehutProviderName       = "sourcehut"
-	sourcehutDefaultWorkerDelay = 500
-	envSourcehutAPIURL          = "SOURCEHUT_APIURL"
-	envSourcehutToken           = "SOURCEHUT_PAT" // nolint:gosec
-	sourcehutRepoCountPerPage   = 20
-	sourcehutMaxConcurrency     = defaultMaxConcurrentSourcehut
-	sourcehutGitHost            = "https://git.sr.ht/"
-	sourcehutSSHHost            = "git@git.sr.ht:"
-	sourcehutVisibilityPublic   = "public"
-	sourcehutTildePrefix        = "~"
+	envVarSourcehutWorkerDelay   = "SOURCEHUT_WORKER_DELAY"
+	sourcehutDomain              = "sourcehut"
+	sourcehutProviderName        = "sourcehut"
+	sourcehutDefaultWorkerDelay  = 500
+	envSourcehutAPIURL           = "SOURCEHUT_APIURL"
+	envSourcehutToken            = "SOURCEHUT_PAT" // nolint:gosec
+	sourcehutRepoCountPerPage    = 20
+	sourcehutMaxConcurrency      = defaultMaxConcurrentSourcehut
+	sourcehutEnvVarMaxConcurrent = "SOURCEHUT_MAX_CONCURRENT"
+	sourcehutGitHost             = "https://git.sr.ht/"
+	sourcehutSSHHost             = "git@git.sr.ht:"
+	sourcehutVisibilityPublic    = "public"
+	sourcehutTildePrefix         = "~"
 )
 
 type NewSourcehutHostInput struct {
@@ -343,7 +344,8 @@ func (sh *SourcehutHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := sourcehutMaxConcurrency // Lower concurrency for SourceHut to be respectful
+	// Lower default concurrency for SourceHut to be respectful of their API.
+	maxConcurrent := maxConcurrentFromEnv(sourcehutEnvVarMaxConcurrent, sourcehutMaxConcurrency)
 
 	repoDesc, err := sh.describeRepos()
 	if err != nil {

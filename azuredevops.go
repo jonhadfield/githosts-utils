@@ -27,6 +27,7 @@ const (
 	envAzureDevOpsUserName            = "AZURE_DEVOPS_USERNAME"
 	msgSkipAzureDevOpsUserNameMissing = "Skipping Azure DevOps test as " + envAzureDevOpsUserName + " is missing"
 	azureDevOpsEnvVarWorkerDelay      = "AZURE_DEVOPS_WORKER_DELAY"
+	azureDevOpsEnvVarMaxConcurrent    = "AZURE_DEVOPS_MAX_CONCURRENT"
 	azureDevOpsDefaultWorkerDelay     = 500
 )
 
@@ -40,7 +41,7 @@ func (ad *AzureDevOpsHost) Backup() ProviderBackupResult {
 		}
 	}
 
-	maxConcurrent := defaultMaxConcurrentOther
+	maxConcurrent := maxConcurrentFromEnv(azureDevOpsEnvVarMaxConcurrent, defaultMaxConcurrentOther)
 
 	repoDesc, err := ad.describeRepos()
 	if err != nil {
