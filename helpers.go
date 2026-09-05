@@ -196,6 +196,16 @@ func getResponseBody(resp *http.Response) ([]byte, error) {
 
 func maskSecrets(content string, secret []string) string {
 	for _, s := range secret {
+		// Skip empty secrets. ReplaceAll with an empty target inserts the mask
+		// between every character, which both mangles the output and splits any
+		// real secret so later passes no longer match it - leaking the very
+		// value this function exists to hide. Providers pass fixed-size slices
+		// (e.g. Bitbucket's OAuth and API tokens) where the unused auth mode's
+		// entry is empty, so this is reached in normal operation.
+		if s == "" {
+			continue
+		}
+
 		content = strings.ReplaceAll(content, s, strings.Repeat("*", lenSecretMask))
 	}
 
