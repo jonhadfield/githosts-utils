@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -173,5 +174,29 @@ func TestMaskSecretsIntegration(t *testing.T) {
 				t.Errorf("maskSecrets() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+// An empty entry in the secrets slice must not be treated as a match. Bitbucket
+// passes []string{OAuthToken, APIToken} and leaves the unused auth mode's token
+// empty, which previously made ReplaceAll interleave the mask between every
+// character and split the real token so it was never redacted.
+func TestMaskSecretsIgnoresEmptySecret(t *testing.T) {
+	// Shaped like an Atlassian API token but not derived from a real one.
+	token := "ATATT" + strings.Repeat("x", 39)
+	url := "https://x-bitbucket-api-token-auth:" + token + "@bitbucket.org/go-soba/testrepo4.git"
+
+	got := maskSecrets(url, []string{"", token})
+
+	if strings.Contains(got, token) {
+		t.Errorf("token not masked: %s", got)
+	}
+
+	if strings.Contains(strings.ReplaceAll(got, "*", ""), token) {
+		t.Errorf("token recoverable once mask characters are stripped: %s", got)
+	}
+
+	if want := "https://x-bitbucket-api-token-auth:*****@bitbucket.org/go-soba/testrepo4.git"; got != want {
+		t.Errorf("maskSecrets() = %q, want %q", got, want)
 	}
 }
