@@ -75,6 +75,11 @@ func TestProviderMaxConcurrentEnvVars(t *testing.T) {
 			envVar: sourcehutEnvVarMaxConcurrent,
 			def:    defaultMaxConcurrentSourcehut,
 		},
+		{
+			name:   "codeberg",
+			envVar: codebergEnvVarMaxConcurrent,
+			def:    codebergMaxConcurrency,
+		},
 	}
 
 	seen := make(map[string]string, len(tests))

@@ -18,6 +18,7 @@ const (
 	gitlabAPIURL                 = "https://gitlab.com/api/v4"
 	gitlabProjectsPerPageDefault = 20
 	sourcehutAPIURL              = "https://git.sr.ht/query"
+	codebergAPIURL               = "https://codeberg.org/api/v1"
 	contentTypeApplicationJSON   = "application/json; charset=utf-8"
 
 	// Concurrency limits
