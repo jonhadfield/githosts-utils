@@ -5,7 +5,7 @@
 ## Features
 
 - Minimal dependencies and portable code
-- Supports GitHub, GitLab, Bitbucket, Azure DevOps, Gitea, and Sourcehut
+- Supports GitHub, GitLab, Bitbucket, Azure DevOps, Gitea, Codeberg, and Sourcehut
 - Clones repositories using `git --mirror` and stores timestamped bundle files
 - **Encryption support**: Optional age-based encryption for bundles and manifests
 - Optional reference comparison to skip cloning when refs have not changed
@@ -64,6 +64,27 @@ Each host accepts a `DiffRemoteMethod` value of either `"clone"` or `"refs"`:
 
 - `clone` (default) – always clone and create a new bundle
 - `refs` – fetch remote references first and skip cloning when the refs match the latest bundle
+
+### Codeberg
+
+Codeberg runs Forgejo, which serves the same `/api/v1` surface as Gitea, so it has its own host rather than reusing the Gitea one. The difference is ownership: the Gitea host discovers repositories through the instance-admin endpoints (`/admin/users` and `/orgs`), which a Codeberg personal access token cannot reach, and whose `/orgs` listing would return every organisation on the instance rather than yours. The Codeberg host uses the token-scoped endpoints (`/user/repos` and `/user/orgs`) instead.
+
+```go
+host, err := githosts.NewCodebergHost(githosts.NewCodebergHostInput{
+    BackupDir: backupDir,
+    Token:     os.Getenv("CODEBERG_TOKEN"),
+    Orgs:      []string{"*"}, // "*" expands to every org the token belongs to
+})
+```
+
+`APIURL` defaults to `https://codeberg.org/api/v1` and can be pointed at any other Forgejo instance. The `"*"` entry expands to every organisation the token belongs to and is combined with any organisations named alongside it, so organisations the token is not a member of can still be backed up. Two further options control the breadth of the backup:
+
+- `SkipUserRepos` – omit `/user/repos`, backing up only the organisations named in `Orgs`
+- `LimitUserOwned` – keep only repositories owned by the authenticated user, excluding those they are merely a collaborator on
+
+`/user/repos` already includes repositories owned by your organisations, so repositories reachable both ways are backed up once.
+
+Codeberg is a donation-funded shared host, so this provider defaults to lower concurrency and a longer delay between repositories than the Gitea one. Override the delay with `CODEBERG_WORKER_DELAY` (milliseconds) and the number of repositories backed up at once with `CODEBERG_MAX_CONCURRENT`.
 
 ### Retaining Bundles
 
