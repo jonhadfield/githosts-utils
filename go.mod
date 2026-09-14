@@ -2,6 +2,14 @@ module github.com/jonhadfield/githosts-utils/v2
 
 go 1.25.1
 
+// These versions are withdrawn and should not be used. Published module
+// versions are immutable, so retraction is the only mechanism available after
+// the fact: it steers tooling to a later version rather than removing anything.
+retract (
+	v2.1.2
+	v2.1.1
+)
+
 require (
 	filippo.io/age v1.3.1
 	github.com/hashicorp/go-retryablehttp v0.7.8
