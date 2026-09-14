@@ -3,7 +3,7 @@ module github.com/jonhadfield/githosts-utils/v2
 go 1.25.1
 
 require (
-	filippo.io/age v1.3.1
+	filippo.io/age v1.3.2
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/microsoft/azure-devops-go-api/azuredevops/v7 v7.1.0
 	github.com/peterhellberg/link v1.2.0
