@@ -151,14 +151,36 @@ type GitHubHost struct {
 	apiStats *githubAPIStats
 }
 
+// githubRepoNodeFields is the selection set requested for every repository
+// node, and must stay in step with edge.
+const githubRepoNodeFields = "name nameWithOwner url sshUrl isFork isArchived isEmpty owner { login }"
+
 type edge struct {
 	Node struct {
 		Name          string
 		NameWithOwner string
 		URL           string `json:"Url"`
 		SSHURL        string `json:"sshUrl"`
+		IsFork        bool   `json:"isFork"`
+		IsArchived    bool   `json:"isArchived"`
+		IsEmpty       bool   `json:"isEmpty"`
+		Owner         struct {
+			Login string `json:"login"`
+		} `json:"owner"`
 	}
 	Cursor string
+}
+
+// githubRepoOwner is a repository owner - a user or an organization - and one
+// page of its repositories.
+type githubRepoOwner struct {
+	Repositories struct {
+		Edges    []edge
+		PageInfo struct {
+			EndCursor   string
+			HasNextPage bool
+		}
+	}
 }
 
 type githubQueryNamesResponse struct {
@@ -200,17 +222,12 @@ type orgsEdge struct {
 	Cursor string
 }
 
+// githubQueryOrgResponse is the response to a repositories query against a
+// named owner. Only the field matching the owner kind queried is populated.
 type githubQueryOrgResponse struct {
 	Data struct {
-		Organization struct {
-			Repositories struct {
-				Edges    []edge
-				PageInfo struct {
-					EndCursor   string
-					HasNextPage bool
-				}
-			}
-		}
+		Organization githubRepoOwner
+		User         githubRepoOwner
 	}
 	Errors []struct {
 		Type    string
@@ -244,9 +261,9 @@ func githubRequestTimeout() time.Duration {
 // sees it; the quota only refills at X-RateLimit-Reset. When hit, the run pauses
 // until the reset (bounded by GITHUB_RATE_LIMIT_MAX_WAIT) and retries, otherwise
 // it returns a clear, actionable error.
-func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
+func (gh *GitHubHost) makeGithubRequest(ctx context.Context, payload string) (string, errors.E) {
 	for attempt := 0; ; attempt++ {
-		bodyStr, resp, err := gh.doGithubRequest(payload)
+		bodyStr, resp, err := gh.doGithubRequest(ctx, payload)
 		if err != nil {
 			return "", err
 		}
@@ -272,14 +289,18 @@ func (gh *GitHubHost) makeGithubRequest(payload string) (string, errors.E) {
 		logger.Printf("GitHub primary rate limit hit; sleeping %s until quota resets at %s",
 			wait.Round(time.Second), resetAt.UTC().Format(time.RFC3339))
 
-		time.Sleep(wait + rateLimitResetBuffer)
+		select {
+		case <-ctx.Done():
+			return "", errors.WithStack(ctx.Err())
+		case <-time.After(wait + rateLimitResetBuffer):
+		}
 	}
 }
 
-func (gh *GitHubHost) doGithubRequest(payload string) (string, *http.Response, errors.E) {
+func (gh *GitHubHost) doGithubRequest(parent context.Context, payload string) (string, *http.Response, errors.E) {
 	contentReader := bytes.NewReader([]byte(payload))
 
-	ctx, cancel := context.WithTimeout(context.Background(), githubRequestTimeout())
+	ctx, cancel := context.WithTimeout(parent, githubRequestTimeout())
 	defer cancel()
 
 	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, gh.APIURL, contentReader)
@@ -418,11 +439,11 @@ func (gh *GitHubHost) userReposQuery(first int, after string) string {
 		args += " affiliations: OWNER ownerAffiliations: OWNER"
 	}
 
-	return "query { viewer { repositories(" + args + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage } } } }"
+	return "query { viewer { repositories(" + args + ") { edges { node { " + githubRepoNodeFields + " } cursor } pageInfo { endCursor hasNextPage } } } }"
 }
 
 // describeGithubUserRepos returns a list of repositories owned by authenticated user.
-func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
+func (gh *GitHubHost) describeGithubUserRepos(ctx context.Context) ([]repository, errors.E) {
 	logger.Println("listing GitHub user's owned repositories")
 
 	gh.apiStats.startPass("user repos", "repos")
@@ -446,7 +467,7 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 			return nil, errors.Wrap(pErr, "failed to create request payload")
 		}
 
-		bodyStr, err := gh.makeGithubRequest(payload)
+		bodyStr, err := gh.makeGithubRequest(ctx, payload)
 		if err != nil {
 			return nil, errors.Wrap(err, "GitHub request failed")
 		}
@@ -458,15 +479,7 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 			return nil, errors.Wrap(uErr, "failed to unmarshal response")
 		}
 
-		for _, repo := range respObj.Data.Viewer.Repositories.Edges {
-			repos = append(repos, repository{
-				Name:              repo.Node.Name,
-				SSHUrl:            repo.Node.SSHURL,
-				HTTPSUrl:          repo.Node.URL,
-				PathWithNameSpace: repo.Node.NameWithOwner,
-				Domain:            gitHubDomain,
-			})
-		}
+		repos = append(repos, githubEdgesToRepos(respObj.Data.Viewer.Repositories.Edges)...)
 
 		gh.apiStats.recordItems(len(respObj.Data.Viewer.Repositories.Edges))
 
@@ -480,7 +493,7 @@ func (gh *GitHubHost) describeGithubUserRepos() ([]repository, errors.E) {
 	return repos, nil
 }
 
-func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, errors.E) {
+func (gh *GitHubHost) describeGithubUserOrganizations(ctx context.Context) ([]githubOrganization, errors.E) {
 	logger.Println("listing GitHub user's related Organizations")
 
 	gh.apiStats.startPass("orgs list", "orgs")
@@ -492,7 +505,7 @@ func (gh *GitHubHost) describeGithubUserOrganizations() ([]githubOrganization, e
 		return nil, errors.Wrap(pErr, "failed to create request payload")
 	}
 
-	bodyStr, err := gh.makeGithubRequest(payload)
+	bodyStr, err := gh.makeGithubRequest(ctx, payload)
 	if err != nil {
 		logger.Print(err)
 
@@ -543,10 +556,50 @@ func createGithubRequestPayload(body string) (string, errors.E) {
 	return string(gqlMarshalled), nil
 }
 
-func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, errors.E) {
-	logger.Printf("listing GitHub organization %s's repositories", orgName)
+// githubEdgesToRepos converts a page of GraphQL repository edges.
+func githubEdgesToRepos(edges []edge) []repository {
+	repos := make([]repository, 0, len(edges))
 
-	gh.apiStats.startPass("org "+orgName, "repos")
+	for _, repo := range edges {
+		repos = append(repos, repository{
+			Name:              repo.Node.Name,
+			Owner:             repo.Node.Owner.Login,
+			SSHUrl:            repo.Node.SSHURL,
+			HTTPSUrl:          repo.Node.URL,
+			PathWithNameSpace: repo.Node.NameWithOwner,
+			Domain:            gitHubDomain,
+			IsFork:            repo.Node.IsFork,
+			IsArchived:        repo.Node.IsArchived,
+			IsEmpty:           repo.Node.IsEmpty,
+		})
+	}
+
+	return repos
+}
+
+// GitHub GraphQL root fields that resolve a repository owner by login.
+const (
+	githubOwnerOrganization = "organization"
+	githubOwnerUser         = "user"
+)
+
+func (gh *GitHubHost) describeGithubOrgRepos(ctx context.Context, orgName string) ([]repository, errors.E) {
+	return gh.describeGithubOwnerRepos(ctx, githubOwnerOrganization, orgName)
+}
+
+// describeGithubOwnerRepos lists the repositories of the user or organization
+// with the given login; kind is githubOwnerUser or githubOwnerOrganization.
+// A user's repositories are limited to those it owns, so that repositories it
+// merely collaborates on are not attributed to it.
+func (gh *GitHubHost) describeGithubOwnerRepos(ctx context.Context, kind, login string) ([]repository, errors.E) {
+	logger.Printf("listing GitHub %s %s's repositories", kind, login)
+
+	passLabel := "org "
+	if kind == githubOwnerUser {
+		passLabel = "user "
+	}
+
+	gh.apiStats.startPass(passLabel+login, "repos")
 
 	gcs := gitHubCallSize
 
@@ -557,11 +610,24 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 		}
 	}
 
+	baseArgs := "first:" + strconv.Itoa(gcs)
+	if kind == githubOwnerUser {
+		baseArgs += " ownerAffiliations: OWNER"
+	}
+
 	var repos []repository
 
-	reqBody := "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gcs) + ") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
+	after := ""
 
 	for {
+		args := baseArgs
+		if after != "" {
+			args += " after: \"" + after + "\""
+		}
+
+		reqBody := "query { " + kind + "(login: \"" + login + "\") { repositories(" + args + ") { edges { node { " +
+			githubRepoNodeFields + " } cursor } pageInfo { endCursor hasNextPage }}}}"
+
 		payload, err := createGithubRequestPayload(reqBody)
 		if err != nil {
 			logger.Print(err)
@@ -569,7 +635,7 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 			return nil, errors.Wrap(err, "failed to create request payload")
 		}
 
-		bodyStr, err := gh.makeGithubRequest(payload)
+		bodyStr, err := gh.makeGithubRequest(ctx, payload)
 		if err != nil {
 			logger.Print(err)
 
@@ -579,48 +645,45 @@ func (gh *GitHubHost) describeGithubOrgRepos(orgName string) ([]repository, erro
 		var respObj githubQueryOrgResponse
 
 		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); uErr != nil {
-			logger.Print(err)
+			logger.Print(uErr)
 
 			return nil, errors.Wrap(uErr, "failed to unmarshal response")
 		}
 
-		if respObj.Errors != nil {
-			for _, gqlErr := range respObj.Errors {
-				if gqlErr.Type == "NOT_FOUND" {
-					logger.Printf("organization %s not found", orgName)
+		for _, gqlErr := range respObj.Errors {
+			if gqlErr.Type == "NOT_FOUND" {
+				logger.Printf("%s %s not found", kind, login)
 
-					return nil, errors.Errorf("organization %s not found", orgName)
-				} else {
-					logger.Printf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
-
-					return nil, errors.Errorf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
-				}
+				return nil, errors.Errorf("%s %s not found", kind, login)
 			}
+
+			logger.Printf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
+
+			return nil, errors.Errorf("unexpected error: type: %s message: %s", gqlErr.Type, gqlErr.Message)
 		}
 
-		for _, repo := range respObj.Data.Organization.Repositories.Edges {
-			repos = append(repos, repository{
-				Name:              repo.Node.Name,
-				SSHUrl:            repo.Node.SSHURL,
-				HTTPSUrl:          repo.Node.URL,
-				PathWithNameSpace: repo.Node.NameWithOwner,
-				Domain:            gitHubDomain,
-			})
+		owner := respObj.Data.Organization
+		if kind == githubOwnerUser {
+			owner = respObj.Data.User
 		}
 
-		gh.apiStats.recordItems(len(respObj.Data.Organization.Repositories.Edges))
+		repos = append(repos, githubEdgesToRepos(owner.Repositories.Edges)...)
 
-		if !respObj.Data.Organization.Repositories.PageInfo.HasNextPage {
+		gh.apiStats.recordItems(len(owner.Repositories.Edges))
+
+		if !owner.Repositories.PageInfo.HasNextPage {
 			break
-		} else {
-			reqBody = "query { organization(login: \"" + orgName + "\") { repositories(first:" + strconv.Itoa(gcs) + " after: \"" + respObj.Data.Organization.Repositories.PageInfo.EndCursor + "\") { edges { node { name nameWithOwner url sshUrl } cursor } pageInfo { endCursor hasNextPage }}}}"
 		}
+
+		after = owner.Repositories.PageInfo.EndCursor
 	}
 
 	return repos, nil
 }
 
 func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
+	ctx := context.Background()
+
 	gh.apiStats = newGitHubAPIStats()
 
 	var repos []repository
@@ -629,7 +692,7 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 		// get authenticated user's owned repos
 		var err errors.E
 
-		repos, err = gh.describeGithubUserRepos()
+		repos, err = gh.describeGithubUserRepos(ctx)
 		if err != nil {
 			logger.Print("failed to get GitHub user repos")
 
@@ -645,7 +708,7 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 		// delete the wildcard, leaving any existing specified orgs that may have been passed in
 		orgs = remove(orgs, "*")
 		// get a list of orgs the authenticated user belongs to
-		githubOrgs, err := gh.describeGithubUserOrganizations()
+		githubOrgs, err := gh.describeGithubUserOrganizations(ctx)
 		if err != nil {
 			logger.Print("failed to get user's GitHub organizations")
 
@@ -659,7 +722,7 @@ func (gh *GitHubHost) describeRepos() (describeReposOutput, errors.E) {
 
 	// append repos belonging to any orgs specified
 	for _, org := range orgs {
-		dRepos, err := gh.describeGithubOrgRepos(org)
+		dRepos, err := gh.describeGithubOrgRepos(ctx, org)
 		if err != nil {
 			logger.Printf("failed to get GitHub organization %s repos", org)
 

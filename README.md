@@ -86,6 +86,28 @@ host, err := githosts.NewCodebergHost(githosts.NewCodebergHostInput{
 
 Codeberg is a donation-funded shared host, so this provider defaults to lower concurrency and a longer delay between repositories than the Gitea one. Override the delay with `CODEBERG_WORKER_DELAY` (milliseconds) and the number of repositories backed up at once with `CODEBERG_MAX_CONCURRENT`.
 
+### Listing Repositories
+
+The GitHub and GitLab hosts also implement `Lister`, for tools that need a provider's repositories without backing them up:
+
+```go
+host, err := githosts.NewGitHubHost(githosts.NewGitHubHostInput{Token: os.Getenv("GITHUB_TOKEN")})
+if err != nil {
+    log.Fatal(err)
+}
+
+repos, err := host.ListOrgRepos(ctx, "my-org")
+```
+
+| Method | GitHub | GitLab |
+|---|---|---|
+| `ListOwnRepos(ctx)` | the token owner's repositories, honouring `LimitUserOwned` | projects at `ProjectMinAccessLevel` or above |
+| `ListUserRepos(ctx, user)` | repositories the user owns | the user's personal projects |
+| `ListOrgRepos(ctx, org)` | the organisation's repositories | the group's projects, including subgroups (`org` is the full path) |
+| `ListOrgMembers(ctx, org)` | member logins (`read:org` shows private members) | usernames, including inherited members |
+
+Each `Repository` reports `IsFork`, `IsArchived` and `IsEmpty`, and carries a `CloneURL` without credentials plus the `Auth` it needs, so a caller can clone with its own git implementation without credentials appearing in URLs. A method a provider cannot support returns an error wrapping `ErrNotSupported`.
+
 ### Retaining Bundles
 
 Set `BackupsToRetain` to keep only the most recent _n_ bundle files per repository. Older bundles are automatically deleted after a successful backup.
