@@ -42,7 +42,10 @@ func setupTestRepo(t *testing.T, repoDir string) {
 	cmd.Dir = tempWorkDir
 	require.NoError(t, cmd.Run())
 
-	cmd = exec.CommandContext(ctx, "git", "commit", "-m", "Initial commit") //nolint:noctx // Context already used
+	// Set the identity here rather than relying on the caller's git config,
+	// which a clean machine such as a CI runner does not have.
+	cmd = exec.CommandContext(ctx, "git", "-c", "user.name=githosts-utils test", "-c", "user.email=test@example.com", //nolint:noctx // Context already used
+		"commit", "-m", "Initial commit")
 	cmd.Dir = tempWorkDir
 	require.NoError(t, cmd.Run())
 
