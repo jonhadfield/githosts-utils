@@ -1,6 +1,7 @@
 package githosts
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -125,7 +126,7 @@ func TestGitHubUserOrganizationsQueriesLogin(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	orgs, err := host.describeGithubUserOrganizations()
+	orgs, err := host.describeGithubUserOrganizations(context.Background())
 	require.NoError(t, err)
 
 	require.Len(t, queries, 1)

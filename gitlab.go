@@ -49,6 +49,12 @@ type GitLabHost struct {
 }
 
 func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
+	return gl.authenticatedGitLabUser(context.Background())
+}
+
+// authenticatedGitLabUser returns the token's user. A token GitLab rejects
+// yields an empty user and no error, which callers detect by its zero ID.
+func (gl *GitLabHost) authenticatedGitLabUser(parent context.Context) (gitlabUser, errors.E) {
 	gitlabToken := strings.TrimSpace(gl.Token)
 	if gitlabToken == "" {
 		return gitlabUser{}, errors.New("GitLab token not provided")
@@ -63,7 +69,7 @@ func (gl *GitLabHost) getAuthenticatedGitLabUser() (gitlabUser, errors.E) {
 
 	getUserIDURL := gl.APIURL + "/user"
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
+	ctx, cancel := context.WithTimeout(parent, defaultHttpRequestTimeout)
 	defer cancel()
 
 	var req *retryablehttp.Request
@@ -125,12 +131,24 @@ type gitLabOwner struct {
 	CreatedAt string `json:"created_at"`
 }
 
+type gitLabNamespace struct {
+	FullPath string `json:"full_path"`
+}
+
 type gitLabProject struct {
-	Path              string      `json:"path"`
-	PathWithNameSpace string      `json:"path_with_namespace"`
-	HTTPSURL          string      `json:"http_url_to_repo"`
-	SSHURL            string      `json:"ssh_url_to_repo"`
-	Owner             gitLabOwner `json:"owner"`
+	Path              string          `json:"path"`
+	PathWithNameSpace string          `json:"path_with_namespace"`
+	HTTPSURL          string          `json:"http_url_to_repo"`
+	SSHURL            string          `json:"ssh_url_to_repo"`
+	Owner             gitLabOwner     `json:"owner"`
+	Namespace         gitLabNamespace `json:"namespace"`
+	Archived          bool            `json:"archived"`
+	EmptyRepo         bool            `json:"empty_repo"`
+	// ForkedFromProject is present only for a fork, and only when the token
+	// can see the upstream project.
+	ForkedFromProject *struct {
+		ID int64 `json:"id"`
+	} `json:"forked_from_project"`
 }
 type gitLabGetProjectsResponse []gitLabProject
 
@@ -141,7 +159,7 @@ var validAccessLevels = map[int]string{
 	50: "Owner",
 }
 
-func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repository, errors.E) {
+func (gl *GitLabHost) getAllProjectRepositories(ctx context.Context, client http.Client) ([]repository, errors.E) {
 	var sortedLevels []int
 	for k := range validAccessLevels {
 		sortedLevels = append(sortedLevels, k)
@@ -192,18 +210,16 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 	q.Set("min_access_level", strconv.Itoa(gl.ProjectMinAccessLevel))
 	u.RawQuery = q.Encode()
 
-	var body []byte
+	return gl.listGitLabProjects(ctx, &client, u.String())
+}
 
-	reqUrl := u.String()
-
+// listGitLabProjects fetches every page of a GitLab projects listing starting
+// at reqUrl, following the Link headers GitLab returns.
+func (gl *GitLabHost) listGitLabProjects(ctx context.Context, client *http.Client, reqUrl string) ([]repository, errors.E) {
 	var repos []repository
 
 	for {
-		var resp *http.Response
-
-		var rErr errors.E
-
-		resp, body, rErr = makeGitLabRequest(&client, reqUrl, gl.Token) //nolint:bodyclose // response body is closed in makeGitLabRequest
+		resp, body, rErr := makeGitLabRequest(ctx, client, reqUrl, gl.Token) //nolint:bodyclose // response body is closed in makeGitLabRequest
 		if rErr != nil {
 			logger.Print(rErr)
 
@@ -223,6 +239,8 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 			logger.Println("failed to get projects due to invalid missing permissions (HTTP 403)")
 
 			return []repository{}, errors.New("failed to get projects due to invalid missing permissions (HTTP 403)")
+		case http.StatusNotFound:
+			return []repository{}, errors.Errorf("failed to get projects as %s was not found (HTTP 404)", reqUrl)
 		default:
 			logger.Printf("failed to get projects due to unexpected response: %d (%s)", resp.StatusCode, resp.Status)
 
@@ -231,7 +249,7 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 
 		var respObj gitLabGetProjectsResponse
 
-		if err = json.Unmarshal(body, &respObj); err != nil {
+		if err := json.Unmarshal(body, &respObj); err != nil {
 			logger.Println(err)
 
 			return []repository{}, errors.Errorf("failed to unmarshall gitlab json response: %s", err.Error())
@@ -240,6 +258,11 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 		for _, project := range respObj {
 			// gitlab replaces hyphens with spaces in owner names, so fix
 			owner := strings.ReplaceAll(project.Owner.Name, " ", "-")
+			// group projects have no owner, so fall back to their namespace
+			if owner == "" {
+				owner = project.Namespace.FullPath
+			}
+
 			repo := repository{
 				Name:              project.Path,
 				Owner:             owner,
@@ -247,6 +270,9 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 				HTTPSUrl:          project.HTTPSURL,
 				SSHUrl:            project.SSHURL,
 				Domain:            gitLabDomain,
+				IsFork:            project.ForkedFromProject != nil,
+				IsArchived:        project.Archived,
+				IsEmpty:           project.EmptyRepo,
 			}
 
 			repos = append(repos, repo)
@@ -270,8 +296,8 @@ func (gl *GitLabHost) getAllProjectRepositories(client http.Client) ([]repositor
 	return repos, nil
 }
 
-func makeGitLabRequest(c *http.Client, reqUrl, token string) (*http.Response, []byte, errors.E) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
+func makeGitLabRequest(parent context.Context, c *http.Client, reqUrl, token string) (*http.Response, []byte, errors.E) {
+	ctx, cancel := context.WithTimeout(parent, defaultHttpRequestTimeout)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqUrl, nil)
@@ -357,15 +383,7 @@ func NewGitLabHost(input NewGitLabHostInput) (*GitLabHost, error) {
 func (gl *GitLabHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing repositories")
 
-	tr := &http.Transport{
-		MaxIdleConns:       maxIdleConns,
-		IdleConnTimeout:    idleConnTimeout,
-		DisableCompression: true,
-	}
-
-	client := &http.Client{Transport: tr}
-
-	userRepos, err := gl.getAllProjectRepositories(*client)
+	userRepos, err := gl.getAllProjectRepositories(context.Background(), *newGitLabListingClient())
 	if err != nil {
 		return describeReposOutput{}, err
 	}
@@ -373,6 +391,14 @@ func (gl *GitLabHost) describeRepos() (describeReposOutput, errors.E) {
 	return describeReposOutput{
 		Repos: userRepos,
 	}, nil
+}
+
+func newGitLabListingClient() *http.Client {
+	return &http.Client{Transport: &http.Transport{
+		MaxIdleConns:       maxIdleConns,
+		IdleConnTimeout:    idleConnTimeout,
+		DisableCompression: true,
+	}}
 }
 
 func (gl *GitLabHost) getAPIURL() string {

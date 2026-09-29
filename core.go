@@ -44,6 +44,9 @@ type repository struct {
 	URLWithBasicAuth  string
 	BasicAuthUser     string
 	BasicAuthPass     string
+	IsFork            bool
+	IsArchived        bool
+	IsEmpty           bool
 }
 
 type describeReposOutput struct {

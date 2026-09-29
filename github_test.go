@@ -4,6 +4,7 @@ package githosts
 
 import (
 	"bytes"
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -118,7 +119,7 @@ func TestDescribeGithubOrgRepos(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	repos, err := gh.describeGithubOrgRepos(org)
+	repos, err := gh.describeGithubOrgRepos(context.Background(), org)
 	require.NoError(t, err)
 	require.Len(t, repos, 4)
 }
