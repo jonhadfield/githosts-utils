@@ -106,7 +106,9 @@ repos, err := host.ListOrgRepos(ctx, "my-org")
 | `ListOrgRepos(ctx, org)` | the organisation's repositories | the group's projects, including subgroups (`org` is the full path) |
 | `ListOrgMembers(ctx, org)` | member logins (`read:org` shows private members) | usernames, including inherited members |
 
-Each `Repository` reports `IsFork`, `IsArchived` and `IsEmpty`, and carries a `CloneURL` without credentials plus the `Auth` it needs, so a caller can clone with its own git implementation without credentials appearing in URLs. A method a provider cannot support returns an error wrapping `ErrNotSupported`.
+Each `Repository` reports `IsFork`, `IsArchived`, `IsEmpty`, `IsPrivate` and `SizeKB` (0 when the provider does not report a size, as GitLab's listings do not), and carries a `CloneURL` without credentials plus the `Auth` it needs, so a caller can clone with its own git implementation without credentials appearing in URLs. A method a provider cannot support returns an error wrapping `ErrNotSupported`.
+
+The GitLab lister also works without a token, listing only public projects and returning no `Auth`; `ListOwnRepos` still needs one.
 
 ### Retaining Bundles
 

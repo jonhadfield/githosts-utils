@@ -3,6 +3,7 @@ package githosts
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -47,6 +48,8 @@ type repository struct {
 	IsFork            bool
 	IsArchived        bool
 	IsEmpty           bool
+	IsPrivate         bool
+	SizeKB            int64
 }
 
 type describeReposOutput struct {
@@ -611,6 +614,13 @@ func validDiffRemoteMethod(method string) error {
 	}
 
 	return nil
+}
+
+// SetLogOutput sets where the library writes its log messages, which go to
+// standard output by default. A program embedding the library can route them
+// into its own logging, or pass io.Discard to silence them.
+func SetLogOutput(w io.Writer) {
+	logger.SetOutput(w)
 }
 
 func setLoggerPrefix(prefix string) {

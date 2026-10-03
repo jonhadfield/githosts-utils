@@ -226,9 +226,10 @@ func TestGitLabListOwnRepos(t *testing.T) {
 
 		writeRaw(w, `[
 			{"path":"plain","path_with_namespace":"testuser/plain","http_url_to_repo":"https://gitlab.com/testuser/plain.git",
-			 "ssh_url_to_repo":"git@gitlab.com:testuser/plain.git","owner":{"name":"testuser"}},
+			 "ssh_url_to_repo":"git@gitlab.com:testuser/plain.git","owner":{"name":"testuser"},"visibility":"public"},
 			{"path":"flagged","path_with_namespace":"grp/sub/flagged","http_url_to_repo":"https://gitlab.com/grp/sub/flagged.git",
-			 "namespace":{"full_path":"grp/sub"},"archived":true,"empty_repo":true,"forked_from_project":{"id":7}}
+			 "namespace":{"full_path":"grp/sub"},"archived":true,"empty_repo":true,"forked_from_project":{"id":7},
+			 "visibility":"private"}
 		]`)
 	})
 
@@ -258,6 +259,7 @@ func TestGitLabListOwnRepos(t *testing.T) {
 		IsFork:            true,
 		IsArchived:        true,
 		IsEmpty:           true,
+		IsPrivate:         true,
 	}, repos[1])
 }
 
@@ -333,4 +335,94 @@ func TestGitLabListerFailsWhenTokenRejected(t *testing.T) {
 func TestErrNotSupportedIsMatchable(t *testing.T) {
 	wrapped := errors.Join(errors.New("context"), ErrNotSupported)
 	require.ErrorIs(t, wrapped, ErrNotSupported)
+}
+
+func TestGitHubListerReportsPrivacyAndSize(t *testing.T) {
+	var queries []string
+
+	srv := mockServer(t, graphQLQueries(t, &queries, func(string) any {
+		private := ghFlaggedEdge("user", "private", false, false, false)
+		private.Node.IsPrivate = true
+		private.Node.DiskUsage = 2048
+
+		resp := githubQueryNamesResponse{}
+		resp.Data.Viewer.Repositories.Edges = []edge{private, ghFlaggedEdge("user", "public", false, false, false)}
+
+		return resp
+	}))
+
+	repos, err := newTestGitHubHost(t, srv.URL).ListOwnRepos(context.Background())
+	require.NoError(t, err)
+	require.Contains(t, queries[0], "isPrivate diskUsage")
+
+	require.Len(t, repos, 2)
+	require.True(t, repos[0].IsPrivate)
+	require.Equal(t, int64(2048), repos[0].SizeKB)
+	require.False(t, repos[1].IsPrivate)
+	require.Zero(t, repos[1].SizeKB, "an unknown size is reported as 0")
+}
+
+func TestGitLabListerReportsVisibility(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/users/someone/projects", func(w http.ResponseWriter, _ *http.Request) {
+		writeRaw(w, `[{"path":"pub","path_with_namespace":"someone/pub","visibility":"public"},
+			{"path":"int","path_with_namespace":"someone/int","visibility":"internal"},
+			{"path":"priv","path_with_namespace":"someone/priv","visibility":"private"}]`)
+	})
+
+	repos, err := gitLabListerServer(t, mux).ListUserRepos(context.Background(), "someone")
+	require.NoError(t, err)
+	require.Len(t, repos, 3)
+
+	require.False(t, repos[0].IsPrivate)
+	require.True(t, repos[1].IsPrivate, "internal projects are not public")
+	require.True(t, repos[2].IsPrivate)
+}
+
+// newAnonymousGitLabHost points a host with no token at mux, failing the test
+// if anything is requested with a token or the user is looked up.
+func newAnonymousGitLabHost(t *testing.T, mux *http.ServeMux) *GitLabHost {
+	t.Helper()
+
+	mux.HandleFunc("/api/v4/user", func(http.ResponseWriter, *http.Request) {
+		t.Error("the user must not be looked up without a token")
+	})
+
+	srv := mockServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := r.Header["Private-Token"]; ok {
+			t.Errorf("%s was requested with a token header", r.URL.Path)
+		}
+
+		mux.ServeHTTP(w, r)
+	}))
+
+	host, err := NewGitLabHost(NewGitLabHostInput{HTTPClient: testHTTPClient(), APIURL: srv.URL + "/api/v4"})
+	require.NoError(t, err)
+
+	return host
+}
+
+func TestGitLabListerWithoutToken(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/groups/grp/projects", func(w http.ResponseWriter, _ *http.Request) {
+		writeRaw(w, `[{"path":"p","path_with_namespace":"grp/p","http_url_to_repo":"https://gitlab.com/grp/p.git","visibility":"public"}]`)
+	})
+	mux.HandleFunc("/api/v4/groups/grp/members/all", func(w http.ResponseWriter, _ *http.Request) {
+		writeRaw(w, `[{"username":"alice"}]`)
+	})
+
+	host := newAnonymousGitLabHost(t, mux)
+	ctx := context.Background()
+
+	repos, err := host.ListOrgRepos(ctx, "grp")
+	require.NoError(t, err)
+	require.Len(t, repos, 1)
+	require.Equal(t, BasicAuth{}, repos[0].Auth, "public projects are cloned without credentials")
+
+	members, err := host.ListOrgMembers(ctx, "grp")
+	require.NoError(t, err)
+	require.Equal(t, []string{"alice"}, members)
+
+	_, err = host.ListOwnRepos(ctx)
+	require.ErrorContains(t, err, "token not provided")
 }
