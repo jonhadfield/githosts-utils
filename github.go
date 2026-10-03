@@ -153,7 +153,7 @@ type GitHubHost struct {
 
 // githubRepoNodeFields is the selection set requested for every repository
 // node, and must stay in step with edge.
-const githubRepoNodeFields = "name nameWithOwner url sshUrl isFork isArchived isEmpty owner { login }"
+const githubRepoNodeFields = "name nameWithOwner url sshUrl isFork isArchived isEmpty isPrivate diskUsage owner { login }"
 
 type edge struct {
 	Node struct {
@@ -164,7 +164,10 @@ type edge struct {
 		IsFork        bool   `json:"isFork"`
 		IsArchived    bool   `json:"isArchived"`
 		IsEmpty       bool   `json:"isEmpty"`
-		Owner         struct {
+		IsPrivate     bool   `json:"isPrivate"`
+		// DiskUsage is in kilobytes, and null when GitHub does not know it.
+		DiskUsage int64 `json:"diskUsage"`
+		Owner     struct {
 			Login string `json:"login"`
 		} `json:"owner"`
 	}
@@ -571,6 +574,8 @@ func githubEdgesToRepos(edges []edge) []repository {
 			IsFork:            repo.Node.IsFork,
 			IsArchived:        repo.Node.IsArchived,
 			IsEmpty:           repo.Node.IsEmpty,
+			IsPrivate:         repo.Node.IsPrivate,
+			SizeKB:            repo.Node.DiskUsage,
 		})
 	}
 

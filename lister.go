@@ -38,6 +38,12 @@ type Repository struct {
 	// as the provider's API: a provider that cannot report it leaves it
 	// false.
 	IsEmpty bool
+	// IsPrivate reports that the repository is not public. GitLab's internal
+	// visibility, which any signed-in user can see, counts as private.
+	IsPrivate bool
+	// SizeKB is the repository's size in kilobytes, or 0 when the provider
+	// does not report it, as GitLab's listings do not.
+	SizeKB int64
 }
 
 // Lister lists repositories and organisation members on a provider. A method
@@ -79,6 +85,8 @@ func exportRepositories(in []repository, auth BasicAuth) []Repository {
 			IsFork:            r.IsFork,
 			IsArchived:        r.IsArchived,
 			IsEmpty:           r.IsEmpty,
+			IsPrivate:         r.IsPrivate,
+			SizeKB:            r.SizeKB,
 		})
 	}
 

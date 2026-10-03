@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/peterhellberg/link"
 	"gitlab.com/tozd/go/errors"
@@ -16,8 +17,13 @@ type gitLabMember struct {
 }
 
 // cloneAuth returns the credentials Backup clones with: the token's username
-// and the token itself.
+// and the token itself. Without a token there are none, and only public
+// projects can be listed and cloned.
 func (gl *GitLabHost) cloneAuth(ctx context.Context) (BasicAuth, errors.E) {
+	if strings.TrimSpace(gl.Token) == "" {
+		return BasicAuth{}, nil
+	}
+
 	user := gl.User
 	if user.ID == 0 {
 		var err errors.E
@@ -80,8 +86,13 @@ func (gl *GitLabHost) listProjectsAt(ctx context.Context, path string, params ur
 }
 
 // ListOwnRepos lists the projects the authenticated user can access at
-// ProjectMinAccessLevel or above.
+// ProjectMinAccessLevel or above. It needs a token, as there is no
+// authenticated user without one.
 func (gl *GitLabHost) ListOwnRepos(ctx context.Context) ([]Repository, error) {
+	if strings.TrimSpace(gl.Token) == "" {
+		return nil, errors.New("GitLab token not provided")
+	}
+
 	auth, err := gl.cloneAuth(ctx)
 	if err != nil {
 		return nil, err

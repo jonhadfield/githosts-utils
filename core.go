@@ -47,6 +47,8 @@ type repository struct {
 	IsFork            bool
 	IsArchived        bool
 	IsEmpty           bool
+	IsPrivate         bool
+	SizeKB            int64
 }
 
 type describeReposOutput struct {

@@ -144,6 +144,7 @@ type gitLabProject struct {
 	Namespace         gitLabNamespace `json:"namespace"`
 	Archived          bool            `json:"archived"`
 	EmptyRepo         bool            `json:"empty_repo"`
+	Visibility        string          `json:"visibility"`
 	// ForkedFromProject is present only for a fork, and only when the token
 	// can see the upstream project.
 	ForkedFromProject *struct {
@@ -273,6 +274,7 @@ func (gl *GitLabHost) listGitLabProjects(ctx context.Context, client *http.Clien
 				IsFork:            project.ForkedFromProject != nil,
 				IsArchived:        project.Archived,
 				IsEmpty:           project.EmptyRepo,
+				IsPrivate:         project.Visibility != "public",
 			}
 
 			repos = append(repos, repo)
@@ -305,7 +307,10 @@ func makeGitLabRequest(parent context.Context, c *http.Client, reqUrl, token str
 		return nil, nil, errors.Errorf("failed to request %s: %s", reqUrl, err.Error())
 	}
 
-	req.Header.Set("Private-Token", token)
+	// without a token, only public data can be listed
+	if token != "" {
+		req.Header.Set("Private-Token", token)
+	}
 	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
 	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 
