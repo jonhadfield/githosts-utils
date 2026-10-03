@@ -18,3 +18,6 @@
 
 # ide
 .idea
+
+# local secrets, such as tokens for integration tests
+.env
