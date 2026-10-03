@@ -85,23 +85,23 @@ func TestGitLabListerIntegration(t *testing.T) {
 
 	// the projects live in a subgroup, so finding them proves subgroups are
 	// included in a group's listing
-	repos, err := gl.ListOrgRepos(ctx, "soba-test")
+	repos, err := gl.ListOrgRepos(ctx, "go-soba-test")
 	require.NoError(t, err)
 
 	for _, name := range []string{"soba-sub-project-one", "soba-sub-project-two"} {
-		repo, ok := findRepository(repos, "soba-test/soba-sub/"+name)
+		repo, ok := findRepository(repos, "go-soba-test/soba-sub/"+name)
 		require.True(t, ok, "%s should be listed", name)
 		require.Equal(t, gitLabDomain, repo.Domain)
 		requireListedCloneable(t, repo)
 	}
 
-	members, err := gl.ListOrgMembers(ctx, "soba-test")
+	members, err := gl.ListOrgMembers(ctx, "go-soba-test")
 	require.NoError(t, err)
 	require.NotEmpty(t, members)
 
 	own, err := gl.ListOwnRepos(ctx)
 	require.NoError(t, err)
 
-	_, ok := findRepository(own, "soba-test/soba-sub/soba-sub-project-one")
+	_, ok := findRepository(own, "go-soba-test/soba-sub/soba-sub-project-one")
 	require.True(t, ok, "the token's own listing should include the group's projects")
 }
