@@ -88,7 +88,7 @@ Codeberg is a donation-funded shared host, so this provider defaults to lower co
 
 ### Listing Repositories
 
-The GitHub and GitLab hosts also implement `Lister`, for tools that need a provider's repositories without backing them up:
+Every host also implements `Lister`, for tools that need a provider's repositories without backing them up:
 
 ```go
 host, err := githosts.NewGitHubHost(githosts.NewGitHubHostInput{Token: os.Getenv("GITHUB_TOKEN")})
@@ -99,16 +99,24 @@ if err != nil {
 repos, err := host.ListOrgRepos(ctx, "my-org")
 ```
 
-| Method | GitHub | GitLab |
-|---|---|---|
-| `ListOwnRepos(ctx)` | the token owner's repositories, honouring `LimitUserOwned` | projects at `ProjectMinAccessLevel` or above |
-| `ListUserRepos(ctx, user)` | repositories the user owns | the user's personal projects |
-| `ListOrgRepos(ctx, org)` | the organisation's repositories | the group's projects, including subgroups (`org` is the full path) |
-| `ListOrgMembers(ctx, org)` | member logins (`read:org` shows private members) | usernames, including inherited members |
+| Host | `ListOwnRepos(ctx)` | `ListUserRepos(ctx, user)` | `ListOrgRepos(ctx, org)` | `ListOrgMembers(ctx, org)` |
+|---|---|---|---|---|
+| GitHub | the token owner's repositories, honouring `LimitUserOwned` | repositories the user owns | the organisation's repositories | member logins (`read:org` shows private members) |
+| GitLab | projects at `ProjectMinAccessLevel` or above | the user's personal projects | the group's projects, including subgroups (`org` is the full path) | usernames, including inherited members |
+| Bitbucket | repositories in the configured or discovered workspaces | the user's personal workspace (`user` is its workspace ID or UUID) | the workspace's repositories | member UUIDs in braces, which `ListUserRepos` accepts |
+| Azure DevOps | every repository in the first configured organisation, as `Backup()` processes | not supported | every repository in every project of the organisation | users' principal names (needs the Member Entitlement Management read scope) |
+| Gitea | every user's repositories, through the admin endpoints `Backup()` uses (needs a site-admin token) | the user's repositories | the organisation's repositories | member logins (non-members see public members only) |
+| Codeberg | the token's repositories (`/user/repos`), honouring `LimitUserOwned` | the user's repositories | the organisation's repositories | member logins (non-members see public members only) |
+| Sourcehut | the token owner's public repositories, as `Backup()` processes | the user's repositories the token can see (`~` optional) | not supported | not supported |
 
-Each `Repository` reports `IsFork`, `IsArchived`, `IsEmpty`, `IsPrivate` and `SizeKB` (0 when the provider does not report a size, as GitLab's listings do not), and carries a `CloneURL` without credentials plus the `Auth` it needs, so a caller can clone with its own git implementation without credentials appearing in URLs. A method a provider cannot support returns an error wrapping `ErrNotSupported`.
+Each `Repository` reports `IsFork`, `IsArchived`, `IsEmpty`, `IsPrivate` and `SizeKB`, and carries a `CloneURL` without credentials plus the `Auth` it needs, so a caller can clone with its own git implementation without credentials appearing in URLs. A method a provider cannot support returns an error wrapping `ErrNotSupported`. Where a provider has no such field, the value is false or 0:
 
-The GitLab lister also works without a token, listing only public projects and returning no `Auth`; `ListOwnRepos` still needs one.
+- `SizeKB` is 0 for GitLab and Sourcehut, which do not report a size.
+- `IsArchived` is always false for Bitbucket, Azure DevOps and Sourcehut, which have no archived state. A disabled Azure DevOps repository cannot be cloned at all, so it is not reported as archived.
+- `IsFork` is always false for Sourcehut.
+- GitLab internal projects, Gitea and Codeberg internal repositories, and Sourcehut unlisted repositories count as private.
+
+The GitLab, Gitea and Codeberg listers also work without a token, listing only public repositories and returning no `Auth`; their `ListOwnRepos` still needs one. Sourcehut's lister needs a token with git.sr.ht's read-only objects scope, to tell whether a repository is empty.
 
 ### Retaining Bundles
 

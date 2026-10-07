@@ -73,18 +73,42 @@ type sourcehutRepository struct {
 	Owner       struct {
 		Username string `json:"username"`
 	} `json:"owner"`
+	// HEAD is only populated by queries that select it. git.sr.ht returns
+	// null when HEAD does not resolve, i.e. for a repository without commits.
+	HEAD *struct {
+		Name string `json:"name"`
+	} `json:"HEAD"`
+}
+
+// sourcehutRepositoryCursor is a page of git.sr.ht's RepositoryCursor.
+type sourcehutRepositoryCursor struct {
+	Results []sourcehutRepository `json:"results"`
+	Cursor  *string               `json:"cursor"`
+}
+
+type sourcehutGraphQLErrors []struct {
+	Message string `json:"message"`
 }
 
 type sourcehutRepositoriesResponse struct {
 	Data struct {
-		Repositories struct {
-			Results []sourcehutRepository `json:"results"`
-			Cursor  *string               `json:"cursor"`
-		} `json:"repositories"`
+		Repositories sourcehutRepositoryCursor `json:"repositories"`
 	} `json:"data"`
-	Errors []struct {
-		Message string `json:"message"`
-	} `json:"errors"`
+	Errors sourcehutGraphQLErrors `json:"errors"`
+}
+
+// sourcehutRepoResultFields selects what describeSourcehutUserRepos needs
+// from each repository.
+const sourcehutRepoResultFields = `id name description visibility owner { ... on User { username } }`
+
+// sourcehutRepoPageArgs are the arguments of a paged repositories field.
+var sourcehutRepoPageArgs = `cursor: $cursor, filter: {count: ` + strconv.Itoa(sourcehutRepoCountPerPage) + `}`
+
+// sourcehutOwnReposQuery lists the authenticated user's repositories a page
+// at a time, selecting extraFields as well as sourcehutRepoResultFields.
+func sourcehutOwnReposQuery(extraFields string) string {
+	return `query ($cursor: Cursor) { repositories(` + sourcehutRepoPageArgs + `) { results { ` +
+		sourcehutRepoResultFields + extraFields + ` } cursor } }`
 }
 
 func (sh *SourcehutHost) getAPIURL() string {
@@ -134,10 +158,10 @@ func NewSourcehutHost(input NewSourcehutHostInput) (*SourcehutHost, error) { //n
 	}, nil
 }
 
-func (sh *SourcehutHost) makeSourcehutRequest(payload string) (string, errors.E) {
+func (sh *SourcehutHost) makeSourcehutRequest(ctx context.Context, payload string) (string, errors.E) {
 	contentReader := bytes.NewReader([]byte(payload))
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
+	ctx, cancel := context.WithTimeout(ctx, defaultHttpRequestTimeout)
 	defer cancel()
 
 	req, newReqErr := retryablehttp.NewRequestWithContext(ctx, http.MethodPost, sh.APIURL, contentReader)
@@ -196,84 +220,134 @@ func (sh *SourcehutHost) makeSourcehutRequest(payload string) (string, errors.E)
 }
 
 // describeSourcehutUserRepos returns a list of repositories owned by authenticated user.
-func (sh *SourcehutHost) describeSourcehutUserRepos() ([]repository, errors.E) {
+func (sh *SourcehutHost) describeSourcehutUserRepos(ctx context.Context) ([]repository, errors.E) {
 	logger.Println("listing SourceHut user's owned repositories")
+
+	results, err := sh.pageSourcehutRepos(ctx, sourcehutOwnReposQuery(""), nil, decodeSourcehutOwnRepos)
+	if err != nil {
+		return nil, err
+	}
 
 	var repos []repository
 
-	var cursor *string
+	for _, repo := range results {
+		// SourceHut private repositories cannot be cloned via HTTPS with personal access tokens
+		// Only backup public repositories due to authentication limitations
+		if !isSourcehutPublic(repo) {
+			logger.Printf("Skipping private SourceHut repository %s (visibility: %s) - HTTPS cloning not supported for private repos", repo.Name, repo.Visibility)
 
-	for {
-		var reqBody string
-		if cursor == nil {
-			reqBody = `{"query": "query { repositories(filter: {count: ` + strconv.Itoa(sourcehutRepoCountPerPage) + `}) { results { id name description visibility owner { ... on User { username } } } cursor } }"}`
-		} else {
-			reqBody = `{"query": "query { repositories(cursor: \"` + *cursor + `\", filter: {count: ` + strconv.Itoa(sourcehutRepoCountPerPage) + `}) { results { id name description visibility owner { ... on User { username } } } cursor } }"}`
+			continue
 		}
 
-		bodyStr, err := sh.makeSourcehutRequest(reqBody)
-		if err != nil {
-			return nil, errors.Wrap(err, "SourceHut request failed")
-		}
-
-		var respObj sourcehutRepositoriesResponse
-		if uErr := json.Unmarshal([]byte(bodyStr), &respObj); uErr != nil {
-			logger.Print(uErr)
-
-			return nil, errors.Wrap(uErr, "failed to unmarshal response")
-		}
-
-		if len(respObj.Errors) > 0 {
-			for _, err := range respObj.Errors {
-				logger.Printf("SourceHut API error: %s", err.Message)
-			}
-
-			return nil, errors.New("SourceHut API returned errors")
-		}
-
-		for _, repo := range respObj.Data.Repositories.Results {
-			// SourceHut private repositories cannot be cloned via HTTPS with personal access tokens
-			// Only backup public repositories due to authentication limitations
-			if strings.ToLower(repo.Visibility) != sourcehutVisibilityPublic {
-				logger.Printf("Skipping private SourceHut repository %s (visibility: %s) - HTTPS cloning not supported for private repos", repo.Name, repo.Visibility)
-
-				continue
-			}
-
-			// Construct clone URLs manually based on SourceHut conventions
-			// Format: https://git.sr.ht/~username/repository and git@git.sr.ht:~username/repository
-
-			// Ensure canonical name has the ~ prefix if it doesn't already
-			canonicalName := repo.Owner.Username
-			if !strings.HasPrefix(canonicalName, sourcehutTildePrefix) {
-				canonicalName = sourcehutTildePrefix + canonicalName
-			}
-
-			// Construct URLs following SourceHut convention (no .git suffix)
-			httpsURL := sourcehutGitHost + canonicalName + "/" + repo.Name
-			sshURL := sourcehutSSHHost + canonicalName + "/" + repo.Name
-
-			// For PathWithNameSpace, use the canonical name without ~ for file paths
-			pathCanonicalName := strings.TrimPrefix(canonicalName, sourcehutTildePrefix)
-
-			repos = append(repos, repository{
-				Name:              repo.Name,
-				Owner:             pathCanonicalName,
-				SSHUrl:            sshURL,
-				HTTPSUrl:          httpsURL,
-				PathWithNameSpace: pathCanonicalName + "/" + repo.Name,
-				Domain:            sourcehutDomain,
-			})
-		}
-
-		cursor = respObj.Data.Repositories.Cursor
-		if cursor == nil {
-			break
-		}
+		repos = append(repos, sourcehutRepoToRepository(repo))
 	}
 
 	logger.Printf("Found %d public SourceHut repositories for backup", len(repos))
 	return repos, nil
+}
+
+// asError logs each GraphQL error and returns an error if there were any.
+func (errs sourcehutGraphQLErrors) asError() errors.E {
+	if len(errs) == 0 {
+		return nil
+	}
+
+	for _, err := range errs {
+		logger.Printf("SourceHut API error: %s", err.Message)
+	}
+
+	return errors.New("SourceHut API returned errors")
+}
+
+// pageSourcehutRepos runs query, which takes a $cursor variable as well as
+// vars, a page at a time until decode reports no further cursor, and returns
+// the repositories from every page. decode extracts the page's repository
+// cursor from a response body.
+func (sh *SourcehutHost) pageSourcehutRepos(ctx context.Context, query string, vars map[string]any,
+	decode func(body []byte) (sourcehutRepositoryCursor, errors.E),
+) ([]sourcehutRepository, errors.E) {
+	variables := make(map[string]any, len(vars)+1)
+	for k, v := range vars {
+		variables[k] = v
+	}
+
+	var (
+		repos  []sourcehutRepository
+		cursor *string
+	)
+
+	for {
+		variables["cursor"] = cursor
+
+		payload, mErr := json.Marshal(map[string]any{"query": query, "variables": variables})
+		if mErr != nil {
+			return nil, errors.Wrap(mErr, "failed to marshal SourceHut request")
+		}
+
+		bodyStr, err := sh.makeSourcehutRequest(ctx, string(payload))
+		if err != nil {
+			return nil, errors.Wrap(err, "SourceHut request failed")
+		}
+
+		page, err := decode([]byte(bodyStr))
+		if err != nil {
+			return nil, err
+		}
+
+		repos = append(repos, page.Results...)
+
+		cursor = page.Cursor
+		if cursor == nil {
+			return repos, nil
+		}
+	}
+}
+
+// decodeSourcehutOwnRepos extracts the page from a response to
+// sourcehutOwnReposQuery.
+func decodeSourcehutOwnRepos(body []byte) (sourcehutRepositoryCursor, errors.E) {
+	var respObj sourcehutRepositoriesResponse
+	if uErr := json.Unmarshal(body, &respObj); uErr != nil {
+		logger.Print(uErr)
+
+		return sourcehutRepositoryCursor{}, errors.Wrap(uErr, "failed to unmarshal response")
+	}
+
+	if err := respObj.Errors.asError(); err != nil {
+		return sourcehutRepositoryCursor{}, err
+	}
+
+	return respObj.Data.Repositories, nil
+}
+
+func isSourcehutPublic(repo sourcehutRepository) bool {
+	return strings.ToLower(repo.Visibility) == sourcehutVisibilityPublic
+}
+
+// sourcehutRepoToRepository converts a git.sr.ht repository to the internal
+// form. git.sr.ht's API does not return clone URLs, so they are constructed
+// from SourceHut's conventions:
+// https://git.sr.ht/~username/repository and git@git.sr.ht:~username/repository.
+func sourcehutRepoToRepository(repo sourcehutRepository) repository {
+	// Ensure canonical name has the ~ prefix if it doesn't already
+	canonicalName := repo.Owner.Username
+	if !strings.HasPrefix(canonicalName, sourcehutTildePrefix) {
+		canonicalName = sourcehutTildePrefix + canonicalName
+	}
+
+	// For PathWithNameSpace, use the canonical name without ~ for file paths
+	pathCanonicalName := strings.TrimPrefix(canonicalName, sourcehutTildePrefix)
+
+	// Construct URLs following SourceHut convention (no .git suffix)
+	return repository{
+		Name:              repo.Name,
+		Owner:             pathCanonicalName,
+		SSHUrl:            sourcehutSSHHost + canonicalName + "/" + repo.Name,
+		HTTPSUrl:          sourcehutGitHost + canonicalName + "/" + repo.Name,
+		PathWithNameSpace: pathCanonicalName + "/" + repo.Name,
+		Domain:            sourcehutDomain,
+		IsPrivate:         !isSourcehutPublic(repo),
+	}
 }
 
 func (sh *SourcehutHost) describeRepos() (describeReposOutput, errors.E) {
@@ -283,7 +357,7 @@ func (sh *SourcehutHost) describeRepos() (describeReposOutput, errors.E) {
 		// get authenticated user's owned repos
 		var err errors.E
 
-		repos, err = sh.describeSourcehutUserRepos()
+		repos, err = sh.describeSourcehutUserRepos(context.Background())
 		if err != nil {
 			logger.Print("failed to get SourceHut user repos")
 

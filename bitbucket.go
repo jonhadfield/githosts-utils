@@ -313,7 +313,7 @@ func (bb BitbucketHost) bitbucketAuthenticatedGet(ctx context.Context, rawURL st
 // getWorkspaces returns the list of workspace slugs to query for repositories.
 // If explicit workspaces were configured, those are returned directly.
 // Otherwise, it auto-discovers workspaces via the Bitbucket API.
-func (bb BitbucketHost) getWorkspaces() ([]string, errors.E) {
+func (bb BitbucketHost) getWorkspaces(ctx context.Context) ([]string, errors.E) {
 	if len(bb.Workspaces) > 0 {
 		logger.Printf("using %d configured BitBucket workspace(s)", len(bb.Workspaces))
 
@@ -321,9 +321,6 @@ func (bb BitbucketHost) getWorkspaces() ([]string, errors.E) {
 	}
 
 	logger.Println("discovering BitBucket workspaces")
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
-	defer cancel()
 
 	var workspaces []string
 
@@ -362,6 +359,42 @@ func (bb BitbucketHost) getWorkspaces() ([]string, errors.E) {
 	return workspaces, nil
 }
 
+// listWorkspaceProjects returns every repository in the workspace visible to
+// the caller, following Bitbucket's pagination. A non-empty role narrows the
+// listing to repositories the authenticated user holds that role on.
+func (bb BitbucketHost) listWorkspaceProjects(ctx context.Context, workspace, role string) ([]bitbucketProject, errors.E) {
+	rawRequestURL := bb.APIURL + "/repositories/" + url.PathEscape(workspace)
+	if role != "" {
+		rawRequestURL += "?role=" + url.QueryEscape(role)
+	}
+
+	var projects []bitbucketProject
+
+	for {
+		body, err := bb.bitbucketAuthenticatedGet(ctx, rawRequestURL)
+		if err != nil {
+			return nil, errors.Errorf("failed to list repositories in workspace %s: %s", workspace, err)
+		}
+
+		var respObj bitbucketGetProjectsResponse
+		if jErr := json.Unmarshal(body, &respObj); jErr != nil {
+			return nil, errors.Wrap(jErr, "failed to unmarshal BitBucket repositories response")
+		}
+
+		projects = append(projects, respObj.Values...)
+
+		if respObj.Next != "" {
+			rawRequestURL = respObj.Next
+
+			continue
+		}
+
+		break
+	}
+
+	return projects, nil
+}
+
 func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 	logger.Println("listing BitBucket repositories")
 
@@ -369,7 +402,10 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 		return describeReposOutput{}, errors.New("no authentication method available - need either OAuth key/secret or API token/email")
 	}
 
-	workspaces, wsErr := bb.getWorkspaces()
+	wsCtx, wsCancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
+	defer wsCancel()
+
+	workspaces, wsErr := bb.getWorkspaces(wsCtx)
 	if wsErr != nil {
 		return describeReposOutput{}, errors.Wrap(wsErr, "failed to get BitBucket workspaces")
 	}
@@ -382,39 +418,22 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 	for _, workspace := range workspaces {
 		logger.Printf("listing repositories in BitBucket workspace: %s", workspace)
 
-		rawRequestURL := bb.APIURL + "/repositories/" + url.PathEscape(workspace) + "?role=member"
+		projects, err := bb.listWorkspaceProjects(ctx, workspace, "member")
+		if err != nil {
+			return describeReposOutput{}, err
+		}
 
-		for {
-			body, err := bb.bitbucketAuthenticatedGet(ctx, rawRequestURL)
-			if err != nil {
-				return describeReposOutput{}, errors.Errorf("failed to list repositories in workspace %s: %s", workspace, err)
-			}
-
-			var respObj bitbucketGetProjectsResponse
-			if jErr := json.Unmarshal(body, &respObj); jErr != nil {
-				return describeReposOutput{}, errors.Wrap(jErr, "failed to unmarshal BitBucket repositories response")
-			}
-
-			for _, r := range respObj.Values {
-				if r.Scm == "git" {
-					repo := repository{
-						Name:              r.Name,
-						HTTPSUrl:          "https://bitbucket.org/" + r.FullName + ".git",
-						PathWithNameSpace: r.FullName,
-						Domain:            bitbucketDomain,
-					}
-
-					repos = append(repos, repo)
+		for _, r := range projects {
+			if r.Scm == "git" {
+				repo := repository{
+					Name:              r.Name,
+					HTTPSUrl:          bitbucketHTTPSCloneURL(r.FullName),
+					PathWithNameSpace: r.FullName,
+					Domain:            bitbucketDomain,
 				}
+
+				repos = append(repos, repo)
 			}
-
-			if respObj.Next != "" {
-				rawRequestURL = respObj.Next
-
-				continue
-			}
-
-			break
 		}
 	}
 
@@ -496,21 +515,16 @@ func (bb BitbucketHost) Backup() ProviderBackupResult {
 			DelayEnvVar:      bitbucketEnvVarWorkerDelay,
 			Secrets:          []string{bb.OAuthToken, bb.APIToken},
 			SetupRepo: func(repo *repository) {
-				var fUser, fToken string
+				cloneAuth := bb.cloneAuth()
 				switch {
 				case bb.OAuthToken != "":
-					fUser = "x-token-auth"
-					fToken = bb.OAuthToken
 					logger.Printf("BitBucket clone: using OAuth token for repository %s", repo.PathWithNameSpace)
-				case bb.APIToken != "":
-					fUser = bitbucketStaticUserName
-					fToken = bb.APIToken
-				default:
+				case bb.APIToken == "":
 					logger.Printf("BitBucket clone: no authentication available for repository %s", repo.PathWithNameSpace)
 
 					return
 				}
-				repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, fUser, fToken)
+				repo.URLWithBasicAuth = urlWithBasicAuthURL(repo.HTTPSUrl, cloneAuth.User, cloneAuth.Password)
 			},
 			EncryptionPassphrase: bb.EncryptionPassphrase,
 		}, jobs, results)
@@ -576,6 +590,20 @@ type bitbucketProject struct {
 	FullName  string            `json:"full_name"`
 	IsPrivate bool              `json:"is_private"`
 	Links     bitbucketRepoLink `json:"links"`
+	// Size is the repository's size in bytes.
+	Size int64 `json:"size"`
+	// Parent is the repository this one was forked from, if any.
+	Parent *bitbucketParent `json:"parent"`
+	// MainBranch is null until the repository has a commit.
+	MainBranch *bitbucketBranch `json:"mainbranch"`
+}
+
+type bitbucketParent struct {
+	FullName string `json:"full_name"`
+}
+
+type bitbucketBranch struct {
+	Name string `json:"name"`
 }
 
 type bitbucketCloneDetail struct {
