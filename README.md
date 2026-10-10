@@ -16,10 +16,10 @@
 ## Installation
 
 ```bash
-go get github.com/jonhadfield/githosts-utils
+go get github.com/jonhadfield/githosts-utils/v2
 ```
 
-Requires Go 1.22 or later.
+Requires Go 1.26 or later.
 
 ## Quick Start
 
@@ -32,7 +32,7 @@ import (
     "log"
     "os"
 
-    "github.com/jonhadfield/githosts-utils"
+    "github.com/jonhadfield/githosts-utils/v2"
 )
 
 func main() {
@@ -160,7 +160,7 @@ The library reads the following variables where relevant:
 - `GIT_BACKUP_DIR` – used by the tests to determine the backup location
 - `BUNDLE_PASSPHRASE` – optional passphrase for encrypting backup bundles
 
-Provider-specific tests require credentials through environment variables such as `GITHUB_TOKEN`, `GITLAB_TOKEN`, `BITBUCKET_KEY`, `BITBUCKET_SECRET`, `AZURE_DEVOPS_USERNAME`, `AZURE_DEVOPS_PAT`, `GITEA_TOKEN`, and `SOURCEHUT_TOKEN`.
+Provider-specific tests require credentials through environment variables such as `GITHUB_TOKEN`, `GITLAB_TOKEN`, `BITBUCKET_EMAIL` and `BITBUCKET_API_TOKEN` (or `BITBUCKET_KEY` and `BITBUCKET_SECRET` for OAuth2), `AZURE_DEVOPS_USERNAME`, `AZURE_DEVOPS_PAT`, and `AZURE_DEVOPS_ORGS`, `GITEA_TOKEN` and `GITEA_APIURL`, `CODEBERG_TOKEN`, and `SOURCEHUT_PAT`.
 
 ## Running Tests
 
