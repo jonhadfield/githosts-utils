@@ -21,3 +21,6 @@
 
 # local secrets, such as tokens for integration tests
 .env
+
+# Added by ggshield
+.cache_ggshield

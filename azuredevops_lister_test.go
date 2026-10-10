@@ -13,6 +13,9 @@ import (
 
 const azureDevOpsOriginalHostHeader = "X-Test-Original-Host"
 
+// Fixture PAT for Azure DevOps list/auth tests — not a real credential.
+const azureDevOpsTestPAT = "test-pat" // ggignore
+
 // redirectTransport sends every request to target, recording the host the
 // request was meant for, as the Azure DevOps hosts are fixed.
 type redirectTransport struct {
@@ -44,7 +47,7 @@ func newTestAzureDevOpsHost(t *testing.T, mux *http.ServeMux) *AzureDevOpsHost {
 	return &AzureDevOpsHost{
 		HttpClient: client,
 		UserName:   "test-user",
-		PAT:        "test-pat",
+		PAT:        azureDevOpsTestPAT,
 		Orgs:       []string{"acme"},
 	}
 }
@@ -54,7 +57,7 @@ func requireAzureDevOpsRequest(t *testing.T, r *http.Request, host string) {
 	t.Helper()
 
 	require.Equal(t, host, r.Header.Get(azureDevOpsOriginalHostHeader))
-	require.Equal(t, AuthPrefixBasic+base64.StdEncoding.EncodeToString([]byte("test-user:test-pat")),
+	require.Equal(t, AuthPrefixBasic+base64.StdEncoding.EncodeToString([]byte("test-user:"+azureDevOpsTestPAT)),
 		r.Header.Get(HeaderAuthorization))
 	require.Equal(t, azureDevOpsAPIVersion, r.URL.Query().Get("api-version"))
 }
@@ -109,7 +112,7 @@ func TestAzureDevOpsListOrgRepos(t *testing.T) {
 	repos, err := newTestAzureDevOpsHost(t, azureDevOpsOrgMux(t)).ListOrgRepos(context.Background(), "acme")
 	require.NoError(t, err)
 
-	auth := BasicAuth{User: "test-user", Password: "test-pat"}
+	auth := BasicAuth{User: "test-user", Password: azureDevOpsTestPAT}
 
 	require.Equal(t, []Repository{
 		{
