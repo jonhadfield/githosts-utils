@@ -108,8 +108,11 @@ func TestBitbucketDescribeRepos_APIToken(t *testing.T) {
 	})
 
 	mux.HandleFunc("/repositories/my-workspace", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "100", r.URL.Query().Get("pagelen"))
+		require.Equal(t, "member", r.URL.Query().Get("role"))
+
 		resp := bitbucketGetProjectsResponse{
-			Pagelen: 10,
+			Pagelen: 100,
 			Values: []bitbucketProject{
 				{Scm: "git", Name: "repo-one", FullName: "my-workspace/repo-one"},
 			},
@@ -119,8 +122,11 @@ func TestBitbucketDescribeRepos_APIToken(t *testing.T) {
 	})
 
 	mux.HandleFunc("/repositories/other-ws", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "100", r.URL.Query().Get("pagelen"))
+		require.Equal(t, "member", r.URL.Query().Get("role"))
+
 		resp := bitbucketGetProjectsResponse{
-			Pagelen: 10,
+			Pagelen: 100,
 			Values: []bitbucketProject{
 				{Scm: "git", Name: "repo-two", FullName: "other-ws/repo-two"},
 				{Scm: "hg", Name: "hg-repo", FullName: "other-ws/hg-repo"},

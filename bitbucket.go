@@ -42,6 +42,8 @@ const (
 	bitbucketEnvVarWorkerDelay   = "BITBUCKET_WORKER_DELAY"
 	bitbucketEnvVarMaxConcurrent = "BITBUCKET_MAX_CONCURRENT"
 	bitbucketDefaultWorkerDelay  = 500
+	// bitbucketReposPerPageDefault is Bitbucket Cloud's maximum pagelen.
+	bitbucketReposPerPageDefault = 100
 )
 
 type NewBitBucketHostInput struct {
@@ -267,6 +269,9 @@ func urlWithBasicAuth(httpsURL, user, password string) string {
 // bitbucketAuthenticatedGet performs an authenticated GET request to the Bitbucket API,
 // returning the response body. It handles both API token and OAuth2 bearer token auth.
 func (bb BitbucketHost) bitbucketAuthenticatedGet(ctx context.Context, rawURL string) ([]byte, errors.E) {
+	ctx, cancel := context.WithTimeout(ctx, defaultHttpRequestTimeout)
+	defer cancel()
+
 	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create new request")
@@ -360,13 +365,26 @@ func (bb BitbucketHost) getWorkspaces(ctx context.Context) ([]string, errors.E) 
 }
 
 // listWorkspaceProjects returns every repository in the workspace visible to
-// the caller, following Bitbucket's pagination. A non-empty role narrows the
-// listing to repositories the authenticated user holds that role on.
+// the caller, following Bitbucket's pagination. The first request asks for
+// Bitbucket Cloud's maximum page size so a large workspace is a handful of
+// round trips rather than one per ten repositories. Later pages follow the
+// API's next URL as-is. A non-empty role narrows the listing to repositories
+// the authenticated user holds that role on.
 func (bb BitbucketHost) listWorkspaceProjects(ctx context.Context, workspace, role string) ([]bitbucketProject, errors.E) {
-	rawRequestURL := bb.APIURL + "/repositories/" + url.PathEscape(workspace)
-	if role != "" {
-		rawRequestURL += "?role=" + url.QueryEscape(role)
+	u, parseErr := url.Parse(bb.APIURL + "/repositories/" + url.PathEscape(workspace))
+	if parseErr != nil {
+		return nil, errors.Wrap(parseErr, "failed to parse BitBucket repositories URL")
 	}
+
+	q := u.Query()
+	q.Set("pagelen", strconv.Itoa(bitbucketReposPerPageDefault))
+
+	if role != "" {
+		q.Set("role", role)
+	}
+
+	u.RawQuery = q.Encode()
+	rawRequestURL := u.String()
 
 	var projects []bitbucketProject
 
@@ -402,18 +420,16 @@ func (bb BitbucketHost) describeRepos() (describeReposOutput, errors.E) {
 		return describeReposOutput{}, errors.New("no authentication method available - need either OAuth key/secret or API token/email")
 	}
 
-	wsCtx, wsCancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
-	defer wsCancel()
+	// Listing uses a background context so its duration can grow with the
+	// workspace. Each HTTP call still has defaultHttpRequestTimeout.
+	ctx := context.Background()
 
-	workspaces, wsErr := bb.getWorkspaces(wsCtx)
+	workspaces, wsErr := bb.getWorkspaces(ctx)
 	if wsErr != nil {
 		return describeReposOutput{}, errors.Wrap(wsErr, "failed to get BitBucket workspaces")
 	}
 
 	var repos []repository
-
-	ctx, cancel := context.WithTimeout(context.Background(), defaultHttpRequestTimeout)
-	defer cancel()
 
 	for _, workspace := range workspaces {
 		logger.Printf("listing repositories in BitBucket workspace: %s", workspace)

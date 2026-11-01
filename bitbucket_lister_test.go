@@ -57,7 +57,7 @@ func TestBitbucketListOrgRepos(t *testing.T) {
 
 	repos, err := newTestBitbucketHost(t, mux).ListOrgRepos(context.Background(), "ws")
 	require.NoError(t, err)
-	require.Empty(t, gotQuery, "a workspace listing is not narrowed to the caller's role")
+	require.Equal(t, "pagelen=100", gotQuery, "Bitbucket's default of 10 per page cannot list a large workspace in time")
 
 	auth := BasicAuth{User: bitbucketStaticUserName, Password: "test-bb-token"}
 
@@ -91,12 +91,15 @@ func TestBitbucketListOwnReposUsesWorkspacesAndMemberRole(t *testing.T) {
 
 	var roles []string
 
+	var pageLens []string
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/user/workspaces", func(w http.ResponseWriter, _ *http.Request) {
 		writeRaw(w, `{"values":[{"workspace":{"slug":"ws"}},{"workspace":{"slug":"team"}}]}`)
 	})
 	mux.HandleFunc("/repositories/ws", func(w http.ResponseWriter, r *http.Request) {
 		roles = append(roles, r.URL.Query().Get("role"))
+		pageLens = append(pageLens, r.URL.Query().Get("pagelen"))
 
 		if r.URL.Query().Get("page") == "2" {
 			writeRaw(w, `{"values":[{"scm":"git","name":"two","full_name":"ws/two"}]}`)
@@ -108,6 +111,7 @@ func TestBitbucketListOwnReposUsesWorkspacesAndMemberRole(t *testing.T) {
 	})
 	mux.HandleFunc("/repositories/team", func(w http.ResponseWriter, r *http.Request) {
 		roles = append(roles, r.URL.Query().Get("role"))
+		pageLens = append(pageLens, r.URL.Query().Get("pagelen"))
 
 		writeRaw(w, `{"values":[{"scm":"git","name":"three","full_name":"team/three"}]}`)
 	})
@@ -118,6 +122,7 @@ func TestBitbucketListOwnReposUsesWorkspacesAndMemberRole(t *testing.T) {
 	repos, err := host.ListOwnRepos(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, []string{"member", "member", "member"}, roles)
+	require.Equal(t, []string{"100", "", "100"}, pageLens, "the first request for each workspace asks for 100; Bitbucket's next URL is followed as-is")
 
 	paths := make([]string, 0, len(repos))
 	for _, r := range repos {
