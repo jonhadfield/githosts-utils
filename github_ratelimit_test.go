@@ -31,12 +31,12 @@ func TestIsGitHubPrimaryRateLimited(t *testing.T) {
 }
 
 func TestGitHubRateLimitWait(t *testing.T) {
-	t.Run("uses X-RateLimit-Reset", func(t *testing.T) {
+	t.Run("uses X-Ratelimit-Reset", func(t *testing.T) {
 		reset := time.Now().Add(90 * time.Second).Unix()
-		resp := &http.Response{Header: http.Header{}}
-		resp.Header.Set("X-RateLimit-Reset", strconv.FormatInt(reset, 10))
+		header := http.Header{}
+		header.Set("X-Ratelimit-Reset", strconv.FormatInt(reset, 10))
 
-		wait, resetAt := gitHubRateLimitWait(resp)
+		wait, resetAt := gitHubRateLimitWait(header)
 		if resetAt.Unix() != reset {
 			t.Fatalf("resetAt = %d, want %d", resetAt.Unix(), reset)
 		}
@@ -47,17 +47,17 @@ func TestGitHubRateLimitWait(t *testing.T) {
 	})
 
 	t.Run("falls back to Retry-After", func(t *testing.T) {
-		resp := &http.Response{Header: http.Header{}}
-		resp.Header.Set("Retry-After", "45")
+		header := http.Header{}
+		header.Set("Retry-After", "45")
 
-		wait, _ := gitHubRateLimitWait(resp)
+		wait, _ := gitHubRateLimitWait(header)
 		if wait != 45*time.Second {
 			t.Fatalf("wait = %s, want 45s", wait)
 		}
 	})
 
 	t.Run("no headers uses fallback", func(t *testing.T) {
-		wait, _ := gitHubRateLimitWait(&http.Response{Header: http.Header{}})
+		wait, _ := gitHubRateLimitWait(http.Header{})
 		if wait != rateLimitFallbackWait {
 			t.Fatalf("wait = %s, want %s", wait, rateLimitFallbackWait)
 		}

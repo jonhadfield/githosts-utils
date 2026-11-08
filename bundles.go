@@ -789,7 +789,7 @@ func checkBundleIsDuplicate(workingPath, backupPath, encryptionPassphrase string
 	var shouldReplace bool
 
 	// Case 1: Both encrypted - try manifest comparison first, then file comparison
-	//nolint:gocritic // ifElseChain is clearer for these complex encryption scenarios
+	//nolint:gocritic,nestif // ifElseChain and nesting are clearer for these encryption scenarios
 	if workingIsEncrypted && backupIsEncrypted {
 		// Try to use manifest files for comparison if they exist
 		workingManifest, _ := readBundleManifestWithPassphrase(workingBundlePath, encryptionPassphrase)
@@ -1017,6 +1017,7 @@ func readBundleManifestWithPassphrase(bundlePath, passphrase string) (*BundleMan
 	var err error
 
 	// If it's an encrypted manifest, decrypt it first
+	//nolint:nestif // decrypt-vs-plain branches share one unmarshal path below
 	if strings.HasSuffix(manifestPath, encryptedBundleExtension) {
 		if passphrase == "" {
 			return nil, nil // Can't decrypt without passphrase

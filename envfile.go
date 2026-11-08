@@ -19,7 +19,8 @@ func getEnvOrFile(envVar string) string {
 	fileEnv := envVar + "_FILE"
 	filePath := strings.TrimSpace(os.Getenv(fileEnv))
 	if filePath != "" {
-		if b, err := os.ReadFile(filePath); err == nil {
+		// Path is the operator-configured *_FILE env value, not untrusted input.
+		if b, err := os.ReadFile(filePath); err == nil { //nolint:gosec // G703: intentional secret-file path from env
 			return strings.TrimSpace(string(b))
 		}
 	}

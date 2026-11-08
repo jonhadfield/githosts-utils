@@ -561,18 +561,22 @@ func TestSourcehutDescribeRepos_Pagination(t *testing.T) {
 		if callCount == 1 {
 			cursor := "cursor-page-2"
 			resp.Data.Repositories.Results = []sourcehutRepository{
-				{ID: 1, Name: "repo-1", Visibility: "public",
+				{
+					ID: 1, Name: "repo-1", Visibility: "public",
 					Owner: struct {
 						Username string `json:"username"`
-					}{Username: "~user"}},
+					}{Username: "~user"},
+				},
 			}
 			resp.Data.Repositories.Cursor = &cursor
 		} else {
 			resp.Data.Repositories.Results = []sourcehutRepository{
-				{ID: 2, Name: "repo-2", Visibility: "public",
+				{
+					ID: 2, Name: "repo-2", Visibility: "public",
 					Owner: struct {
 						Username string `json:"username"`
-					}{Username: "~user"}},
+					}{Username: "~user"},
+				},
 			}
 			resp.Data.Repositories.Cursor = nil
 		}

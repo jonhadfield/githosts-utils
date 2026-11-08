@@ -97,7 +97,7 @@ func TestPruneBackupsSkipsAlreadyInvalid(t *testing.T) {
 
 	for _, name := range invalidFiles {
 		filePath := filepath.Join(tempDir, name)
-		err := os.WriteFile(filePath, []byte("already invalid"), 0644)
+		err := os.WriteFile(filePath, []byte("already invalid"), 0o644)
 		require.NoError(t, err)
 	}
 

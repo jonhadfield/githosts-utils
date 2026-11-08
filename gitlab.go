@@ -311,6 +311,7 @@ func makeGitLabRequest(parent context.Context, c *http.Client, reqUrl, token str
 	if token != "" {
 		req.Header.Set("Private-Token", token)
 	}
+
 	req.Header.Set(HeaderContentType, contentTypeApplicationJSON)
 	req.Header.Set(HeaderAccept, contentTypeApplicationJSON)
 

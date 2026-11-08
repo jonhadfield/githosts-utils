@@ -266,7 +266,7 @@ func githubRequestTimeout() time.Duration {
 // it returns a clear, actionable error.
 func (gh *GitHubHost) makeGithubRequest(ctx context.Context, payload string) (string, errors.E) {
 	for attempt := 0; ; attempt++ {
-		bodyStr, resp, err := gh.doGithubRequest(ctx, payload)
+		bodyStr, header, err := gh.doGithubRequest(ctx, payload)
 		if err != nil {
 			return "", err
 		}
@@ -275,7 +275,7 @@ func (gh *GitHubHost) makeGithubRequest(ctx context.Context, payload string) (st
 			return bodyStr, nil
 		}
 
-		wait, resetAt := gitHubRateLimitWait(resp)
+		wait, resetAt := gitHubRateLimitWait(header)
 		maxWait := gitHubRateLimitMaxWait()
 
 		if attempt >= githubRateLimitMaxRetries || maxWait <= 0 || wait > maxWait {
@@ -300,7 +300,7 @@ func (gh *GitHubHost) makeGithubRequest(ctx context.Context, payload string) (st
 	}
 }
 
-func (gh *GitHubHost) doGithubRequest(parent context.Context, payload string) (string, *http.Response, errors.E) {
+func (gh *GitHubHost) doGithubRequest(parent context.Context, payload string) (string, http.Header, errors.E) {
 	contentReader := bytes.NewReader([]byte(payload))
 
 	ctx, cancel := context.WithTimeout(parent, githubRequestTimeout())
@@ -324,14 +324,14 @@ func (gh *GitHubHost) doGithubRequest(parent context.Context, payload string) (s
 		return "", nil, errors.Wrap(reqErr, "failed to make request")
 	}
 
+	defer resp.Body.Close()
+
 	bodyB, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Print(err)
 
 		return "", nil, errors.Wrap(err, "failed to read response body")
 	}
-
-	defer resp.Body.Close()
 
 	gh.apiStats.recordRequest()
 	logGitHubRateLimitHeaders(resp)
@@ -356,7 +356,7 @@ func (gh *GitHubHost) doGithubRequest(parent context.Context, payload string) (s
 		return "", nil, errors.New("GitHub authorisation failed")
 	}
 
-	return bodyStr, resp, nil
+	return bodyStr, resp.Header.Clone(), nil
 }
 
 // isGitHubPrimaryRateLimited reports whether a GraphQL response body carries a
@@ -386,22 +386,24 @@ func isGitHubPrimaryRateLimited(body string) bool {
 }
 
 // gitHubRateLimitWait returns how long to wait for the primary quota to reset,
-// preferring X-RateLimit-Reset (unix seconds) then Retry-After (seconds), and
+// preferring X-Ratelimit-Reset (unix seconds) then Retry-After (seconds), and
 // the reset time. When neither header is present it falls back to a short wait.
-func gitHubRateLimitWait(resp *http.Response) (time.Duration, time.Time) {
-	if resp != nil {
-		if v := resp.Header.Get("X-RateLimit-Reset"); v != "" {
-			if secs, err := strconv.ParseInt(v, 10, 64); err == nil {
-				resetAt := time.Unix(secs, 0)
+func gitHubRateLimitWait(header http.Header) (time.Duration, time.Time) {
+	if header == nil {
+		return rateLimitFallbackWait, time.Now().Add(rateLimitFallbackWait)
+	}
 
-				return time.Until(resetAt), resetAt
-			}
+	if v := header.Get("X-Ratelimit-Reset"); v != "" {
+		if secs, err := strconv.ParseInt(v, 10, 64); err == nil {
+			resetAt := time.Unix(secs, 0)
+
+			return time.Until(resetAt), resetAt
 		}
+	}
 
-		if v := resp.Header.Get("Retry-After"); v != "" {
-			if secs, err := strconv.Atoi(v); err == nil {
-				return time.Duration(secs) * time.Second, time.Now().Add(time.Duration(secs) * time.Second)
-			}
+	if v := header.Get("Retry-After"); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil {
+			return time.Duration(secs) * time.Second, time.Now().Add(time.Duration(secs) * time.Second)
 		}
 	}
 

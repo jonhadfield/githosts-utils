@@ -331,7 +331,7 @@ func listProjects(ctx context.Context, cClient azdevopscore.Client) ([]azdevopsc
 			return nil, fmt.Errorf("failed to get projects: %w", err)
 		}
 
-		projects = append(projects, (responseValue).Value...)
+		projects = append(projects, responseValue.Value...)
 
 		if responseValue.ContinuationToken == "" {
 			break

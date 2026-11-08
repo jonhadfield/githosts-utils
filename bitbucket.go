@@ -249,13 +249,6 @@ type bitbucketAuthResponse struct {
 	TokenType    string `json:"token_type"`
 }
 
-type bitbucketErrorResponse struct {
-	Type  string `json:"type"`
-	Error struct {
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
 //nolint:unused // Kept for potential future use
 func urlWithBasicAuth(httpsURL, user, password string) string {
 	parts := strings.SplitN(httpsURL, "//", urlProtocolParts)

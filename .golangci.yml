@@ -1,5 +1,11 @@
 version: "2"
 
+run:
+  # Integration tests share helpers in untagged *_test.go files; without this
+  # tag the unused linter treats those helpers as dead code.
+  build-tags:
+    - integration
+
 linters:
   enable:
     - asasalint
@@ -26,7 +32,7 @@ linters:
     - gocritic
     - goheader
     - gomoddirectives
-    - gomodguard
+    - gomodguard_v2
     - goprintffuncname
     - gosec
     - gosmopolitan
@@ -66,6 +72,10 @@ linters:
     - wrapcheck
     - wsl_v5
     - zerologlint
+  settings:
+    goconst:
+      # Default of 3 fires heavily on repeated short API path fragments in tests.
+      min-occurrences: 5
   exclusions:
     generated: lax
     presets:
@@ -77,6 +87,19 @@ linters:
       - third_party$
       - builtin$
       - examples$
+    rules:
+      # Tests use fixture tokens, intentional 0644 writes, and local git helpers;
+      # keep the strict rules on production code.
+      - path: _test\.go
+        linters:
+          - goconst
+          - gosec
+          - errchkjson
+          - wrapcheck
+          - wsl_v5
+          - noctx
+          - nlreturn
+          - unparam
 formatters:
   enable:
     - gofmt

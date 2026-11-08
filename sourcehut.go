@@ -243,6 +243,7 @@ func (sh *SourcehutHost) describeSourcehutUserRepos(ctx context.Context) ([]repo
 	}
 
 	logger.Printf("Found %d public SourceHut repositories for backup", len(repos))
+
 	return repos, nil
 }
 

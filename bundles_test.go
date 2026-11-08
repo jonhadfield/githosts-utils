@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-
 func TestRenameInvalidBundle(t *testing.T) {
 	if getEnvOrFile(envGithubToken) == "" {
 		t.Skip("Skipping GitHub test as GITHUB_TOKEN is missing")
