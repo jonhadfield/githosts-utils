@@ -84,7 +84,7 @@ host, err := githosts.NewCodebergHost(githosts.NewCodebergHostInput{
 
 `/user/repos` already includes repositories owned by your organisations, so repositories reachable both ways are backed up once.
 
-Codeberg is a donation-funded shared host, so this provider defaults to lower concurrency and a longer delay between repositories than the Gitea one. Override the delay with `CODEBERG_WORKER_DELAY` (milliseconds) and the number of repositories backed up at once with `CODEBERG_MAX_CONCURRENT`.
+Codeberg is a donation-funded shared host, so this provider defaults to lower concurrency and a longer delay between repositories than the Gitea one. See [Backup concurrency](#backup-concurrency) for the override variables and defaults.
 
 ### Listing Repositories
 
@@ -159,6 +159,20 @@ The library reads the following variables where relevant:
 - `GITHOSTS_LOG` – set to `debug` to emit verbose logs
 - `GIT_BACKUP_DIR` – used by the tests to determine the backup location
 - `BUNDLE_PASSPHRASE` – optional passphrase for encrypting backup bundles
+
+### Backup concurrency
+
+Each host backs up several repositories at once. Lower the concurrent count when memory is tight (each worker clones and writes a bundle); raise the delay when a provider rate-limits aggressive runs. Non-positive or unparsable values keep the default.
+
+| Host | Concurrent repos | Default | Delay between repos (ms) | Default |
+|---|---|---|---|---|
+| GitHub | `GITHUB_MAX_CONCURRENT` | 10 | `GITHUB_WORKER_DELAY` | 500 |
+| GitLab | `GITLAB_MAX_CONCURRENT` | 5 | `GITLAB_WORKER_DELAY` | 500 |
+| Bitbucket | `BITBUCKET_MAX_CONCURRENT` | 5 | `BITBUCKET_WORKER_DELAY` | 500 |
+| Azure DevOps | `AZURE_DEVOPS_MAX_CONCURRENT` | 10 | `AZURE_DEVOPS_WORKER_DELAY` | 500 |
+| Gitea | `GITEA_MAX_CONCURRENT` | 5 | `GITEA_WORKER_DELAY` | 500 |
+| Codeberg | `CODEBERG_MAX_CONCURRENT` | 5 | `CODEBERG_WORKER_DELAY` | 1000 |
+| Sourcehut | `SOURCEHUT_MAX_CONCURRENT` | 5 | `SOURCEHUT_WORKER_DELAY` | 500 |
 
 Provider-specific tests require credentials through environment variables such as `GITHUB_TOKEN`, `GITLAB_TOKEN`, `BITBUCKET_EMAIL` and `BITBUCKET_API_TOKEN` (or `BITBUCKET_KEY` and `BITBUCKET_SECRET` for OAuth2), `AZURE_DEVOPS_USERNAME`, `AZURE_DEVOPS_PAT`, and `AZURE_DEVOPS_ORGS`, `GITEA_TOKEN` and `GITEA_APIURL`, `CODEBERG_TOKEN`, and `SOURCEHUT_PAT`.
 
