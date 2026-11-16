@@ -153,7 +153,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 		name:              "soba-org-one-repo-one",
 		pathWithNamespace: "soba-org-one/soba-org-one-repo-one",
 		httpsUrl:          "https://gitea.lessknown.co.uk/soba-org-one/soba-org-one-repo-one.git",
-		// sshUrl:            "TODO",
+		sshUrl:            "git@gitea.lessknown.co.uk:soba-org-one/soba-org-one-repo-one.git",
 	}))
 
 	require.False(t, repoExists(repoExistsInput{
@@ -162,7 +162,7 @@ func TestGetOrganizationsRepos(t *testing.T) {
 		name:              "soba-org-two-repo-two",
 		pathWithNamespace: "soba-org-two/soba-org-two-repo-two",
 		httpsUrl:          "https://gitea.lessknown.co.uk/soba-org-two/soba-org-two-repo-two.git",
-		// sshUrl:            "TODO",
+		sshUrl:            "git@gitea.lessknown.co.uk:soba-org-two/soba-org-two-repo-two.git",
 	}))
 
 	restoreEnvironmentVariables(envBackup)
