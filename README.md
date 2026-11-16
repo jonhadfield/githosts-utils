@@ -86,6 +86,10 @@ host, err := githosts.NewCodebergHost(githosts.NewCodebergHostInput{
 
 Codeberg is a donation-funded shared host, so this provider defaults to lower concurrency and a longer delay between repositories than the Gitea one. See [Backup concurrency](#backup-concurrency) for the override variables and defaults.
 
+### Sourcehut
+
+Sourcehut has users rather than organisations. The host's `Orgs` field still accepts a list of usernames (with or without a leading `~`); Backup includes each named user's public repositories alongside the token owner's, unless `SkipUserRepos` is set. Private and unlisted repositories are skipped because they cannot be cloned over HTTPS with a personal access token.
+
 ### Listing Repositories
 
 Every host also implements `Lister`, for tools that need a provider's repositories without backing them up:
@@ -107,7 +111,7 @@ repos, err := host.ListOrgRepos(ctx, "my-org")
 | Azure DevOps | every repository in the first configured organisation, as `Backup()` processes | not supported | every repository in every project of the organisation | users' principal names (needs the Member Entitlement Management read scope) |
 | Gitea | every user's repositories, through the admin endpoints `Backup()` uses (needs a site-admin token) | the user's repositories | the organisation's repositories | member logins (non-members see public members only) |
 | Codeberg | the token's repositories (`/user/repos`), honouring `LimitUserOwned` | the user's repositories | the organisation's repositories | member logins (non-members see public members only) |
-| Sourcehut | the token owner's public repositories, as `Backup()` processes | the user's repositories the token can see (`~` optional) | not supported | not supported |
+| Sourcehut | the token owner's public repositories (Backup also adds `Orgs` usernames) | the user's repositories the token can see (`~` optional) | not supported | not supported |
 
 Each `Repository` reports `IsFork`, `IsArchived`, `IsEmpty`, `IsPrivate` and `SizeKB`, and carries a `CloneURL` without credentials plus the `Auth` it needs, so a caller can clone with its own git implementation without credentials appearing in URLs. A method a provider cannot support returns an error wrapping `ErrNotSupported`. Where a provider has no such field, the value is false or 0:
 

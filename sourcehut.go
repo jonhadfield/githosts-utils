@@ -41,8 +41,12 @@ type NewSourcehutHostInput struct {
 	PersonalAccessToken  string
 	LimitUserOwned       bool
 	SkipUserRepos        bool
-	Orgs                 []string
-	BackupsToRetain      int
+	// Orgs lists SourceHut usernames whose public repositories should be
+	// backed up in addition to the token owner's (unless SkipUserRepos).
+	// SourceHut has no organisations; the name matches other hosts' input.
+	// Usernames may include a leading "~".
+	Orgs            []string
+	BackupsToRetain int
 	LogLevel             int
 	BackupLFS            bool
 	EncryptionPassphrase string
@@ -352,30 +356,78 @@ func sourcehutRepoToRepository(repo sourcehutRepository) repository {
 }
 
 func (sh *SourcehutHost) describeRepos() (describeReposOutput, errors.E) {
+	ctx := context.Background()
+
 	var repos []repository
 
 	if !sh.SkipUserRepos {
-		// get authenticated user's owned repos
-		var err errors.E
-
-		repos, err = sh.describeSourcehutUserRepos(context.Background())
+		userRepos, err := sh.describeSourcehutUserRepos(ctx)
 		if err != nil {
 			logger.Print("failed to get SourceHut user repos")
 
 			return describeReposOutput{}, err
 		}
+
+		repos = append(repos, userRepos...)
 	}
 
-	// SourceHut doesn't have organizations like GitHub/GitLab
-	// If specific usernames are provided, we could potentially query their public repos
-	// but this functionality is not currently supported by this implementation
-	if len(sh.Orgs) > 0 {
-		logger.Printf("Warning: SourceHut organization support not implemented, ignoring %d org(s)", len(sh.Orgs))
+	seen := make(map[string]struct{}, len(repos))
+	for _, r := range repos {
+		seen[r.PathWithNameSpace] = struct{}{}
+	}
+
+	for _, org := range sh.Orgs {
+		username := strings.TrimSpace(org)
+		if username == "" {
+			continue
+		}
+
+		namedRepos, err := sh.describeSourcehutNamedUserRepos(ctx, username)
+		if err != nil {
+			return describeReposOutput{}, err
+		}
+
+		for _, r := range namedRepos {
+			if _, ok := seen[r.PathWithNameSpace]; ok {
+				continue
+			}
+
+			seen[r.PathWithNameSpace] = struct{}{}
+			repos = append(repos, r)
+		}
 	}
 
 	return describeReposOutput{
 		Repos: repos,
 	}, nil
+}
+
+// describeSourcehutNamedUserRepos returns the named user's public repositories
+// for Backup. Non-public repositories are skipped for the same HTTPS auth
+// reason as describeSourcehutUserRepos. The username may include a leading "~".
+func (sh *SourcehutHost) describeSourcehutNamedUserRepos(ctx context.Context, user string) ([]repository, errors.E) {
+	logger.Printf("listing SourceHut repositories for user %s", user)
+
+	results, err := sh.fetchSourcehutUserRepos(ctx, user, "")
+	if err != nil {
+		return nil, err
+	}
+
+	var repos []repository
+
+	for _, repo := range results {
+		if !isSourcehutPublic(repo) {
+			logger.Printf("Skipping private SourceHut repository %s (visibility: %s) - HTTPS cloning not supported for private repos", repo.Name, repo.Visibility)
+
+			continue
+		}
+
+		repos = append(repos, sourcehutRepoToRepository(repo))
+	}
+
+	logger.Printf("Found %d public SourceHut repositories for user %s", len(repos), user)
+
+	return repos, nil
 }
 
 func sourcehutWorker(config WorkerConfig, jobs <-chan repository, results chan<- RepoBackupResults) {

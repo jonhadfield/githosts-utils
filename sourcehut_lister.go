@@ -18,9 +18,12 @@ var _ Lister = (*SourcehutHost)(nil)
 const sourcehutListerExtraFields = ` HEAD { name }`
 
 // sourcehutUserReposQuery lists the repositories owned by $username, a page at
-// a time. The username is passed as a variable, never interpolated.
-var sourcehutUserReposQuery = `query ($username: String!, $cursor: Cursor) { user(username: $username) { repositories(` +
-	sourcehutRepoPageArgs + `) { results { ` + sourcehutRepoResultFields + sourcehutListerExtraFields + ` } cursor } } }`
+// a time, selecting extraFields as well as sourcehutRepoResultFields. The
+// username is passed as a variable, never interpolated.
+func sourcehutUserReposQuery(extraFields string) string {
+	return `query ($username: String!, $cursor: Cursor) { user(username: $username) { repositories(` +
+		sourcehutRepoPageArgs + `) { results { ` + sourcehutRepoResultFields + extraFields + ` } cursor } } }`
+}
 
 type sourcehutUserRepositoriesResponse struct {
 	Data struct {
@@ -29,6 +32,39 @@ type sourcehutUserRepositoriesResponse struct {
 		} `json:"user"`
 	} `json:"data"`
 	Errors sourcehutGraphQLErrors `json:"errors"`
+}
+
+// decodeSourcehutUserRepos extracts the page from a response to
+// sourcehutUserReposQuery for the named user.
+func decodeSourcehutUserRepos(body []byte, username string) (sourcehutRepositoryCursor, errors.E) {
+	var respObj sourcehutUserRepositoriesResponse
+	if uErr := json.Unmarshal(body, &respObj); uErr != nil {
+		return sourcehutRepositoryCursor{}, errors.Wrap(uErr, "failed to unmarshal response")
+	}
+
+	if err := respObj.Errors.asError(); err != nil {
+		return sourcehutRepositoryCursor{}, err
+	}
+
+	if respObj.Data.User == nil {
+		return sourcehutRepositoryCursor{}, errors.Errorf("SourceHut user %s not found", username)
+	}
+
+	return respObj.Data.User.Repositories, nil
+}
+
+// fetchSourcehutUserRepos pages the named user's repositories with the given
+// extra GraphQL fields. The username may include a leading "~".
+func (sh *SourcehutHost) fetchSourcehutUserRepos(ctx context.Context, user, extraFields string) ([]sourcehutRepository, errors.E) {
+	username := strings.TrimPrefix(strings.TrimSpace(user), sourcehutTildePrefix)
+	if username == "" {
+		return nil, errors.Errorf("invalid SourceHut username %q", user)
+	}
+
+	return sh.pageSourcehutRepos(ctx, sourcehutUserReposQuery(extraFields), map[string]any{"username": username},
+		func(body []byte) (sourcehutRepositoryCursor, errors.E) {
+			return decodeSourcehutUserRepos(body, username)
+		})
 }
 
 // cloneAuth returns the credentials Backup clones with: the token as the
@@ -98,28 +134,7 @@ func (sh *SourcehutHost) ListOwnRepos(ctx context.Context) ([]Repository, error)
 // repository can be read by anyone with its URL, but it is not public in the
 // sense Backup uses, and Backup skips it.
 func (sh *SourcehutHost) ListUserRepos(ctx context.Context, user string) ([]Repository, error) {
-	username := strings.TrimPrefix(strings.TrimSpace(user), sourcehutTildePrefix)
-	if username == "" {
-		return nil, errors.Errorf("invalid SourceHut username %q", user)
-	}
-
-	results, err := sh.pageSourcehutRepos(ctx, sourcehutUserReposQuery, map[string]any{"username": username},
-		func(body []byte) (sourcehutRepositoryCursor, errors.E) {
-			var respObj sourcehutUserRepositoriesResponse
-			if uErr := json.Unmarshal(body, &respObj); uErr != nil {
-				return sourcehutRepositoryCursor{}, errors.Wrap(uErr, "failed to unmarshal response")
-			}
-
-			if err := respObj.Errors.asError(); err != nil {
-				return sourcehutRepositoryCursor{}, err
-			}
-
-			if respObj.Data.User == nil {
-				return sourcehutRepositoryCursor{}, errors.Errorf("SourceHut user %s not found", username)
-			}
-
-			return respObj.Data.User.Repositories, nil
-		})
+	results, err := sh.fetchSourcehutUserRepos(ctx, user, sourcehutListerExtraFields)
 	if err != nil {
 		return nil, err
 	}

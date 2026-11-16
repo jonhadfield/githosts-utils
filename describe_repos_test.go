@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -614,6 +615,78 @@ func TestSourcehutDescribeRepos_Unauthorized(t *testing.T) {
 
 	_, err = host.describeRepos()
 	require.Error(t, err)
+}
+
+func TestSourcehutDescribeRepos_WithOrgs(t *testing.T) {
+	var reqs []sourcehutTestRequest
+
+	srv := mockServer(t, sourcehutQueries(t, &reqs, func(req sourcehutTestRequest) string {
+		if strings.Contains(req.Query, "user(username: $username)") {
+			require.Equal(t, "other", req.Variables["username"])
+			require.NotContains(t, req.Query, "HEAD", "Backup's named-user query must not need the OBJECTS scope")
+
+			return `{"data":{"user":{"repositories":{"results":[
+				{"id":10,"name":"theirs","visibility":"PUBLIC","owner":{"username":"other"}},
+				{"id":11,"name":"secret","visibility":"PRIVATE","owner":{"username":"other"}},
+				{"id":12,"name":"mine-too","visibility":"PUBLIC","owner":{"username":"testuser"}}
+			],"cursor":null}}}}`
+		}
+
+		return `{"data":{"repositories":{"results":[
+			{"id":1,"name":"mine","visibility":"PUBLIC","owner":{"username":"testuser"}},
+			{"id":2,"name":"mine-too","visibility":"PUBLIC","owner":{"username":"testuser"}}
+		],"cursor":null}}}`
+	}))
+
+	host, err := NewSourcehutHost(NewSourcehutHostInput{
+		HTTPClient:          testHTTPClient(),
+		APIURL:              srv.URL,
+		BackupDir:           t.TempDir(),
+		PersonalAccessToken: sourcehutTestToken,
+		Orgs:                []string{"~other"},
+	})
+	require.NoError(t, err)
+
+	result, err := host.describeRepos()
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(result.Repos))
+	for _, r := range result.Repos {
+		names = append(names, r.PathWithNameSpace)
+	}
+
+	require.Equal(t, []string{"testuser/mine", "testuser/mine-too", "other/theirs"}, names,
+		"own public repos plus the named user's public repos, deduped by path")
+	require.Len(t, reqs, 2)
+}
+
+func TestSourcehutDescribeRepos_OrgsOnly(t *testing.T) {
+	var reqs []sourcehutTestRequest
+
+	srv := mockServer(t, sourcehutQueries(t, &reqs, func(req sourcehutTestRequest) string {
+		require.Contains(t, req.Query, "user(username: $username)")
+		require.Equal(t, "other", req.Variables["username"])
+
+		return `{"data":{"user":{"repositories":{"results":[
+			{"id":10,"name":"theirs","visibility":"PUBLIC","owner":{"username":"other"}}
+		],"cursor":null}}}}`
+	}))
+
+	host, err := NewSourcehutHost(NewSourcehutHostInput{
+		HTTPClient:          testHTTPClient(),
+		APIURL:              srv.URL,
+		BackupDir:           t.TempDir(),
+		PersonalAccessToken: sourcehutTestToken,
+		SkipUserRepos:       true,
+		Orgs:                []string{"other"},
+	})
+	require.NoError(t, err)
+
+	result, err := host.describeRepos()
+	require.NoError(t, err)
+	require.Len(t, result.Repos, 1)
+	require.Equal(t, "other/theirs", result.Repos[0].PathWithNameSpace)
+	require.Len(t, reqs, 1)
 }
 
 // --- Azure DevOps ---
